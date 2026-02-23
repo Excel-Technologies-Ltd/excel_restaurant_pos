@@ -10,17 +10,17 @@ from .report_helper import (
 def parse_order_by(order_by_value, default_order_by="amount DESC"):
     """
     Parse and validate order_by parameter from frontend.
-    
+
     Expected format: "field_name ASC" or "field_name DESC" or just "field_name" (defaults to ASC)
     Multiple fields: "field1 DESC, field2 ASC"
-    
+
     Allowed fields: item_name, item_group, sold_qty, amount
-    
+
     Returns safe SQL ORDER BY clause string.
     """
     if not order_by_value:
         return default_order_by
-    
+
     # Allowed fields mapping (frontend name -> SQL expression)
     allowed_fields = {
         "item_name": "TSII.`item_name`",
@@ -28,7 +28,7 @@ def parse_order_by(order_by_value, default_order_by="amount DESC"):
         "sold_qty": "SUM(COALESCE(TSII.`qty`, 0))",
         "amount": "SUM(COALESCE(TSII.`amount`, 0))",
     }
-    
+
     # Parse order_by - could be string or JSON array
     if isinstance(order_by_value, str):
         # Try to parse as JSON first (in case it's a JSON string)
@@ -45,39 +45,42 @@ def parse_order_by(order_by_value, default_order_by="amount DESC"):
         order_parts = [str(part).strip() for part in order_by_value]
     else:
         order_parts = [str(order_by_value).strip()]
-    
+
     order_clauses = []
     for part in order_parts:
         if not part:
             continue
-            
+
         # Split by space to get field and direction
         tokens = part.strip().split()
         field_name = tokens[0].lower()
         direction = tokens[1].upper() if len(tokens) > 1 else "ASC"
-        
+
         # Validate field name
         if field_name not in allowed_fields:
             frappe.throw(
-                frappe._(
-                    "Invalid order_by field: {0}. Allowed fields: {1}"
-                ).format(field_name, ", ".join(allowed_fields.keys())),
+                frappe._("Invalid order_by field: {0}. Allowed fields: {1}").format(
+                    field_name, ", ".join(allowed_fields.keys())
+                ),
                 frappe.ValidationError,
             )
-        
+
         # Validate direction
         if direction not in ["ASC", "DESC"]:
             frappe.throw(
-                frappe._("Invalid order_by direction: {0}. Must be ASC or DESC").format(direction),
+                frappe._("Invalid order_by direction: {0}. Must be ASC or DESC").format(
+                    direction
+                ),
                 frappe.ValidationError,
             )
-        
+
         order_clauses.append(f"{allowed_fields[field_name]} {direction}")
-    
+
     if not order_clauses:
         return default_order_by
-    
+
     return ", ".join(order_clauses)
+
 
 @frappe.whitelist()
 def get_item_sales_summery():
@@ -105,9 +108,11 @@ def get_item_sales_summery():
 
     item_group = normalize_optional_string(data.get("item_group"))
     item_name = normalize_optional_string(data.get("item_name"))
-    
+
     # Parse and validate order_by
-    order_by = parse_order_by(data.get("order_by"), default_order_by="SUM(COALESCE(TSII.`amount`, 0)) DESC")
+    order_by = parse_order_by(
+        data.get("order_by"), default_order_by="SUM(COALESCE(TSII.`amount`, 0)) DESC"
+    )
 
     # Frappe-style pagination
     limit_start = as_int("limit_start", data.get("limit_start"), 0)
@@ -170,7 +175,7 @@ def get_item_sales_summery():
             f"""
             SELECT
                 SUM(COALESCE(TSII.`qty`, 0)) AS `total_qty`,
-                SUM(COALESCE(TSII.`amount`, 0)) AS `total_amount`
+                SUM(COALESCE(TSII.`net_amount`, 0)) AS `total_amount`
             FROM `tabSales Invoice Item` TSII
             INNER JOIN `tabSales Invoice` TI ON TSII.`parent` = TI.`name`
             WHERE {where_sql}
@@ -185,7 +190,7 @@ def get_item_sales_summery():
                 TSII.`item_name`,
                 TSII.`item_group`,
                 SUM(COALESCE(TSII.`qty`, 0)) AS `sold_qty`,
-                SUM(COALESCE(TSII.`amount`, 0)) AS `amount`
+                SUM(COALESCE(TSII.`net_amount`, 0)) AS `amount`
             FROM `tabSales Invoice Item` TSII
             INNER JOIN `tabSales Invoice` TI ON TSII.`parent` = TI.`name`
             WHERE {where_sql}
