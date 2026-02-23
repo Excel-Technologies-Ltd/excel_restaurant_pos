@@ -93,8 +93,8 @@ def _handle_order_notification(event_type, event_id, order_id, resource_href):
     """Handle orders.notification and orders.scheduled.notification.
 
     Workflow:
-    1. Enqueue staff notifications immediately (email + push + notification log)
-    2. Enqueue order detail fetch (via resource_href) and Channel Order creation
+    1. Fetch full order details and create Channel Order
+    2. Notify staff with the Channel Order ID so the notification links directly to it
     """
     if not order_id:
         frappe.log_error("Uber Eats Webhook", "Missing resource_id in webhook")
@@ -107,15 +107,7 @@ def _handle_order_notification(event_type, event_id, order_id, resource_href):
 
     is_scheduled = event_type == "orders.scheduled.notification"
 
-    # Step 1: Notify staff immediately (non-blocking, short queue)
-    frappe.enqueue(
-        "excel_restaurant_pos.api.uber_eats.uber_eats._notify_staff_new_order",
-        queue="short",
-        order_id=order_id,
-        is_scheduled=is_scheduled,
-    )
-
-    # Step 2: Fetch full order details and create Channel Order
+    # Fetch full order details, create Channel Order, then notify staff with the doc ID
     frappe.enqueue(
         "excel_restaurant_pos.api.uber_eats.uber_eats.process_uber_eats_order",
         queue="default",
@@ -206,16 +198,16 @@ def _handle_report_success(data):
 # Step 1 — Notify staff immediately on webhook receipt
 # ---------------------------------------------------------------------------
 
-def _notify_staff_new_order(order_id, is_scheduled=False):
-    """Background job: Send push and Notification Log to restaurant staff immediately.
+def _notify_staff_new_order(order_id, is_scheduled=False, channel_order_name=None):
+    """Background job: Send push and Notification Log to restaurant staff.
 
-    Called immediately when the webhook is received, before fetching full
-    order details. Template email (which needs doc.name / doc.store_name) is
-    sent separately in process_uber_eats_order once the Channel Order exists.
+    Called from process_uber_eats_order after the Channel Order is saved so
+    that channel_order_name is available for direct redirect from the notification.
 
     Args:
         order_id: Uber Eats order UUID
         is_scheduled: True if this is a scheduled order
+        channel_order_name: Saved Channel Order document name (for redirect link)
     """
     try:
         roles = ["ArcPOS Channel User"]
@@ -238,13 +230,13 @@ def _notify_staff_new_order(order_id, is_scheduled=False):
             return
 
         order_label = "Scheduled Uber Eats Order" if is_scheduled else "New Uber Eats Order"
-        title = f"{order_label} Received"
+        title = f"{order_label} Received" + (f" : {channel_order_name}" if channel_order_name else "")
         body = f"A new order has been received via Uber Eats.\nOrder ID: {order_id}"
 
         # 1. Create Notification Log for each user
         for user_email in user_emails:
             try:
-                frappe.get_doc({
+                log = {
                     "doctype": "Notification Log",
                     "for_user": user_email,
                     "from_user": "Administrator",
@@ -252,7 +244,11 @@ def _notify_staff_new_order(order_id, is_scheduled=False):
                     "email_content": body,
                     "type": "Alert",
                     "read": 0,
-                }).insert(ignore_permissions=True)
+                }
+                if channel_order_name:
+                    log["document_type"] = "Channel Order"
+                    log["document_name"] = channel_order_name
+                frappe.get_doc(log).insert(ignore_permissions=True)
             except Exception as e:
                 frappe.log_error(
                     f"Error creating Notification Log for {user_email}: {e}",
@@ -266,6 +262,7 @@ def _notify_staff_new_order(order_id, is_scheduled=False):
                         "title": title,
                         "body": body,
                         "order_id": order_id,
+                        "channel_order_name": channel_order_name,
                     },
                     user=user_email,
                 )
@@ -299,6 +296,7 @@ def _notify_staff_new_order(order_id, is_scheduled=False):
                                 body=body,
                                 data={
                                     "order_id": order_id,
+                                    "channel_order_name": channel_order_name,
                                     "notification_type": "new_uber_eats_order",
                                     "is_scheduled": is_scheduled,
                                 },
@@ -451,6 +449,9 @@ def process_uber_eats_order(resource_href, order_id, event_id, is_scheduled=Fals
 
         # Create Channel Order record (state stays CREATED until staff acts)
         channel_order = _create_channel_order(order, event_id, is_scheduled=is_scheduled)
+
+        # Notify staff now that we have the Channel Order ID for direct redirect
+        _notify_staff_new_order(order_id, is_scheduled, channel_order_name=channel_order.name)
 
         # Send template email now that the Channel Order doc exists (doc.name, doc.store_name etc.)
         _send_new_order_email(channel_order, order_id, is_scheduled)
