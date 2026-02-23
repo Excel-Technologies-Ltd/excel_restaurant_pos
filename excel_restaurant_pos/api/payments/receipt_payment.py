@@ -24,6 +24,8 @@ def receipt_payment():
     if not invoice_no:
         frappe.throw("Ticket not found")
 
+    print("Invoice NO : ", invoice_no)
+
     # check receipt status info
     receipt_status = check_receipt(ticket)
 
@@ -32,13 +34,13 @@ def receipt_payment():
     success_result = receipt_status.get("success", "false")
 
     # check payment is successful and the receipt is approved
-    if success_result != "true" or receipt_result != "a":
-        frappe.throw("Invalid or expired payment ticket", frappe.ValidationError)
+    # if success_result != "true" or receipt_result != "a":
+    #     frappe.throw("Invalid or expired payment ticket", frappe.ValidationError)
 
-    # validate order number
-    order_number = receipt_status.get("request", {}).get("order_no")
-    if order_number != invoice_name:
-        frappe.throw("Order number mismatch", frappe.ValidationError)
+    # # validate order number
+    # order_number = receipt_status.get("request", {}).get("order_no")
+    # if order_number != invoice_name:
+    #     frappe.throw("Order number mismatch", frappe.ValidationError)
 
     # get invoice
     invoice = frappe.get_doc("Sales Invoice", invoice_no)
