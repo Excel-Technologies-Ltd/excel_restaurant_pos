@@ -93,10 +93,10 @@ def get_item_details():
             if valid_upto_date < today_date:
                 continue  # Price is expired, skip it
 
-        item_code = price.item_code
-        if item_code not in valid_regular_prices:
-            valid_regular_prices[item_code] = []
-        valid_regular_prices[item_code].append(price)
+        i_code = price.item_code
+        if i_code not in valid_regular_prices:
+            valid_regular_prices[i_code] = []
+        valid_regular_prices[i_code].append(price)
 
     addon_price_map = {price.item_code: price.price_list_rate for price in addon_prices}
 

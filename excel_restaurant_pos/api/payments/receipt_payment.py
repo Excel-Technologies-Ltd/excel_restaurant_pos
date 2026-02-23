@@ -1,6 +1,5 @@
 import frappe
 
-from excel_restaurant_pos.api.sales_invoice.add_or_update_invoice import _add_payments
 from .helper.check_receipt import check_receipt
 from excel_restaurant_pos.doc_event.sales_invoice.handlers.create_payment_entry import (
     create_payment_entry,
@@ -24,8 +23,6 @@ def receipt_payment():
     if not invoice_no:
         frappe.throw("Ticket not found")
 
-    print("Invoice NO : ", invoice_no)
-
     # check receipt status info
     receipt_status = check_receipt(ticket)
 
@@ -34,13 +31,15 @@ def receipt_payment():
     success_result = receipt_status.get("success", "false")
 
     # check payment is successful and the receipt is approved
-    # if success_result != "true" or receipt_result != "a":
-    #     frappe.throw("Invalid or expired payment ticket", frappe.ValidationError)
+    is_development = frappe.conf.get("environment", None) == "development"
+    if not is_development:
+        if success_result != "true" or receipt_result != "a":
+            frappe.throw("Invalid or expired payment ticket", frappe.ValidationError)
 
     # # validate order number
-    # order_number = receipt_status.get("request", {}).get("order_no")
-    # if order_number != invoice_name:
-    #     frappe.throw("Order number mismatch", frappe.ValidationError)
+    order_number = receipt_status.get("request", {}).get("order_no")
+    if order_number != invoice_name:
+        frappe.throw("Order number mismatch", frappe.ValidationError)
 
     # get invoice
     invoice = frappe.get_doc("Sales Invoice", invoice_no)
