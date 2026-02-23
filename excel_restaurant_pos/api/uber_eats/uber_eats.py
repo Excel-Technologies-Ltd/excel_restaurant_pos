@@ -364,7 +364,7 @@ def _send_new_order_email(channel_order, order_id, is_scheduled=False):
     """
     try:
         settings = frappe.get_single("ArcPOS Settings")
-        roles = ["Restaurant Chef", "Restaurant Manager"]
+        roles = ["ArcPOS Channel User"]
 
         user_emails = list(set(frappe.get_all(
             "Has Role",
