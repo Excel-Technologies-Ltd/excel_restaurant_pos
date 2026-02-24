@@ -101,6 +101,7 @@ def _set_optional_fields(sales_invoice, data):
         "custom_dropoff_ready",
         "custom_dropoff_deadline",
         "custom_order_schedule_type",
+        "docstatus",
     ]
 
     for field in optional_fields:
@@ -226,7 +227,7 @@ def add_or_update_invoice():
     _set_optional_fields(sales_invoice, data)
     _add_items(sales_invoice, items)
     _add_custom_quotes(sales_invoice, data.get("custom_quotes"))
-    
+
     _add_taxes(sales_invoice, data.get("taxes"))
     # _add_payments(sales_invoice, data.get("payments"))
 
