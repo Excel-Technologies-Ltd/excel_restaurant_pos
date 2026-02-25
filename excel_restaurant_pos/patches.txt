@@ -1,2 +1,2 @@
-excel_restaurant_pos.patches.create_sales_summary_function
-excel_restaurant_pos.patches.create_sales_by_service_procedure
+excel_restaurant_pos.patches.v1_1_0.create_sales_summary_function
+excel_restaurant_pos.patches.v1_1_0.create_sales_by_service_procedure
