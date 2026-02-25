@@ -364,17 +364,20 @@ def _send_new_order_email(channel_order, order_id, is_scheduled=False):
     """
     try:
         settings = frappe.get_single("ArcPOS Settings")
-        roles = ["ArcPOS Channel User"]
 
-        user_emails = list(set(frappe.get_all(
-            "Has Role",
-            filters={
-                "role": ["in", roles],
-                "parenttype": "User",
-                "parent": ["not in", ["Administrator", "Guest"]],
-            },
-            pluck="parent",
-        )))
+        override_emails = settings.get("online_order_email_send_to") or ""
+        if override_emails.strip():
+            user_emails = [e.strip() for e in override_emails.split(",") if e.strip()]
+        else:
+            user_emails = list(set(frappe.get_all(
+                "Has Role",
+                filters={
+                    "role": ["in", ["ArcPOS Channel User"]],
+                    "parenttype": "User",
+                    "parent": ["not in", ["Administrator", "Guest"]],
+                },
+                pluck="parent",
+            )))
 
         if not user_emails:
             return

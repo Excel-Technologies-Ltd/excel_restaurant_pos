@@ -805,16 +805,6 @@ def send_scheduled_30min_notification(doc, settings):
         has_expo = False
         print("Expo Server SDK not installed for 30-min notification")
 
-    # Send email notification to customer if template is configured
-    if settings.scheduled_order_reminder_template:
-        try:
-            send_scheduled_reminder_email(doc, settings.scheduled_order_reminder_template)
-        except Exception as e:
-            frappe.log_error(
-                f"Error sending scheduled reminder email: {str(e)}\nDocument: {doc.name}",
-                "Scheduled Reminder Email Error"
-            )
-
     # Find matching notification rules for scheduled orders
     matching_roles = set()
     for rule in settings.role_wise_permission:
@@ -860,6 +850,32 @@ def send_scheduled_30min_notification(doc, settings):
     if not matching_roles:
         print(f"No matching notification rules for 30-min reminder: {doc.name}")
         return
+
+    # Gather all users from matching roles (used as email fallback)
+    role_user_emails = list(set(frappe.db.sql(
+        """
+        SELECT DISTINCT parent as user
+        FROM `tabHas Role`
+        WHERE role IN %(roles)s
+        AND parent NOT IN ('Administrator', 'Guest')
+        """,
+        {"roles": tuple(matching_roles)},
+        as_dict=True,
+    )))
+    role_user_emails = [u.user for u in role_user_emails]
+
+    # Send email notification — to override emails if set, else to role-wise users
+    if settings.scheduled_order_reminder_template:
+        try:
+            send_scheduled_reminder_email(
+                doc, settings.scheduled_order_reminder_template, settings,
+                role_user_emails=role_user_emails,
+            )
+        except Exception as e:
+            frappe.log_error(
+                f"Error sending scheduled reminder email: {str(e)}\nDocument: {doc.name}",
+                "Scheduled Reminder Email Error"
+            )
 
     # Prepare notification content
     service_type = doc.custom_service_type or "Delivery/Pickup"
@@ -1022,25 +1038,38 @@ def send_scheduled_30min_notification(doc, settings):
     print(f"30-minute reminder notification completed for {doc.name}")
 
 
-def send_scheduled_reminder_email(doc, template_name):
+def send_scheduled_reminder_email(doc, template_name, settings=None, role_user_emails=None):
     """
-    Send scheduled order reminder email to customer 30 minutes before delivery/pickup.
+    Send scheduled order reminder email 30 minutes before delivery/pickup.
+
+    Recipients:
+      - If 'Scheduled Order Email Send To' is set in ArcPOS Settings, send to those
+        comma-separated addresses.
+      - Otherwise, fall back to the role-wise users from matching notification rules.
 
     Args:
         doc: Sales Invoice document
         template_name: Name of the Email Template to use
+        settings: ArcPOS Settings document (optional; fetched if not provided)
+        role_user_emails: List of user emails from matching Role Wise Permission rules
     """
     try:
-        # Get customer email
-        customer_email = frappe.db.get_value("Customer", doc.customer, "email_id")
+        if settings is None:
+            settings = frappe.get_doc("ArcPOS Settings", "ArcPOS Settings")
 
-        if not customer_email:
-            print(f"No customer email found for scheduled reminder: {doc.name}")
-            frappe.log_error(
-                f"No customer email found for Sales Invoice {doc.name}",
-                "Scheduled Reminder Email - No Email"
-            )
-            return
+        # Resolve recipients
+        override_emails = settings.get("scheduled_order_email_send_to") or ""
+        if override_emails.strip():
+            recipients = [e.strip() for e in override_emails.split(",") if e.strip()]
+        else:
+            recipients = role_user_emails or []
+            if not recipients:
+                print(f"No role-wise users found for scheduled reminder: {doc.name}")
+                frappe.log_error(
+                    f"No role-wise users found for Sales Invoice {doc.name}",
+                    "Scheduled Reminder Email - No Recipients"
+                )
+                return
 
         # Get the Email Template and render it
         email_template = frappe.get_doc("Email Template", template_name)
@@ -1067,16 +1096,16 @@ def send_scheduled_reminder_email(doc, template_name):
 
         # Send email
         frappe.sendmail(
-            recipients=[customer_email],
+            recipients=recipients,
             subject=subject,
             message=message,
             header=None,
             now=True
         )
 
-        print(f"Scheduled reminder email sent to {customer_email} for {doc.name}")
+        print(f"Scheduled reminder email sent to {recipients} for {doc.name}")
         frappe.log_error(
-            f"Scheduled reminder email sent to {customer_email} for Sales Invoice {doc.name}",
+            f"Scheduled reminder email sent to {recipients} for Sales Invoice {doc.name}",
             "Scheduled Reminder Email - Success"
         )
 
