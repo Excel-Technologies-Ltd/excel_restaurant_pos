@@ -17,7 +17,7 @@ from .payments import payments_api_routes
 from .meta import meta_api_routes
 from .pos_counter import pos_counter_api_routes
 from .uber_eats import uber_eats_api_routes
-
+from .payment_entry import payment_entry_api_routes
 
 api_routes = {
     **tips_api_routes,
@@ -39,4 +39,5 @@ api_routes = {
     **meta_api_routes,
     **pos_counter_api_routes,
     **uber_eats_api_routes,
+    **payment_entry_api_routes,
 }
