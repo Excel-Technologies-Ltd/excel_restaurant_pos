@@ -615,3 +615,40 @@ def send_reservation_reminders():
         frappe.logger().info(
             f"Sent {reminders_sent} reservation 24-hour reminder emails"
         )
+
+
+def auto_cancel_rejected_invoices():
+    """
+    Auto-cancel submitted Sales Invoices where order status is Rejected.
+    Runs every hour via long queue.
+
+    Condition: custom_order_status = 'Rejected' AND docstatus = 1 (Submitted)
+    """
+    invoices = frappe.get_all(
+        "Sales Invoice",
+        filters={
+            "docstatus": 1,
+            "custom_order_status": "Rejected",
+        },
+        pluck="name",
+    )
+
+    cancelled_count = 0
+    for invoice_name in invoices:
+        try:
+            doc = frappe.get_doc("Sales Invoice", invoice_name)
+            doc.cancel()
+            frappe.db.commit()
+            cancelled_count += 1
+            frappe.logger().info(f"Auto-cancelled rejected Sales Invoice: {invoice_name}")
+        except Exception as e:
+            frappe.db.rollback()
+            frappe.log_error(
+                message=f"Failed to auto-cancel Sales Invoice {invoice_name}: {str(e)}",
+                title="Auto Cancel Rejected Invoice Error",
+            )
+
+    if invoices:
+        frappe.logger().info(
+            f"Auto-cancel job completed: {cancelled_count}/{len(invoices)} rejected invoices cancelled"
+        )

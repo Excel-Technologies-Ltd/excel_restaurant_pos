@@ -188,8 +188,10 @@ scheduler_events = {
             "excel_restaurant_pos.utils.scheduled_tasks.check_scheduled_order_notifications"
         ],
         # Send 24-hour reminder emails for table reservations every hour
+        # Auto-cancel submitted invoices with Rejected order status every hour
         "0 * * * *": [
-            "excel_restaurant_pos.utils.scheduled_tasks.send_reservation_reminders"
+            "excel_restaurant_pos.utils.scheduled_tasks.send_reservation_reminders",
+            "excel_restaurant_pos.utils.scheduled_tasks.auto_cancel_rejected_invoices",
         ],
     },
 }
