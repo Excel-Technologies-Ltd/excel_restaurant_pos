@@ -863,6 +863,24 @@ def send_scheduled_30min_notification(doc, settings):
         # Rule matches - add role
         matching_roles.add(rule.if_role)
 
+    # Send override email first — independent of matching roles.
+    # If scheduled_order_email_send_to is set, always send to those addresses.
+    # If not, fall back to role-wise users (gathered below) only when roles match.
+    if settings.scheduled_order_reminder_template:
+        override_emails = frappe.db.get_single_value("ArcPOS Settings", "scheduled_order_email_send_to") or ""
+        if override_emails.strip():
+            # Override emails set — send immediately, no role matching needed
+            try:
+                send_scheduled_reminder_email(
+                    doc, settings.scheduled_order_reminder_template, settings,
+                    role_user_emails=[],
+                )
+            except Exception as e:
+                frappe.log_error(
+                    f"Error sending scheduled reminder email: {str(e)}\nDocument: {doc.name}",
+                    "Scheduled Reminder Email Error"
+                )
+
     if not matching_roles:
         print(f"No matching notification rules for 30-min reminder: {doc.name}")
         return
@@ -880,18 +898,20 @@ def send_scheduled_30min_notification(doc, settings):
     )))
     role_user_emails = [u.user for u in role_user_emails]
 
-    # Send email notification — to override emails if set, else to role-wise users
+    # Send email to role-wise users only if no override emails were set
     if settings.scheduled_order_reminder_template:
-        try:
-            send_scheduled_reminder_email(
-                doc, settings.scheduled_order_reminder_template, settings,
-                role_user_emails=role_user_emails,
-            )
-        except Exception as e:
-            frappe.log_error(
-                f"Error sending scheduled reminder email: {str(e)}\nDocument: {doc.name}",
-                "Scheduled Reminder Email Error"
-            )
+        override_emails = frappe.db.get_single_value("ArcPOS Settings", "scheduled_order_email_send_to") or ""
+        if not override_emails.strip():
+            try:
+                send_scheduled_reminder_email(
+                    doc, settings.scheduled_order_reminder_template, settings,
+                    role_user_emails=role_user_emails,
+                )
+            except Exception as e:
+                frappe.log_error(
+                    f"Error sending scheduled reminder email: {str(e)}\nDocument: {doc.name}",
+                    "Scheduled Reminder Email Error"
+                )
 
     # Prepare notification content
     service_type = doc.custom_service_type or "Delivery/Pickup"
@@ -1075,6 +1095,8 @@ def send_scheduled_reminder_email(doc, template_name, settings=None, role_user_e
 
         # Resolve recipients — read directly from DB to avoid stale Document cache
         override_emails = frappe.db.get_single_value("ArcPOS Settings", "scheduled_order_email_send_to") or ""
+
+        print("Overrid Email: ", override_emails)
 
         if override_emails.strip():
             recipients = [e.strip() for e in override_emails.split(",") if e.strip()]
