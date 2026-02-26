@@ -42,11 +42,11 @@ def on_update_sales_invoice(doc, method: str):
             print("Order Status ",order_status,"Delay (seconds): ", delay_seconds)
             if should_send:
                 if delay_seconds and delay_seconds > 0:
-                    # Schedule notification with delay (sleep in background worker)
+                    # Schedule notification with delay on long queue to avoid blocking short queue workers
                     print(f"\n\n Scheduling delayed notification ({delay_seconds}s) \n\n")
                     frappe.enqueue(
                         send_delivery_pickup_notification,
-                        queue="short",
+                        queue="long",
                         timeout=max(300, delay_seconds + 120),
                         enqueue_after_commit=True,
                         at_front=False,
@@ -131,6 +131,7 @@ def on_update_sales_invoice(doc, method: str):
                         "if_service_type": rule.if_service_type,
                         "if_order_type": rule.if_order_type,
                         "if_order_schedule_type": rule.if_order_schedule_type,
+                        "if_delivery_partner_status": rule.if_delivery_partner_status,
                         "item_is_new_order_item": rule.item_is_new_order_item,
                     }
                 )
@@ -169,6 +170,7 @@ def should_send_notification(doc, rule):
     if_service_type = rule.get("if_service_type") if isinstance(rule, dict) else rule.if_service_type
     if_order_type = rule.get("if_order_type") if isinstance(rule, dict) else rule.if_order_type
     if_order_schedule_type = rule.get("if_order_schedule_type") if isinstance(rule, dict) else rule.if_order_schedule_type
+    if_delivery_partner_status = rule.get("if_delivery_partner_status") if isinstance(rule, dict) else rule.if_delivery_partner_status
     item_is_new_order_item = rule.get("item_is_new_order_item") if isinstance(rule, dict) else rule.item_is_new_order_item
 
     # Check if role is specified
@@ -219,6 +221,14 @@ def should_send_notification(doc, rule):
         allowed_order_schedule_types = [x.strip() for x in if_order_schedule_type.split(",") if x.strip()]
         if doc_order_schedule_type not in allowed_order_schedule_types:
             print(f"Order Schedule Type mismatch: {doc_order_schedule_type} not in {allowed_order_schedule_types}")
+            return False
+
+    # Check Delivery Partner Status condition
+    if if_delivery_partner_status:
+        doc_delivery_partner_status = doc.get("custom_delivery_partner_status") or ""
+        allowed_delivery_partner_statuses = [x.strip() for x in if_delivery_partner_status.split(",") if x.strip()]
+        if doc_delivery_partner_status not in allowed_delivery_partner_statuses:
+            print(f"Delivery Partner Status mismatch: {doc_delivery_partner_status} not in {allowed_delivery_partner_statuses}")
             return False
 
     # Check if notification should only be sent for new order items
@@ -844,6 +854,12 @@ def send_scheduled_30min_notification(doc, settings):
             if doc.custom_order_type not in allowed_order_types:
                 continue
 
+        # Check Delivery Partner Status (if specified)
+        if rule.if_delivery_partner_status:
+            allowed_dp_statuses = [x.strip() for x in rule.if_delivery_partner_status.split(",") if x.strip()]
+            if (doc.custom_delivery_partner_status or "") not in allowed_dp_statuses:
+                continue
+
         # Rule matches - add role
         matching_roles.add(rule.if_role)
 
@@ -882,7 +898,7 @@ def send_scheduled_30min_notification(doc, settings):
     delivery_time = doc.custom_delivery_time
     customer_name = doc.customer_name or doc.customer
 
-    title = f"Scheduled {service_type} - 30 Minutes Reminder"
+    title = f"Scheduled {service_type} - 30 Minutes Reminder : {doc.name}"
     body = (
         f"Order {doc.name} for {customer_name} is scheduled for "
         f"{service_type.lower()} at {delivery_time}. "
@@ -1057,8 +1073,9 @@ def send_scheduled_reminder_email(doc, template_name, settings=None, role_user_e
         if settings is None:
             settings = frappe.get_doc("ArcPOS Settings", "ArcPOS Settings")
 
-        # Resolve recipients
-        override_emails = settings.get("scheduled_order_email_send_to") or ""
+        # Resolve recipients — read directly from DB to avoid stale Document cache
+        override_emails = frappe.db.get_single_value("ArcPOS Settings", "scheduled_order_email_send_to") or ""
+
         if override_emails.strip():
             recipients = [e.strip() for e in override_emails.split(",") if e.strip()]
         else:

@@ -10,9 +10,11 @@
   "if_order_from",
   "if_order_status",
   "if_service_type",
+  "column_break_lvg1p",
   "if_order_type",
   "if_order_schedule_type",
-  "item_is_new_order_item"
+  "item_is_new_order_item",
+  "if_delivery_partner_status"
  ],
  "fields": [
   {
@@ -56,12 +58,21 @@
    "fieldname": "if_order_schedule_type",
    "fieldtype": "Data",
    "label": "If \"Order Schedule Type\""
+  },
+  {
+   "fieldname": "column_break_lvg1p",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "if_delivery_partner_status",
+   "fieldtype": "Data",
+   "label": "If 'Delivery Partner Status\""
   }
  ],
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-02-08 14:55:37.289874",
+ "modified": "2026-02-26 01:28:38.885600",
  "modified_by": "Administrator",
  "module": "Excel Restaurant Pos",
  "name": "ArcPOS Push Notification",
