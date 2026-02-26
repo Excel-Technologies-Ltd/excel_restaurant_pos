@@ -133,6 +133,7 @@ def on_update_sales_invoice(doc, method: str):
                         "if_order_schedule_type": rule.if_order_schedule_type,
                         "if_delivery_partner_status": rule.if_delivery_partner_status,
                         "item_is_new_order_item": rule.item_is_new_order_item,
+                        "doc_delivery_partner_status": doc.get("custom_delivery_partner_status") or "",
                     }
                 )
                 print(f"Job enqueued: {job}")
@@ -602,6 +603,13 @@ def get_notification_title(doc, rule):
         str: Notification title
     """
     order_status = doc.get("custom_order_status") or "Updated"
+
+    if_delivery_partner_status = rule.get("if_delivery_partner_status") if isinstance(rule, dict) else rule.if_delivery_partner_status
+    if if_delivery_partner_status:
+        # Use the value captured at hook time (rule_data) to avoid stale doc reads in async worker
+        delivery_partner_status = rule.get("doc_delivery_partner_status") if isinstance(rule, dict) else (doc.get("custom_delivery_partner_status") or "")
+        return f"Order {order_status} {delivery_partner_status} : {doc.name}"
+
     return f"Order {order_status}: {doc.name}"
 
 
