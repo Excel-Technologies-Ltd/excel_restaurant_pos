@@ -65,7 +65,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Current State",
-   "options": "CREATED\nACCEPTED\nREJECTED"
+   "options": "CREATED\nACCEPTED\nREJECTED\nCANCELLED"
   },
   {
    "fieldname": "order_type",
@@ -171,7 +171,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-02-22 04:24:12.984844",
+ "modified": "2026-02-26 02:00:32.040754",
  "modified_by": "Administrator",
  "module": "Excel Restaurant Pos",
  "name": "Channel Order",
