@@ -64,7 +64,7 @@ jobs:
           export APPS_JSON_BASE64=$(echo ${APPS_JSON} | base64 -w 0)
 
           # Define all tags
-          DOCKER_HUB_TAG="arcapps/arc-pos:latest"
+          DOCKER_HUB_TAG="arcapps/arc-pos:dev"
           GITLAB_TAG="registry.gitlab.com/arcapps/arc-container-registry/arc-pos:latest"
           
           # Build once with multiple tags and push to all registries
