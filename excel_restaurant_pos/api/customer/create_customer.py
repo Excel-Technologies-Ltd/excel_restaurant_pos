@@ -1,11 +1,10 @@
 """Customer creation API endpoints."""
 
 import frappe
-
-
-from .handlers.add_bulk_cust_addr import add_bulk_cust_addr
-from .handlers.validate_addresses import validate_addresses
-from .handlers.add_bulk_cust_cnct import add_bulk_cust_cnct
+from excel_restaurant_pos.api.address import (
+    add_address_with_link,
+    add_contact_with_link,
+)
 
 
 @frappe.whitelist(allow_guest=False, methods=["POST"])
@@ -45,29 +44,30 @@ def create_customer():
 
     # validate addresses
     addresses = frappe.form_dict.get("addresses", [])
-    validated_addresses = validate_addresses(addresses)
-
-    # add customer addresses
-    frappe.enqueue(
-        add_bulk_cust_addr,
-        queue="short",
-        customer_code=customer.name,
-        addresses=validated_addresses,
-    )
+    for address in addresses:
+        add_address_with_link(address, "Customer", customer.name)
 
     # add customer contacts
-    emails = frappe.form_dict.get("emails", [])
-    phones = frappe.form_dict.get("phones", [])
+    # create contact
+    contact_info: dict = {"first_name": customer.customer_name}
 
-    contacts = [{"email_ids": emails, "phone_nos": phones}]
-    frappe.enqueue(
-        add_bulk_cust_cnct,
-        queue="short",
-        customer_code=customer.name,
-        contacts=contacts,
-    )
-    # return customer
-    return {
-        "message": "Customer created successfully",
-        "customer": customer.as_dict(),
+    # get emails
+    emails = frappe.form_dict.get("emails", [])
+    email_ids = [email for email in emails]
+    contact_info["email_ids"] = email_ids
+
+    # get phones
+    phones = frappe.form_dict.get("phones", [])
+    phone_nos = [phone for phone in phones]
+    contact_info["phone_nos"] = phone_nos
+
+    # create contact
+    contact = add_contact_with_link(contact_info, "Customer", customer.name)
+
+    # format response
+    response: dict = {
+        **customer.as_dict(),
+        "addresses": addresses,
+        "contact": contact,
     }
+    return response

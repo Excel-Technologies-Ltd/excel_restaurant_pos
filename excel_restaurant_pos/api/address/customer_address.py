@@ -55,12 +55,12 @@ def get_customer_address() -> dict:
         phone_list = frappe.get_all(
             "Contact Phone",
             filters=[["parent", "in", contact_names]],
-            fields=["phone", "is_primary_phone", "is_primary_mobile_no"],
+            fields=["name", "phone", "is_primary_phone", "is_primary_mobile_no"],
         )
         email_list = frappe.get_all(
             "Contact Email",
             filters=[["parent", "in", contact_names]],
-            fields=["email_id", "is_primary"],
+            fields=["name", "email_id", "is_primary"],
         )
     else:
         phone_list = []
