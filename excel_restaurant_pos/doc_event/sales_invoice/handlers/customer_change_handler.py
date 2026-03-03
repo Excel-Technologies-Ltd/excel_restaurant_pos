@@ -32,7 +32,7 @@ def customer_change_handler(doc):
         msg = f"No primary email found for Sales Invoice {doc.name if doc.name else 'NEW'} (Customer: {doc.customer})"
         frappe.log_error("No Email Address", msg)
         primary_email = ""
-    
+
     # Set the email - use db.set_value if document exists, otherwise set on doc
     # Use db.set_value to avoid "Document has been modified" error during save flow
     if doc.name:
@@ -47,8 +47,8 @@ def customer_change_handler(doc):
             frappe.db.commit()
         except Exception as e:
             frappe.log_error(
+                "Customer Change Handler Error",
                 f"Error setting custom_email_send_to for {doc.name}: {str(e)}",
-                "Customer Change Handler Error"
             )
     else:
         # Document not saved yet - set on doc object (will be saved with the document)

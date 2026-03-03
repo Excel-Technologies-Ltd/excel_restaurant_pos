@@ -21,7 +21,7 @@ def create_customer():
         customer_info[field] = frappe.form_dict.get(field)
 
     # optional fields
-    optional_fields = ["payment_terms", "is_frozen", "disabled"]
+    optional_fields = ["payment_terms", "is_frozen", "disabled", "gender"]
     for field in optional_fields:
         if frappe.form_dict.get(field):
             customer_info[field] = frappe.form_dict.get(field)

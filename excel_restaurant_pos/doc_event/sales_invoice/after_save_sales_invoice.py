@@ -17,7 +17,13 @@ def enqueue_occupy_table_job(doc, method: str):
     order_from = doc.get("custom_order_from", " ").lower()
     if linked_table and order_from == "table":
         args = {"table_name": linked_table, "sales_invoice": doc.name}
-        frappe.enqueue(handle_table_occupy, queue="short", enqueue_after_commit=True, **args,)
+        frappe.enqueue(
+            handle_table_occupy,
+            queue="short",
+            enqueue_after_commit=True,
+            **args,
+        )
+
 
 # check delivery charge fraudulency
 def check_delivery_and_charges_fraudulency(doc, method: str):
@@ -26,7 +32,9 @@ def check_delivery_and_charges_fraudulency(doc, method: str):
     """
 
     s_type = doc.get("custom_service_type", "")
-    allow_delivery_charge = frappe.db.get_single_value("ArcPOS Settings", "allow_delivery_charge")
+    allow_delivery_charge = frappe.db.get_single_value(
+        "ArcPOS Settings", "allow_delivery_charge"
+    )
 
     # if service type is not delivery, return
     if s_type != "Delivery":
@@ -63,6 +71,7 @@ def check_delivery_and_charges_fraudulency(doc, method: str):
         msg = f"Delivery charge mismatch: {d_charge} != {delivery_entry.get('tax_amount', 0)}"
         frappe.throw(msg)
 
+
 # check tax fraudulency
 def check_tax_fraudulency(doc, method: str):
     """
@@ -84,6 +93,7 @@ def check_tax_fraudulency(doc, method: str):
         msg = "Tax entry is required for delivery and pickup orders"
         frappe.throw(msg)
 
+
 # after save sales invoice
 def after_save_sales_invoice(doc, method: str):
     """
@@ -94,7 +104,9 @@ def after_save_sales_invoice(doc, method: str):
     try:
         enqueue_occupy_table_job(doc, method)
     except Exception as e:
-        frappe.log_error(f"Error enqueuing occupy table job: {e}", "Sales Invoice After Save")
+        frappe.log_error(
+            "Sales Invoice After Save", f"Error enqueuing occupy table job: {e}"
+        )
 
     # check delivery charge fraudulency
     try:
@@ -109,4 +121,3 @@ def after_save_sales_invoice(doc, method: str):
     except Exception as e:
         msg = f"Error checking tax fraudulency: {e}"
         frappe.throw(msg)
-

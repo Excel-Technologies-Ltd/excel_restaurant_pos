@@ -45,7 +45,7 @@ def check_receipt(ticket: str) -> bool:
         response = requests.post(payment_config["ticket_url"], json=payload, timeout=30)
     except requests.exceptions.RequestException as e:
         frappe.log_error(
-            f"Receipt status check request failed: {str(e)}", "Receipt Status Error"
+            "Receipt Status Error", f"Receipt status check request failed: {str(e)}"
         )
         frappe.throw("Failed to connect to payment gateway", frappe.ValidationError)
 
@@ -54,7 +54,7 @@ def check_receipt(ticket: str) -> bool:
         error_msg = f"Payment gateway returned status {response.status_code}"
         try:
             error_detail = response.text[:200]  # First 200 chars of error
-            frappe.log_error(f"{error_msg}: {error_detail}", "Receipt Status Error")
+            frappe.log_error("Receipt Status Error", f"{error_msg}: {error_detail}")
         except Exception:
             pass
         frappe.throw(
@@ -66,8 +66,8 @@ def check_receipt(ticket: str) -> bool:
         response_data = response.json()
     except ValueError as e:
         frappe.log_error(
-            f"Invalid JSON response from payment gateway: {str(e)}",
             "Receipt Status Error",
+            f"Invalid JSON response from payment gateway: {str(e)}",
         )
         frappe.throw("Invalid response from payment gateway", frappe.ValidationError)
 

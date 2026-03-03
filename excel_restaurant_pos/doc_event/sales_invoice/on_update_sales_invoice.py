@@ -134,6 +134,7 @@ def on_update_sales_invoice(doc, method: str):
                         "if_order_schedule_type": rule.if_order_schedule_type,
                         "if_delivery_partner_status": rule.if_delivery_partner_status,
                         "item_is_new_order_item": rule.item_is_new_order_item,
+                        "doc_delivery_partner_status": doc.get("custom_delivery_partner_status") or "",
                     }
                 )
                 print(f"Job enqueued: {job}")
@@ -327,12 +328,13 @@ def send_notification_to_role(doc, rule):
     print(f"\n--- Sending notification for role: {if_role} ---")
 
     try:
-        # Find all users with the specified role
+        # Find all users with the specified role (parenttype = 'User' excludes Role Profiles)
         users = frappe.db.sql(
             """
             SELECT DISTINCT parent as user
             FROM `tabHas Role`
             WHERE role = %(role)s
+            AND parenttype = 'User'
             AND parent NOT IN ('Administrator', 'Guest')
             """,
             {"role": if_role},
@@ -739,11 +741,15 @@ def check_scheduled_notification_30min_before(doc, settings):
         delivery_date = doc.get("custom_delivery_date")
         delivery_time = doc.get("custom_delivery_time")
 
+        print("Chekc All the condition : ", service_type, order_status, order_schedule_type, delivery_date, delivery_time)
+
         # Check if this is a scheduled pickup/delivery order
         if service_type not in ["Pickup", "Delivery"]:
+            print("Faield here ", service_type)
             return
 
         if order_schedule_type != "Scheduled Later":
+            print("Faield here ", order_schedule_type)
             return
 
         # Check order status
@@ -752,39 +758,33 @@ def check_scheduled_notification_30min_before(doc, settings):
             "Ready to Deliver", "Ready to Pickup", "Handover to Delivery"
         ]
         if order_status not in allowed_statuses:
+            print("Faield here ", order_status)
             return
 
         # Check if delivery date and time are set
         if not delivery_date or not delivery_time:
+            print("Faield here ", delivery_date)
             return
 
-        # Check if delivery date is today
+        # Check delivery date is today
         current_date = getdate(now_datetime())
         if delivery_date != current_date:
             return
 
-        # Compare current time with delivery time
-        # delivery_datetime = The scheduled delivery/pickup time from the invoice
-        # current_datetime = Current system time
+        # Check if delivery is within the 28–32 minute window (30 min ± 2 min)
         delivery_datetime = get_datetime(f"{delivery_date} {delivery_time}")
         current_datetime = now_datetime()
-
-        # Calculate how many minutes remain until delivery
-        # Example: If delivery is at 9:30 PM and current time is 9:00 PM, time_diff_minutes = 30
         time_diff_minutes = (delivery_datetime - current_datetime).total_seconds() / 60
-
-        # Send notification if we're exactly 30 minutes before delivery (±2 minute window)
-        # This allows for slight timing variations in the update trigger
+        print(f"[30minNotif] Time until delivery: {time_diff_minutes:.1f} min for {doc.name}")
         if not (28 <= time_diff_minutes <= 32):
             return
 
         # Check cache to prevent duplicate notifications
         cache_key = f"scheduled_30min_notification_{doc.name}"
         if frappe.cache().get_value(cache_key):
-            print(f"30-minute notification already sent for {doc.name}, skipping")
+            print(f"[30minNotif] Already sent for {doc.name}, skipping")
             return
 
-        # Mark as notified (1-hour cache to prevent duplicates)
         frappe.cache().set_value(cache_key, True, expires_in_sec=3600)
 
         # Send notifications to matching roles
@@ -821,6 +821,8 @@ def send_scheduled_30min_notification(doc, settings):
         print("Expo Server SDK not installed for 30-min notification")
 
     # Find matching notification rules for scheduled orders
+    # A rule matches if it has if_order_schedule_type containing "Scheduled Later"
+    # Rules without if_order_schedule_type are ignored for this specific notification
     matching_roles = set()
     for rule in settings.role_wise_permission:
         if not rule.if_role:
@@ -868,55 +870,12 @@ def send_scheduled_30min_notification(doc, settings):
         # Rule matches - add role
         matching_roles.add(rule.if_role)
 
-    # Send override email first — independent of matching roles.
-    # If scheduled_order_email_send_to is set, always send to those addresses.
-    # If not, fall back to role-wise users (gathered below) only when roles match.
-    if settings.scheduled_order_reminder_template:
-        override_emails = frappe.db.get_single_value("ArcPOS Settings", "scheduled_order_email_send_to") or ""
-        if override_emails.strip():
-            # Override emails set — send immediately, no role matching needed
-            try:
-                send_scheduled_reminder_email(
-                    doc, settings.scheduled_order_reminder_template, settings,
-                    role_user_emails=[],
-                )
-            except Exception as e:
-                frappe.log_error(
-                    f"Error sending scheduled reminder email: {str(e)}\nDocument: {doc.name}",
-                    "Scheduled Reminder Email Error"
-                )
-
+    # Fallback to default roles if no specific rules configured for Scheduled Later
     if not matching_roles:
-        print(f"No matching notification rules for 30-min reminder: {doc.name}")
-        return
-
-    # Gather all users from matching roles (used as email fallback)
-    role_user_emails = list(set(frappe.db.sql(
-        """
-        SELECT DISTINCT parent as user
-        FROM `tabHas Role`
-        WHERE role IN %(roles)s
-        AND parent NOT IN ('Administrator', 'Guest')
-        """,
-        {"roles": tuple(matching_roles)},
-        as_dict=True,
-    )))
-    role_user_emails = [u.user for u in role_user_emails]
-
-    # Send email to role-wise users only if no override emails were set
-    if settings.scheduled_order_reminder_template:
-        override_emails = frappe.db.get_single_value("ArcPOS Settings", "scheduled_order_email_send_to") or ""
-        if not override_emails.strip():
-            try:
-                send_scheduled_reminder_email(
-                    doc, settings.scheduled_order_reminder_template, settings,
-                    role_user_emails=role_user_emails,
-                )
-            except Exception as e:
-                frappe.log_error(
-                    f"Error sending scheduled reminder email: {str(e)}\nDocument: {doc.name}",
-                    "Scheduled Reminder Email Error"
-                )
+        matching_roles = {"Restaurant Chef", "Restaurant Manager"}
+        print(f"[30minNotif] No matching rules found for Scheduled Later — using default roles: {matching_roles}")
+    else:
+        print(f"[30minNotif] Matched roles from rules: {matching_roles}")
 
     # Prepare notification content
     service_type = doc.custom_service_type or "Delivery/Pickup"
@@ -929,16 +888,57 @@ def send_scheduled_30min_notification(doc, settings):
         f"{service_type.lower()} at {delivery_time}. "
         f"Please prepare the order."
     )
+    print(f"[30minNotif] Title: {title}")
+    print(f"[30minNotif] Body: {body}")
 
-    # Send notifications to each matching role
+    # Gather all users from matching roles
+    role_user_emails = []
+    try:
+        rows = frappe.db.sql(
+            """
+            SELECT DISTINCT parent as user
+            FROM `tabHas Role`
+            WHERE role IN %(roles)s
+            AND parenttype = 'User'
+            AND parent NOT IN ('Administrator', 'Guest')
+            """,
+            {"roles": tuple(matching_roles)},
+            as_dict=True,
+        )
+        role_user_emails = [u.user for u in rows]
+        print(f"[30minNotif] Total users across all matched roles: {role_user_emails}")
+    except Exception as e:
+        frappe.log_error(f"Error gathering role users: {str(e)}", "Scheduled 30-Min Notification Error")
+
+    # Send email (override address or role-wise fallback)
+    if settings.scheduled_order_reminder_template:
+        override_emails = frappe.db.get_single_value("ArcPOS Settings", "scheduled_order_email_send_to") or ""
+        print(f"[30minNotif] Email override address: '{override_emails}'")
+        try:
+            send_scheduled_reminder_email(
+                doc, settings.scheduled_order_reminder_template, settings,
+                role_user_emails=role_user_emails,
+            )
+        except Exception as e:
+            frappe.log_error(
+                f"Error sending scheduled reminder email: {str(e)}\nDocument: {doc.name}",
+                "Scheduled Reminder Email Error"
+            )
+    else:
+        print(f"[30minNotif] No email template configured in ArcPOS Settings — skipping email")
+
+    # ── SYSTEM NOTIFICATIONS (Notification Log) ─────────────────────────────
+    # Always save to Notification Log first, independently from push notifications
+    print(f"[30minNotif] Saving system notifications to Notification Log...")
+    system_saved = 0
     for role in matching_roles:
         try:
-            # Find all users with the specified role
             users = frappe.db.sql(
                 """
                 SELECT DISTINCT parent as user
                 FROM `tabHas Role`
                 WHERE role = %(role)s
+                AND parenttype = 'User'
                 AND parent NOT IN ('Administrator', 'Guest')
                 """,
                 {"role": role},
@@ -946,16 +946,14 @@ def send_scheduled_30min_notification(doc, settings):
             )
 
             if not users:
-                print(f"No users found with role: {role}")
+                print(f"[30minNotif] WARNING: No users found with role: {role}")
                 continue
 
             user_emails = [user.user for user in users]
-            print(f"Sending 30-min reminder to {len(user_emails)} users with role {role}")
+            print(f"[30minNotif] Role '{role}' → {len(user_emails)} user(s): {user_emails}")
 
-            # Send system notifications to all users
             for user_email in user_emails:
                 try:
-                    # Check if notification already exists to prevent duplicates
                     thirty_seconds_ago = add_to_date(now_datetime(), seconds=-30)
                     existing_notification = frappe.db.exists(
                         "Notification Log",
@@ -969,12 +967,13 @@ def send_scheduled_30min_notification(doc, settings):
                     )
 
                     if existing_notification:
+                        print(f"[30minNotif] SKIP — Notification Log already exists for {user_email} in last 30s")
                         continue
 
                     notification = frappe.get_doc({
                         "doctype": "Notification Log",
                         "for_user": user_email,
-                        "from_user": frappe.session.user or "Administrator",
+                        "from_user": "Administrator",
                         "subject": title,
                         "email_content": body,
                         "document_type": "Sales Invoice",
@@ -983,8 +982,8 @@ def send_scheduled_30min_notification(doc, settings):
                         "read": 0
                     })
                     notification.insert(ignore_permissions=True)
+                    frappe.db.commit()
 
-                    # Publish realtime event
                     frappe.publish_realtime(
                         'sales_invoice_notification_' + user_email,
                         data={
@@ -994,89 +993,119 @@ def send_scheduled_30min_notification(doc, settings):
                             'document_name': doc.name
                         }
                     )
-                    print(f"  ✓ System notification sent to: {user_email}")
+                    system_saved += 1
+                    print(f"[30minNotif] ✓ Notification Log saved for: {user_email}")
 
                 except Exception as e:
+                    print(f"[30minNotif] ERROR saving Notification Log for {user_email}: {str(e)}")
                     frappe.log_error(
-                        f"Error sending 30-min system notification to {user_email}: {str(e)}",
+                        f"Error saving 30-min system notification for {user_email}: {str(e)}",
                         "Scheduled 30-Min Notification Error"
                     )
 
-            # Send push notifications if Expo is available
-            if has_expo:
+        except Exception as e:
+            print(f"[30minNotif] ERROR processing role {role}: {str(e)}")
+            frappe.log_error(
+                f"Error processing role {role} for 30-min notification: {str(e)}",
+                "Scheduled 30-Min Notification Error"
+            )
+
+    print(f"[30minNotif] System notifications saved: {system_saved}")
+
+    # ── PUSH NOTIFICATIONS ───────────────────────────────────────────────────
+    # Push is independent — failure here does NOT affect Notification Log
+    if not has_expo:
+        print(f"[30minNotif] Expo SDK not available — skipping push notifications")
+        print(f"[30minNotif] Completed for {doc.name}")
+        return
+
+    print(f"[30minNotif] Sending push notifications...")
+    push_sent = 0
+    for role in matching_roles:
+        try:
+            users = frappe.db.sql(
+                """
+                SELECT DISTINCT parent as user
+                FROM `tabHas Role`
+                WHERE role = %(role)s
+                AND parenttype = 'User'
+                AND parent NOT IN ('Administrator', 'Guest')
+                """,
+                {"role": role},
+                as_dict=True
+            )
+            if not users:
+                continue
+
+            user_emails = [user.user for user in users]
+            token_docs = frappe.get_all(
+                "ArcPOS Notification Token",
+                filters={"user": ["in", user_emails]},
+                fields=["name", "user"]
+            )
+            print(f"[30minNotif] Role '{role}': found {len(token_docs)} token doc(s)")
+
+            push_messages = []
+            for token_doc_entry in token_docs:
+                token_doc = frappe.get_doc("ArcPOS Notification Token", token_doc_entry.name)
+                if token_doc.token_list:
+                    for token_row in token_doc.token_list:
+                        if token_row.token and PushClient.is_exponent_push_token(token_row.token):
+                            print(f"[30minNotif] Queuing PUSH → token: {token_row.token} (user: {token_doc.user})")
+                            push_messages.append(
+                                PushMessage(
+                                    to=token_row.token,
+                                    title=title,
+                                    body=body,
+                                    data={
+                                        "document_type": "Sales Invoice",
+                                        "document_name": doc.name,
+                                        "notification_type": "scheduled_30min_reminder",
+                                        "order_status": doc.custom_order_status or "",
+                                        "service_type": doc.custom_service_type or "",
+                                        "delivery_time": str(doc.custom_delivery_time)
+                                    },
+                                    sound="default",
+                                    priority="high"
+                                )
+                            )
+
+            if not push_messages:
+                print(f"[30minNotif] No valid Expo tokens found for role '{role}'")
+                continue
+
+            print(f"[30minNotif] Sending {len(push_messages)} push message(s) for role '{role}'")
+            push_client = PushClient()
+            chunk_size = 100
+            for i in range(0, len(push_messages), chunk_size):
+                chunk = push_messages[i:i + chunk_size]
                 try:
-                    # Get Expo tokens for users
-                    token_docs = frappe.get_all(
-                        "ArcPOS Notification Token",
-                        filters={"user": ["in", user_emails]},
-                        fields=["name", "user"]
-                    )
-
-                    if token_docs:
-                        push_messages = []
-                        for token_doc_name in [t.name for t in token_docs]:
-                            token_doc = frappe.get_doc("ArcPOS Notification Token", token_doc_name)
-
-                            # Get tokens from child table
-                            if token_doc.token_list:
-                                for token_row in token_doc.token_list:
-                                    if token_row.token and PushClient.is_exponent_push_token(token_row.token):
-                                        push_messages.append(
-                                            PushMessage(
-                                                to=token_row.token,
-                                                title=title,
-                                                body=body,
-                                                data={
-                                                    "document_type": "Sales Invoice",
-                                                    "document_name": doc.name,
-                                                    "notification_type": "scheduled_30min_reminder",
-                                                    "order_status": doc.custom_order_status or "",
-                                                    "service_type": doc.custom_service_type or "",
-                                                    "delivery_time": str(doc.custom_delivery_time)
-                                                },
-                                                sound="default",
-                                                priority="high"
-                                            )
-                                        )
-
-                        # Send push notifications in chunks
-                        if push_messages:
-                            push_client = PushClient()
-                            chunk_size = 100
-                            for i in range(0, len(push_messages), chunk_size):
-                                chunk = push_messages[i:i + chunk_size]
-                                try:
-                                    responses = push_client.publish_multiple(chunk)
-                                    for response in responses:
-                                        try:
-                                            response.validate_response()
-                                        except DeviceNotRegisteredError:
-                                            pass  # Token expired, ignore
-                                        except (PushTicketError, PushServerError) as exc:
-                                            print(f"Push notification error: {exc.message}")
-                                except Exception as e:
-                                    frappe.log_error(
-                                        f"Error sending 30-min push notification chunk: {str(e)}",
-                                        "Scheduled 30-Min Push Error"
-                                    )
-
-                            print(f"  ✓ Push notifications sent to role: {role}")
-
+                    responses = push_client.publish_multiple(chunk)
+                    for response in responses:
+                        try:
+                            response.validate_response()
+                            push_sent += 1
+                        except DeviceNotRegisteredError:
+                            print(f"[30minNotif] PUSH token expired/unregistered — skipping")
+                        except (PushTicketError, PushServerError) as exc:
+                            print(f"[30minNotif] PUSH ticket/server error: {exc.message}")
+                            frappe.log_error(exc.message, "Scheduled 30-Min Push Error")
                 except Exception as e:
+                    print(f"[30minNotif] ERROR sending push chunk for role '{role}': {str(e)}")
                     frappe.log_error(
-                        f"Error processing 30-min push notifications for role {role}: {str(e)}",
+                        f"Error sending 30-min push chunk for role {role}: {str(e)}",
                         "Scheduled 30-Min Push Error"
                     )
 
         except Exception as e:
+            print(f"[30minNotif] ERROR processing push for role {role}: {str(e)}")
             frappe.log_error(
-                f"Error sending 30-min notification to role {role}: {str(e)}",
-                "Scheduled 30-Min Notification Error"
+                f"Error processing 30-min push for role {role}: {str(e)}",
+                "Scheduled 30-Min Push Error"
             )
 
-    # Commit the transaction
-    frappe.db.commit()
-    print(f"30-minute reminder notification completed for {doc.name}")
+    print(f"[30minNotif] Push notifications sent: {push_sent}")
+    print(f"[30minNotif] Completed for {doc.name}")
 
 
 def send_scheduled_reminder_email(doc, template_name, settings=None, role_user_emails=None):
@@ -1101,19 +1130,22 @@ def send_scheduled_reminder_email(doc, template_name, settings=None, role_user_e
         # Resolve recipients — read directly from DB to avoid stale Document cache
         override_emails = frappe.db.get_single_value("ArcPOS Settings", "scheduled_order_email_send_to") or ""
 
-        print("Overrid Email: ", override_emails)
+        print(f"[30minEmail] scheduled_order_email_send_to: '{override_emails}'")
 
         if override_emails.strip():
             recipients = [e.strip() for e in override_emails.split(",") if e.strip()]
+            print(f"[30minEmail] Using override recipients: {recipients}")
         else:
+            # No override set — send to users with default roles (Restaurant Chef, Restaurant Manager)
             recipients = role_user_emails or []
             if not recipients:
-                print(f"No role-wise users found for scheduled reminder: {doc.name}")
+                print(f"[30minEmail] WARNING: No role-wise users found to send email for {doc.name}")
                 frappe.log_error(
                     f"No role-wise users found for Sales Invoice {doc.name}",
                     "Scheduled Reminder Email - No Recipients"
                 )
                 return
+            print(f"[30minEmail] No override set — sending to default role users: {recipients}")
 
         # Get the Email Template and render it
         email_template = frappe.get_doc("Email Template", template_name)
@@ -1147,7 +1179,7 @@ def send_scheduled_reminder_email(doc, template_name, settings=None, role_user_e
             now=True
         )
 
-        print(f"Scheduled reminder email sent to {recipients} for {doc.name}")
+        print(f"[30minEmail] ✓ Email sent to {recipients} for {doc.name}")
         frappe.log_error(
             f"Scheduled reminder email sent to {recipients} for Sales Invoice {doc.name}",
             "Scheduled Reminder Email - Success"

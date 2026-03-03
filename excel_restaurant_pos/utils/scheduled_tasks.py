@@ -185,9 +185,9 @@ def check_scheduled_order_notifications():
     current_datetime = now_datetime()
     current_date = getdate(current_datetime)
 
-    # Calculate the target time range (30 minutes from now, with 5-minute window)
-    target_time_start = add_to_date(current_datetime, minutes=28)
-    target_time_end = add_to_date(current_datetime, minutes=32)
+    # Calculate the target time range (1 minute from now, with 2-minute window) [TESTING]
+    target_time_start = add_to_date(current_datetime, minutes=-1)
+    target_time_end = add_to_date(current_datetime, minutes=3)
 
     # Define allowed statuses
     allowed_statuses = [
@@ -199,7 +199,7 @@ def check_scheduled_order_notifications():
         "Scheduled",
         "Ready to Deliver",
         "Ready to Pickup",
-        "Handover to Delivery"
+        "Handover to Delivery",
     ]
 
     # Define allowed service types
@@ -222,8 +222,8 @@ def check_scheduled_order_notifications():
             "custom_delivery_date",
             "customer",
             "customer_name",
-            "grand_total"
-        ]
+            "grand_total",
+        ],
     )
 
     if not invoices:
@@ -269,7 +269,7 @@ def check_scheduled_order_notifications():
         except Exception as e:
             frappe.log_error(
                 message=f"Error processing 30-min notification for {invoice.name}: {str(e)}",
-                title="Scheduled Order 30-Min Notification Error"
+                title="Scheduled Order 30-Min Notification Error",
             )
             continue
 
@@ -298,10 +298,13 @@ def send_scheduled_order_notification_to_staff(invoice):
             PushServerError,
             PushTicketError,
         )
+
         has_expo = True
     except ImportError:
         has_expo = False
-        frappe.logger().warning("Expo Server SDK not installed, skipping push notifications")
+        frappe.logger().warning(
+            "Expo Server SDK not installed, skipping push notifications"
+        )
 
     # Get the full document
     doc = frappe.get_doc("Sales Invoice", invoice.name)
@@ -363,20 +366,23 @@ def send_scheduled_order_notification_to_staff(invoice):
 
     # ── Per-role: system notifications, push, and (if no override) email ──────
     for role in target_roles:
+        print(f"[ScheduledNotif] Processing role: {role}")
         try:
-            # Find all users with the specified role
+            # Find all users with the specified role (parenttype = 'User' excludes Role Profiles)
             users = frappe.db.sql(
                 """
                 SELECT DISTINCT parent as user
                 FROM `tabHas Role`
                 WHERE role = %(role)s
+                AND parenttype = 'User'
                 AND parent NOT IN ('Administrator', 'Guest')
                 """,
                 {"role": role},
-                as_dict=True
+                as_dict=True,
             )
 
             if not users:
+                print(f"[ScheduledNotif] WARNING: No users found with role: {role}")
                 frappe.logger().warning(f"No users found with role: {role}")
                 continue
 
@@ -385,7 +391,9 @@ def send_scheduled_order_notification_to_staff(invoice):
             # Send email to role-wise users only when no override is configured
             if not override_emails and settings.scheduled_order_reminder_template:
                 try:
-                    email_template = frappe.get_doc("Email Template", settings.scheduled_order_reminder_template)
+                    email_template = frappe.get_doc(
+                        "Email Template", settings.scheduled_order_reminder_template
+                    )
 
                     for user_email in user_emails:
                         try:
@@ -395,10 +403,16 @@ def send_scheduled_order_notification_to_staff(invoice):
                                 "order_name": doc.name,
                                 "customer_name": customer_name,
                                 "service_type": service_type,
-                                "delivery_date": frappe.utils.format_date(doc.custom_delivery_date, "dd MMM yyyy"),
-                                "delivery_time": frappe.utils.format_time(delivery_time),
+                                "delivery_date": frappe.utils.format_date(
+                                    doc.custom_delivery_date, "dd MMM yyyy"
+                                ),
+                                "delivery_time": frappe.utils.format_time(
+                                    delivery_time
+                                ),
                                 "order_status": doc.custom_order_status or "Scheduled",
-                                "grand_total": frappe.utils.fmt_money(doc.grand_total, currency=doc.currency),
+                                "grand_total": frappe.utils.fmt_money(
+                                    doc.grand_total, currency=doc.currency
+                                ),
                                 "items": doc.items,
                                 "doc": doc,
                             }
@@ -408,21 +422,29 @@ def send_scheduled_order_notification_to_staff(invoice):
                             frappe.logger().info(f"30-min reminder email sent to role user: {user_email}")
                             notifications_sent = True
                         except Exception as e:
+                            print(
+                                f"[ScheduledNotif] ERROR sending email to {user_email}: {str(e)}"
+                            )
                             frappe.log_error(
                                 f"Error sending email to {user_email}: {str(e)}",
-                                "Scheduled Order Notification - Email Error"
+                                "Scheduled Order Notification - Email Error",
                             )
 
                 except Exception as e:
+                    print(
+                        f"[ScheduledNotif] ERROR loading email template for role {role}: {str(e)}"
+                    )
                     frappe.log_error(
-                        f"Error processing email template for role {role}: {str(e)}",
-                        "Scheduled Order Notification - Email Template Error"
+                        message=f"Error processing email template for role {role}: {str(e)}",
+                        title="Scheduled Order Notification - Email Template Error",
                     )
 
             # Send system notifications to all users
             for user_email in user_emails:
                 try:
                     # Check if notification already exists to prevent duplicates
+                    from frappe.utils import add_to_date
+
                     thirty_seconds_ago = add_to_date(now_datetime(), seconds=-30)
                     existing_notification = frappe.db.exists(
                         "Notification Log",
@@ -431,43 +453,52 @@ def send_scheduled_order_notification_to_staff(invoice):
                             "document_type": "Sales Invoice",
                             "document_name": doc.name,
                             "subject": title,
-                            "creation": [">=", thirty_seconds_ago]
-                        }
+                            "creation": [">=", thirty_seconds_ago],
+                        },
                     )
 
                     if existing_notification:
+                        print(
+                            f"[ScheduledNotif] SKIP system notification for {user_email} — already sent in last 30s"
+                        )
                         continue
 
-                    notification = frappe.get_doc({
-                        "doctype": "Notification Log",
-                        "for_user": user_email,
-                        "from_user": "Administrator",
-                        "subject": title,
-                        "email_content": body,
-                        "document_type": "Sales Invoice",
-                        "document_name": doc.name,
-                        "type": "Alert",
-                        "read": 0
-                    })
+                    notification = frappe.get_doc(
+                        {
+                            "doctype": "Notification Log",
+                            "for_user": user_email,
+                            "from_user": "Administrator",
+                            "subject": title,
+                            "email_content": body,
+                            "document_type": "Sales Invoice",
+                            "document_name": doc.name,
+                            "type": "Alert",
+                            "read": 0,
+                        }
+                    )
                     notification.insert(ignore_permissions=True)
 
                     # Publish realtime event
                     frappe.publish_realtime(
-                        'sales_invoice_notification_' + user_email,
+                        "sales_invoice_notification_" + user_email,
                         data={
-                            'title': title,
-                            'body': body,
-                            'document_type': 'Sales Invoice',
-                            'document_name': doc.name
-                        }
+                            "title": title,
+                            "body": body,
+                            "document_type": "Sales Invoice",
+                            "document_name": doc.name,
+                        },
                     )
                     notifications_sent = True
+                    print(f"[ScheduledNotif] SYSTEM notification sent to: {user_email}")
                     frappe.logger().info(f"System notification sent to: {user_email}")
 
                 except Exception as e:
+                    print(
+                        f"[ScheduledNotif] ERROR sending system notification to {user_email}: {str(e)}"
+                    )
                     frappe.log_error(
-                        f"Error sending system notification to {user_email}: {str(e)}",
-                        "Scheduled Order Notification - System Error"
+                        message=f"Error sending system notification to {user_email}: {str(e)}",
+                        title="Scheduled Order Notification - System Error",
                     )
 
             # Send push notifications if Expo is available
@@ -477,18 +508,32 @@ def send_scheduled_order_notification_to_staff(invoice):
                     token_docs = frappe.get_all(
                         "ArcPOS Notification Token",
                         filters={"user": ["in", user_emails]},
-                        fields=["name", "user"]
+                        fields=["name", "user"],
+                    )
+
+                    print(
+                        f"[ScheduledNotif] Found {len(token_docs)} Expo token doc(s) for role '{role}'"
                     )
 
                     if token_docs:
                         push_messages = []
                         for token_doc_name in [t.name for t in token_docs]:
-                            token_doc = frappe.get_doc("ArcPOS Notification Token", token_doc_name)
+                            token_doc = frappe.get_doc(
+                                "ArcPOS Notification Token", token_doc_name
+                            )
 
                             # Get tokens from child table
                             if token_doc.token_list:
                                 for token_row in token_doc.token_list:
-                                    if token_row.token and PushClient.is_exponent_push_token(token_row.token):
+                                    if (
+                                        token_row.token
+                                        and PushClient.is_exponent_push_token(
+                                            token_row.token
+                                        )
+                                    ):
+                                        print(
+                                            f"[ScheduledNotif] Queuing PUSH to token: {token_row.token} (user: {token_doc.user})"
+                                        )
                                         push_messages.append(
                                             PushMessage(
                                                 to=token_row.token,
@@ -498,50 +543,82 @@ def send_scheduled_order_notification_to_staff(invoice):
                                                     "document_type": "Sales Invoice",
                                                     "document_name": doc.name,
                                                     "notification_type": "scheduled_30min_reminder",
-                                                    "order_status": doc.custom_order_status or "",
-                                                    "service_type": doc.custom_service_type or "",
-                                                    "delivery_time": str(doc.custom_delivery_time)
+                                                    "order_status": doc.custom_order_status
+                                                    or "",
+                                                    "service_type": doc.custom_service_type
+                                                    or "",
+                                                    "delivery_time": str(
+                                                        doc.custom_delivery_time
+                                                    ),
                                                 },
                                                 sound="default",
-                                                priority="high"
+                                                priority="high",
                                             )
                                         )
 
                         # Send push notifications in chunks
                         if push_messages:
+                            print(
+                                f"[ScheduledNotif] Sending {len(push_messages)} PUSH notification(s) for role '{role}'"
+                            )
                             push_client = PushClient()
                             chunk_size = 100
                             for i in range(0, len(push_messages), chunk_size):
-                                chunk = push_messages[i:i + chunk_size]
+                                chunk = push_messages[i : i + chunk_size]
                                 try:
                                     responses = push_client.publish_multiple(chunk)
                                     for response in responses:
                                         try:
                                             response.validate_response()
                                         except DeviceNotRegisteredError:
+                                            print(
+                                                f"[ScheduledNotif] PUSH token expired/unregistered — skipping"
+                                            )
                                             pass  # Token expired, ignore
-                                        except (PushTicketError, PushServerError) as exc:
+                                        except (
+                                            PushTicketError,
+                                            PushServerError,
+                                        ) as exc:
+                                            print(
+                                                f"[ScheduledNotif] PUSH error: {exc.message}"
+                                            )
                                             frappe.logger().warning(
                                                 f"Push notification error: {exc.message}"
                                             )
                                 except Exception as e:
+                                    print(
+                                        f"[ScheduledNotif] ERROR sending push chunk: {str(e)}"
+                                    )
                                     frappe.log_error(
-                                        f"Error sending push notification chunk: {str(e)}",
-                                        "Scheduled Order Notification - Push Error"
+                                        message=f"Error sending push notification chunk: {str(e)}",
+                                        title="Scheduled Order Notification - Push Error",
                                     )
 
-                            frappe.logger().info(f"Push notifications sent to role: {role}")
+                            print(
+                                f"[ScheduledNotif] PUSH notifications done for role: {role}"
+                            )
+                            frappe.logger().info(
+                                f"Push notifications sent to role: {role}"
+                            )
+                        else:
+                            print(
+                                f"[ScheduledNotif] No valid Expo push tokens found for role '{role}'"
+                            )
 
                 except Exception as e:
+                    print(
+                        f"[ScheduledNotif] ERROR processing push notifications for role {role}: {str(e)}"
+                    )
                     frappe.log_error(
-                        f"Error processing push notifications for role {role}: {str(e)}",
-                        "Scheduled Order Notification - Push Error"
+                        message=f"Error processing push notifications for role {role}: {str(e)}",
+                        title="Scheduled Order Notification - Push Error",
                     )
 
         except Exception as e:
+            print(f"[ScheduledNotif] ERROR for role {role}: {str(e)}")
             frappe.log_error(
-                f"Error sending notification to role {role}: {str(e)}",
-                "Scheduled Order Notification - Role Error"
+                message=f"Error sending notification to role {role}: {str(e)}",
+                title="Scheduled Order Notification - Role Error",
             )
 
     # Commit the transaction
@@ -572,17 +649,8 @@ def send_reservation_reminders():
     # Query confirmed reservations scheduled 24 hours from now
     reservations = frappe.get_all(
         "Table Reservation",
-        filters={
-            "status": "Confirmed",
-            "reminder_email_sent": 0
-        },
-        fields=[
-            "name",
-            "reservation_date",
-            "reservation_time",
-            "guest_name",
-            "email"
-        ]
+        filters={"status": "Confirmed", "reminder_email_sent": 0},
+        fields=["name", "reservation_date", "reservation_time", "guest_name", "email"],
     )
 
     if not reservations:
@@ -605,7 +673,9 @@ def send_reservation_reminders():
             # Check if reservation falls within the 24-hour reminder window
             if target_time_start <= reservation_datetime <= target_time_end:
                 # Import the send function from the doctype
-                from excel_restaurant_pos.excel_restaurant_pos.doctype.table_reservation.table_reservation import send_24h_reminder_email
+                from excel_restaurant_pos.excel_restaurant_pos.doctype.table_reservation.table_reservation import (
+                    send_24h_reminder_email,
+                )
 
                 # Send reminder email
                 send_24h_reminder_email(reservation.name)
@@ -619,7 +689,7 @@ def send_reservation_reminders():
         except Exception as e:
             frappe.log_error(
                 message=f"Error processing 24h reminder for reservation {reservation.name}: {str(e)}",
-                title="Reservation 24h Reminder Error"
+                title="Reservation 24h Reminder Error",
             )
             continue
 

@@ -48,21 +48,21 @@ def create_promotion_journal(invoice_name: str) -> str:
     # default dc account
     dc_account = frappe.db.get_single_value("ArcPOS Settings", "default_dc_account")
     if not dc_account:
-        msg = f"Default DC account not found in ArcPOS Settings"
+        msg = f"Default DC account not found in ArcPOS Settings for invoice: {invoice_name}"
         frappe.log_error("Default DC account not found", msg)
         return
 
     # dc against account
     dc_against = frappe.db.get_single_value("ArcPOS Settings", "dc_against_account")
     if not dc_against:
-        msg = f"DC against account not found in ArcPOS Settings"
+        msg = f"DC against account not found in ArcPOS Settings for invoice: {invoice_name}"
         frappe.log_error("DC against account not found", msg)
         return
 
     # get default company
     company = frappe.db.get_single_value("ArcPOS Settings", "company")
     if not company:
-        msg = f"Company not found in ArcPOS Settings"
+        msg = f"Company not found in ArcPOS Settings for invoice: {invoice_name}"
         frappe.log_error("Company not found", msg)
         return
 
