@@ -185,9 +185,9 @@ def check_scheduled_order_notifications():
     current_datetime = now_datetime()
     current_date = getdate(current_datetime)
 
-    # Calculate the target time range (1 minute from now, with 2-minute window) [TESTING]
-    target_time_start = add_to_date(current_datetime, minutes=-1)
-    target_time_end = add_to_date(current_datetime, minutes=3)
+    # Calculate the target time range (30 minutes from now, with 4-minute window)
+    target_time_start = add_to_date(current_datetime, minutes=28)
+    target_time_end = add_to_date(current_datetime, minutes=32)
 
     # Define allowed statuses
     allowed_statuses = [
@@ -443,8 +443,6 @@ def send_scheduled_order_notification_to_staff(invoice):
             for user_email in user_emails:
                 try:
                     # Check if notification already exists to prevent duplicates
-                    from frappe.utils import add_to_date
-
                     thirty_seconds_ago = add_to_date(now_datetime(), seconds=-30)
                     existing_notification = frappe.db.exists(
                         "Notification Log",
