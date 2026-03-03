@@ -1,6 +1,6 @@
 from excel_restaurant_pos.api.payments.helper.check_receipt import check_receipt
 import frappe
-from frappe.utils import now_datetime
+from frappe.utils import now_datetime, add_to_date
 from datetime import timedelta
 from excel_restaurant_pos.doc_event.sales_invoice.handlers.create_payment_entry import (
     create_payment_entry,
@@ -179,12 +179,7 @@ def check_scheduled_order_notifications():
     - DeliveryDate: Current Date
     - Current Time: 30 minutes before DeliveryTime (within 5-minute window)
     """
-    from frappe.utils import (
-        now_datetime,
-        get_datetime,
-        add_to_date,
-        getdate,
-    )
+    from frappe.utils import get_datetime, getdate
 
     # Get current datetime
     current_datetime = now_datetime()
@@ -251,7 +246,8 @@ def check_scheduled_order_notifications():
             # Check if delivery time falls within the notification window
             if target_time_start <= delivery_datetime <= target_time_end:
                 # Check if notification was already sent (cache key with 2-hour TTL)
-                cache_key = f"scheduled_order_notification_30min_{invoice.name}"
+                # Must match the key used in check_scheduled_notification_30min_before
+                cache_key = f"scheduled_30min_notification_{invoice.name}"
                 if frappe.cache().get_value(cache_key):
                     frappe.logger().debug(
                         f"30-min notification already sent for {invoice.name}, skipping"
@@ -313,7 +309,11 @@ def send_scheduled_order_notification_to_staff(invoice):
     # Get ArcPOS Settings for email template
     settings = frappe.get_single("ArcPOS Settings")
 
-    # Define target roles for staff notifications
+    # Read override email setting once — used to decide who receives the email
+    override_emails_raw = frappe.db.get_single_value("ArcPOS Settings", "scheduled_order_email_send_to") or ""
+    override_emails = [e.strip() for e in override_emails_raw.split(",") if e.strip()]
+
+    # Define target roles for staff system/push notifications
     target_roles = ["Restaurant Chef", "Restaurant Manager"]
 
     # Prepare notification content
@@ -328,8 +328,40 @@ def send_scheduled_order_notification_to_staff(invoice):
         f"Please prepare the order."
     )
 
-    # Send notifications to each role
     notifications_sent = False
+
+    # ── Email ──────────────────────────────────────────────────────────────────
+    # If override addresses are configured, send ONE email to those addresses.
+    # Otherwise, email is sent per role-wise user inside the role loop below.
+    if settings.scheduled_order_reminder_template:
+        if override_emails:
+            try:
+                email_template = frappe.get_doc("Email Template", settings.scheduled_order_reminder_template)
+                template_args = {
+                    "order_name": doc.name,
+                    "customer_name": customer_name,
+                    "service_type": service_type,
+                    "delivery_date": frappe.utils.format_date(doc.custom_delivery_date, "dd MMM yyyy"),
+                    "delivery_time": frappe.utils.format_time(delivery_time),
+                    "order_status": doc.custom_order_status or "Scheduled",
+                    "grand_total": frappe.utils.fmt_money(doc.grand_total, currency=doc.currency),
+                    "items": doc.items,
+                    "doc": doc,
+                }
+                subject = frappe.render_template(email_template.subject, template_args)
+                message = frappe.render_template(email_template.response_html or email_template.response, template_args)
+                frappe.sendmail(recipients=override_emails, subject=subject, message=message, now=True)
+                frappe.logger().info(f"30-min reminder email sent to override addresses {override_emails} for {doc.name}")
+                notifications_sent = True
+            except Exception as e:
+                frappe.log_error(
+                    f"Error sending override email for {doc.name}: {str(e)}",
+                    "Scheduled Order Notification - Override Email Error"
+                )
+    else:
+        frappe.logger().warning("No email template configured in ArcPOS Settings (scheduled_order_reminder_template)")
+
+    # ── Per-role: system notifications, push, and (if no override) email ──────
     for role in target_roles:
         try:
             # Find all users with the specified role
@@ -349,22 +381,17 @@ def send_scheduled_order_notification_to_staff(invoice):
                 continue
 
             user_emails = [user.user for user in users]
-            frappe.logger().info(f"Sending 30-min reminder to {len(user_emails)} users with role {role}")
 
-            # Send email notifications to all users
-            if settings.scheduled_order_reminder_template:
+            # Send email to role-wise users only when no override is configured
+            if not override_emails and settings.scheduled_order_reminder_template:
                 try:
                     email_template = frappe.get_doc("Email Template", settings.scheduled_order_reminder_template)
 
                     for user_email in user_emails:
                         try:
-                            # Get user full name
                             user_doc = frappe.get_doc("User", user_email)
-                            user_full_name = user_doc.full_name or user_email
-
-                            # Prepare template context
                             template_args = {
-                                "user_name": user_full_name,
+                                "user_name": user_doc.full_name or user_email,
                                 "order_name": doc.name,
                                 "customer_name": customer_name,
                                 "service_type": service_type,
@@ -373,24 +400,13 @@ def send_scheduled_order_notification_to_staff(invoice):
                                 "order_status": doc.custom_order_status or "Scheduled",
                                 "grand_total": frappe.utils.fmt_money(doc.grand_total, currency=doc.currency),
                                 "items": doc.items,
-                                "doc": doc
+                                "doc": doc,
                             }
-
-                            # Render email template
                             subject = frappe.render_template(email_template.subject, template_args)
                             message = frappe.render_template(email_template.response_html or email_template.response, template_args)
-
-                            # Send email
-                            frappe.sendmail(
-                                recipients=[user_email],
-                                subject=subject,
-                                message=message,
-                                now=True
-                            )
-
-                            frappe.logger().info(f"Email notification sent to: {user_email}")
+                            frappe.sendmail(recipients=[user_email], subject=subject, message=message, now=True)
+                            frappe.logger().info(f"30-min reminder email sent to role user: {user_email}")
                             notifications_sent = True
-
                         except Exception as e:
                             frappe.log_error(
                                 f"Error sending email to {user_email}: {str(e)}",
@@ -402,10 +418,6 @@ def send_scheduled_order_notification_to_staff(invoice):
                         f"Error processing email template for role {role}: {str(e)}",
                         "Scheduled Order Notification - Email Template Error"
                     )
-            else:
-                frappe.logger().warning(
-                    f"No email template configured in ArcPOS Settings (scheduled_order_reminder_template)"
-                )
 
             # Send system notifications to all users
             for user_email in user_emails:
@@ -615,3 +627,62 @@ def send_reservation_reminders():
         frappe.logger().info(
             f"Sent {reminders_sent} reservation 24-hour reminder emails"
         )
+
+
+def complete_past_reservations():
+    """
+    Mark past Table Reservations as Completed.
+    Runs daily at 1 AM.
+
+    Conditions:
+    - Status: Confirmed OR Rescheduled
+    - Reservation Date + Time has already passed current datetime
+    """
+    from frappe.utils import get_datetime, getdate
+
+    current_datetime = now_datetime()
+    current_date = getdate(current_datetime)
+
+    # Fetch Confirmed and Rescheduled reservations whose date is today or earlier
+    reservations = frappe.get_all(
+        "Table Reservation",
+        filters={
+            "status": ["in", ["Confirmed", "Rescheduled"]],
+            "reservation_date": ["<=", current_date],
+        },
+        fields=["name", "reservation_date", "reservation_time"],
+    )
+
+    if not reservations:
+        frappe.logger().debug("No past reservations found to complete")
+        return
+
+    completed = 0
+    for reservation in reservations:
+        try:
+            if not reservation.reservation_date or not reservation.reservation_time:
+                continue
+
+            reservation_datetime = get_datetime(
+                f"{reservation.reservation_date} {reservation.reservation_time}"
+            )
+
+            if reservation_datetime < current_datetime:
+                frappe.db.set_value(
+                    "Table Reservation",
+                    reservation.name,
+                    "status",
+                    "Completed",
+                    update_modified=False,
+                )
+                completed += 1
+
+        except Exception as e:
+            frappe.log_error(
+                message=f"Error completing reservation {reservation.name}: {str(e)}",
+                title="Complete Past Reservations Error",
+            )
+
+    if completed:
+        frappe.db.commit()
+        frappe.logger().info(f"Marked {completed} past reservation(s) as Completed")

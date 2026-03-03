@@ -19,8 +19,11 @@ def on_update_sales_invoice(doc, method: str):
         # Send Delivery or Pickup Notification
         # Get ArcPOS Settings
         settings = frappe.get_doc("ArcPOS Settings", "ArcPOS Settings")
-        print("\n\n Duration : ", settings.send_email_after_delivery, "\n\n\n")
         template = settings.delivery_or_pickup_template
+
+        previous_doc = doc.get_doc_before_save()
+
+        print("TestingStatus: ",doc.get("custom_order_status"))
 
         if template:
             order_status = doc.get("custom_order_status") or ""
@@ -71,9 +74,6 @@ def on_update_sales_invoice(doc, method: str):
         else:
             print("Delivery and Pickup Template is missing in ArcPOS Settings")
 
-        # Check for scheduled delivery/pickup 30 minutes before notification
-        check_scheduled_notification_30min_before(doc, settings)
-
         # Prevent duplicate notifications using Redis cache
         # Key includes doc name and modified timestamp so different saves are processed independently
         # while duplicate hook triggers within the same save (same modified) are still deduplicated
@@ -123,6 +123,7 @@ def on_update_sales_invoice(doc, method: str):
                     send_notification_to_role_async,
                     queue="short",
                     timeout=300,
+                    enqueue_after_commit=True,
                     sales_invoice_name=doc.name,
                     rule_data={
                         "if_role": rule.if_role,
@@ -273,8 +274,9 @@ def send_notification_to_role_async(sales_invoice_name, rule_data):
 
     try:
         # Get the document
+        
         doc = frappe.get_doc("Sales Invoice", sales_invoice_name)
-
+               
         # Deduplication check at async level using cache
         # Include order status so notifications for different status transitions aren't blocked
         order_status_for_key = doc.get("custom_order_status") or ""
@@ -601,7 +603,10 @@ def get_notification_title(doc, rule):
     Returns:
         str: Notification title
     """
+    # order_status = frappe.db.get_value("Sales Invoice",doc.get('name'), 'custom_order_status' )
     order_status = doc.get("custom_order_status") or "Updated"
+    # order_status = "Testing"
+    print("\n\n Test Status : ",order_status)
     return f"Order {order_status}: {doc.name}"
 
 
