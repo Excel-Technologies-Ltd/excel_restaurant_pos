@@ -95,8 +95,8 @@ def create_sales_invoice(doc, method=None, create_payment=True):
 
         # Debug: Log the payment methods received
         frappe.log_error(
-            f"Payment count: {len(payment_methods)}, Type: {type(payment_methods)}",
             "Payment Debug 1",
+            f"Payment count: {len(payment_methods)}, Type: {type(payment_methods)}",
         )
 
         # Convert Frappe document objects to dictionaries
@@ -105,7 +105,8 @@ def create_sales_invoice(doc, method=None, create_payment=True):
             if hasattr(payment_methods[0], "as_dict"):
                 payment_methods = [p.as_dict() for p in payment_methods]
                 frappe.log_error(
-                    f"Converted {len(payment_methods)} payments", "Payment Debug 2"
+                    "Payment Debug 2",
+                    f"Converted {len(payment_methods)} payments",
                 )
 
         if len(payment_methods) > 0:
@@ -120,8 +121,8 @@ def create_sales_invoice(doc, method=None, create_payment=True):
                     mode_of_payment = payment.get("method", "Cash")
                     reference_no = payment.get("reference", "")
                     frappe.log_error(
-                        f"Pay {idx+1}: {mode_of_payment} = {payment_amount}",
                         "Payment Debug 3",
+                        f"Pay {idx + 1}: {mode_of_payment} = {payment_amount}",
                     )
                 else:
                     # Try to access as object attributes
@@ -130,13 +131,13 @@ def create_sales_invoice(doc, method=None, create_payment=True):
                         mode_of_payment = getattr(payment, "method", "Cash")
                         reference_no = getattr(payment, "reference", "")
                         frappe.log_error(
-                            f"Pay {idx+1} obj: {mode_of_payment} = {payment_amount}",
                             "Payment Debug 4",
+                            f"Pay {idx + 1} obj: {mode_of_payment} = {payment_amount}",
                         )
                     except Exception as attr_error:
                         frappe.log_error(
-                            f"Parse err {idx+1}: {str(attr_error)}",
                             "Payment Parse Error",
+                            f"Parse err {idx + 1}: {str(attr_error)}",
                         )
                         continue
 
@@ -166,7 +167,7 @@ def create_sales_invoice(doc, method=None, create_payment=True):
                     #     )
 
                 else:
-                    frappe.log_error(f"Skip {idx+1}: zero amount", "Payment Debug 7")
+                    frappe.log_error("Payment Debug 7", f"Skip {idx + 1}: zero amount")
 
         # Update Table Order if provided
         if doc.name:
@@ -177,8 +178,8 @@ def create_sales_invoice(doc, method=None, create_payment=True):
                 frappe.db.commit()
             except Exception as update_error:
                 frappe.log_error(
-                    f"Failed Table Order update: {str(update_error)}",
                     "Table Order Error",
+                    f"Failed Table Order update: {str(update_error)}",
                 )
 
         return {
@@ -189,5 +190,5 @@ def create_sales_invoice(doc, method=None, create_payment=True):
         }
 
     except Exception as e:
-        frappe.log_error(frappe.get_traceback(), "Sales Invoice Error")
+        frappe.log_error("Sales Invoice Error", frappe.get_traceback())
         frappe.throw(f"Failed to create Sales Invoice: {str(e)}")

@@ -365,13 +365,13 @@ def create_order(data):
     except frappe.ValidationError as e:
         print("validation error")
         print(e)
-        frappe.log_error(frappe.get_traceback(), _("Order Creation Error"))
+        frappe.log_error("Order Creation Error", str(e))
         return {"status": "error", "message": str(e)}
 
     except Exception as e:
         print("exce")
         print(e)
-        frappe.log_error(frappe.get_traceback(), _("Unknown Error in Order Creation"))
+        frappe.log_error("Unknown Error in Order Creation", str(e))
         return {"status": "error", "message": str(e)}
 
 
@@ -454,7 +454,7 @@ def get_order_list(status=None, page=1, page_size=10):
         }
         return response
     except Exception as e:
-        frappe.log_error(frappe.get_traceback(), "get_order_list API Error")
+        frappe.log_error("get_order_list API Error", str(e))
         return {"error": str(e)}
 
 
@@ -507,7 +507,7 @@ def get_chef_order_list(page=1, page_size=10):
         }
         return response
     except Exception as e:
-        frappe.log_error(frappe.get_traceback(), "get_chef_order_list API Error")
+        frappe.log_error("get_chef_order_list API Error", str(e))
         return {"error": str(e)}
 
 

@@ -17,7 +17,14 @@ def update_customer():
 
     # update customer info
     updated_info: dict = {}
-    allow_fields = ["customer_name", "customer_type", "territory", "gender", "disabled"]
+    allow_fields = [
+        "customer_name",
+        "customer_type",
+        "territory",
+        "gender",
+        "disabled",
+        "is_frozen",
+    ]
 
     # prepare updated info
     for field in allow_fields:

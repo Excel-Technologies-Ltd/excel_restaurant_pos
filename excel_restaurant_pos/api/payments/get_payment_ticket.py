@@ -159,7 +159,7 @@ def _request_payment_ticket(payload: dict, payment_config: dict) -> str:
         response = requests.post(payment_config["ticket_url"], json=payload, timeout=30)
     except requests.exceptions.RequestException as e:
         frappe.log_error(
-            f"Payment gateway request failed: {str(e)}", "Payment Ticket Error"
+            "Payment Ticket Error", f"Payment gateway request failed: {str(e)}"
         )
         frappe.throw("Failed to connect to payment gateway", frappe.ValidationError)
 
@@ -167,7 +167,7 @@ def _request_payment_ticket(payload: dict, payment_config: dict) -> str:
         error_msg = f"Payment gateway returned status {response.status_code}"
         try:
             error_detail = response.text[:200]  # First 200 chars of error
-            frappe.log_error(f"{error_msg}: {error_detail}", "Payment Ticket Error")
+            frappe.log_error("Payment Ticket Error", f"{error_msg}: {error_detail}")
         except Exception:
             pass
         frappe.throw(
@@ -179,8 +179,8 @@ def _request_payment_ticket(payload: dict, payment_config: dict) -> str:
         response_data = response.json()
     except ValueError as e:
         frappe.log_error(
-            f"Invalid JSON response from payment gateway: {str(e)}",
             "Payment Ticket Error",
+            f"Invalid JSON response from payment gateway: {str(e)}",
         )
         frappe.throw("Invalid response from payment gateway", frappe.ValidationError)
 
@@ -189,7 +189,7 @@ def _request_payment_ticket(payload: dict, payment_config: dict) -> str:
     if res.get("success", "false").lower() != "true":
         error_message = res.get("message", "Unknown error from payment gateway")
         frappe.log_error(
-            f"Payment gateway error: {error_message}", "Payment Ticket Error"
+            "Payment Ticket Error", f"Payment gateway error: {error_message}"
         )
         frappe.throw(
             f"Failed to get payment ticket: {error_message}", frappe.ValidationError

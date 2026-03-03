@@ -54,12 +54,13 @@ def create_reservation():
 
         if not number_of_guests:
             frappe.throw(_("Number of guests is required"))
-        
+
         if not requested_from:
             frappe.throw(_("Requested from is required"))
 
         # Validate email format
         from frappe.utils import validate_email_address
+
         if not validate_email_address(email, throw=False):
             frappe.throw(_("Invalid email address"))
 
@@ -73,6 +74,7 @@ def create_reservation():
 
         # Validate reservation date is not in the past
         from frappe.utils import getdate, nowdate
+
         if getdate(reservation_date) < getdate(nowdate()):
             frappe.throw(_("Reservation date cannot be in the past"))
 
@@ -80,18 +82,20 @@ def create_reservation():
         special_requests = frappe.form_dict.get("special_requests", "")
 
         # Create reservation document
-        reservation = frappe.get_doc({
-            "doctype": "Table Reservation",
-            "guest_name": guest_name,
-            "email": email,
-            "phone_number": phone_number,
-            "reservation_date": reservation_date,
-            "reservation_time": reservation_time,
-            "number_of_guests": number_of_guests,
-            "special_requests": special_requests,
-            "status": "Pending",
-            "requested_from": requested_from
-        })
+        reservation = frappe.get_doc(
+            {
+                "doctype": "Table Reservation",
+                "guest_name": guest_name,
+                "email": email,
+                "phone_number": phone_number,
+                "reservation_date": reservation_date,
+                "reservation_time": reservation_time,
+                "number_of_guests": number_of_guests,
+                "special_requests": special_requests,
+                "status": "Pending",
+                "requested_from": requested_from,
+            }
+        )
 
         # Save the reservation (ignore permissions for guest users)
         reservation.insert(ignore_permissions=True)
@@ -102,36 +106,41 @@ def create_reservation():
         # Return success response
         return {
             "success": True,
-            "message": _("Reservation request submitted successfully! You will receive a confirmation email once we confirm your reservation."),
+            "message": _(
+                "Reservation request submitted successfully! You will receive a confirmation email once we confirm your reservation."
+            ),
             "reservation": {
                 "name": reservation.name,
                 "guest_name": reservation.guest_name,
                 "email": reservation.email,
                 "phone_number": reservation.phone_number,
-                "reservation_date": frappe.utils.format_date(reservation.reservation_date, "dd MMM yyyy"),
-                "reservation_time": frappe.utils.format_time(reservation.reservation_time),
+                "reservation_date": frappe.utils.format_date(
+                    reservation.reservation_date, "dd MMM yyyy"
+                ),
+                "reservation_time": frappe.utils.format_time(
+                    reservation.reservation_time
+                ),
                 "number_of_guests": reservation.number_of_guests,
                 "requested_from": reservation.requested_from,
-                "status": reservation.status
-            }
+                "status": reservation.status,
+            },
         }
 
     except frappe.ValidationError as e:
         frappe.clear_messages()
-        return {
-            "success": False,
-            "message": str(e)
-        }
+        return {"success": False, "message": str(e)}
 
     except Exception as e:
         frappe.log_error(
+            "Table Reservation API Error",
             f"Error creating reservation: {str(e)}",
-            "Table Reservation API Error"
         )
         frappe.clear_messages()
         return {
             "success": False,
-            "message": _("An error occurred while creating your reservation. Please try again or contact us directly.")
+            "message": _(
+                "An error occurred while creating your reservation. Please try again or contact us directly."
+            ),
         }
 
 
@@ -154,6 +163,7 @@ def get_available_slots():
 
         # Validate reservation date is not in the past
         from frappe.utils import getdate, nowdate
+
         if getdate(reservation_date) < getdate(nowdate()):
             frappe.throw(_("Cannot check slots for past dates"))
 
@@ -162,9 +172,9 @@ def get_available_slots():
             "Table Reservation",
             filters={
                 "reservation_date": reservation_date,
-                "status": ["in", ["Pending", "Confirmed"]]
+                "status": ["in", ["Pending", "Confirmed"]],
             },
-            fields=["reservation_time", "number_of_guests"]
+            fields=["reservation_time", "number_of_guests"],
         )
 
         # Define available time slots (restaurant hours)
@@ -197,21 +207,20 @@ def get_available_slots():
         # Mark slots as available or full (max 10 reservations per slot as example)
         max_reservations_per_slot = 10
         for slot in available_slots:
-            slot["available"] = reservation_counts.get(slot["time"], 0) < max_reservations_per_slot
+            slot["available"] = (
+                reservation_counts.get(slot["time"], 0) < max_reservations_per_slot
+            )
             slot["reserved_count"] = reservation_counts.get(slot["time"], 0)
 
         return {
             "success": True,
             "date": frappe.utils.format_date(reservation_date, "dd MMM yyyy"),
-            "slots": available_slots
+            "slots": available_slots,
         }
 
     except Exception as e:
         frappe.log_error(
+            "Table Reservation API Error",
             f"Error fetching available slots: {str(e)}",
-            "Table Reservation API Error"
         )
-        return {
-            "success": False,
-            "message": str(e)
-        }
+        return {"success": False, "message": str(e)}
