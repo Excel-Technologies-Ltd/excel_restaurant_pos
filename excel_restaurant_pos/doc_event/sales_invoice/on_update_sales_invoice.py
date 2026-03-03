@@ -134,7 +134,7 @@ def on_update_sales_invoice(doc, method: str):
                         "if_order_schedule_type": rule.if_order_schedule_type,
                         "if_delivery_partner_status": rule.if_delivery_partner_status,
                         "item_is_new_order_item": rule.item_is_new_order_item,
-                        "doc_delivery_partner_status": doc.get("custom_delivery_partner_status") or "",
+                        "doc_delivery_partner_status": frappe.db.get_value("Sales Invoice", doc.name, "custom_delivery_partner_status") or "",
                     }
                 )
                 print(f"Job enqueued: {job}")
@@ -227,7 +227,8 @@ def should_send_notification(doc, rule):
 
     # Check Delivery Partner Status condition
     if if_delivery_partner_status:
-        doc_delivery_partner_status = doc.get("custom_delivery_partner_status") or ""
+        # Fetch directly from DB to avoid stale in-memory value when field is updated via db_set
+        doc_delivery_partner_status = frappe.db.get_value("Sales Invoice", doc.name, "custom_delivery_partner_status") or ""
         allowed_delivery_partner_statuses = [x.strip() for x in if_delivery_partner_status.split(",") if x.strip()]
         if doc_delivery_partner_status not in allowed_delivery_partner_statuses:
             print(f"Delivery Partner Status mismatch: {doc_delivery_partner_status} not in {allowed_delivery_partner_statuses}")
@@ -605,11 +606,12 @@ def get_notification_title(doc, rule):
     Returns:
         str: Notification title
     """
-    # order_status = frappe.db.get_value("Sales Invoice",doc.get('name'), 'custom_order_status' )
     order_status = doc.get("custom_order_status") or "Updated"
-    # order_status = "Testing"
-    print("\n\n Test Status : ",order_status)
-    return f"Order {order_status}: {doc.name}"
+    delivery_partner_status = doc.get("custom_delivery_partner_status") or ""
+    print("\n\n Test Status : ", order_status, "| Delivery Partner Status:", delivery_partner_status)
+    if delivery_partner_status:
+        return f"Order {order_status} {delivery_partner_status} : {doc.name}"
+    return f"Order {order_status} : {doc.name}"
 
 
 def get_notification_body(doc, rule):
