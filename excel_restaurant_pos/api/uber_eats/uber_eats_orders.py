@@ -103,12 +103,14 @@ def accept_uber_eats_order(order_id, external_reference_id=None, estimated_ready
 
     accept_order(order_id, external_reference_id=external_reference_id, estimated_ready_for_pickup_at=iso_utc)
 
-    # Sync estimated ready time to the local Channel Order if provided
-    if naive_utc:
-        channel_order_name = frappe.db.get_value("Channel Order", {"order_id": order_id}, "name")
-        if channel_order_name:
-            frappe.db.set_value("Channel Order", channel_order_name, "estimated_ready_for_pickup_at", naive_utc)
-            frappe.db.commit()
+    # Sync current_state and estimated ready time to the local Channel Order
+    channel_order_name = frappe.db.get_value("Channel Order", {"order_id": order_id}, "name")
+    if channel_order_name:
+        updates = {"current_state": "ACCEPTED"}
+        if naive_utc:
+            updates["estimated_ready_for_pickup_at"] = naive_utc
+        frappe.db.set_value("Channel Order", channel_order_name, updates)
+        frappe.db.commit()
 
     return {"status": "accepted", "order_id": order_id}
 
@@ -130,6 +132,13 @@ def deny_uber_eats_order(order_id, reason_code="OTHER", explanation="Order denie
     from .uber_eats_api import deny_order
 
     deny_order(order_id, reason_code=reason_code, explanation=explanation)
+
+    # Update current_state on the local Channel Order
+    channel_order_name = frappe.db.get_value("Channel Order", {"order_id": order_id}, "name")
+    if channel_order_name:
+        frappe.db.set_value("Channel Order", channel_order_name, "current_state", "REJECTED")
+        frappe.db.commit()
+
     return {"status": "denied", "order_id": order_id}
 
 

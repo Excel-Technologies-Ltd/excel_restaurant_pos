@@ -190,9 +190,9 @@ def check_scheduled_order_notifications():
     current_datetime = now_datetime()
     current_date = getdate(current_datetime)
 
-    # Calculate the target time range (30 minutes from now, with 5-minute window)
-    target_time_start = add_to_date(current_datetime, minutes=28)
-    target_time_end = add_to_date(current_datetime, minutes=32)
+    # Calculate the target time range (1 minute from now, with 2-minute window) [TESTING]
+    target_time_start = add_to_date(current_datetime, minutes=-1)
+    target_time_end = add_to_date(current_datetime, minutes=3)
 
     # Define allowed statuses
     allowed_statuses = [
@@ -333,14 +333,19 @@ def send_scheduled_order_notification_to_staff(invoice):
 
     # Send notifications to each role
     notifications_sent = False
+    print(
+        f"[ScheduledNotif] Starting notifications for invoice: {doc.name} | Title: {title}"
+    )
     for role in target_roles:
+        print(f"[ScheduledNotif] Processing role: {role}")
         try:
-            # Find all users with the specified role
+            # Find all users with the specified role (parenttype = 'User' excludes Role Profiles)
             users = frappe.db.sql(
                 """
                 SELECT DISTINCT parent as user
                 FROM `tabHas Role`
                 WHERE role = %(role)s
+                AND parenttype = 'User'
                 AND parent NOT IN ('Administrator', 'Guest')
                 """,
                 {"role": role},
@@ -348,16 +353,23 @@ def send_scheduled_order_notification_to_staff(invoice):
             )
 
             if not users:
+                print(f"[ScheduledNotif] WARNING: No users found with role: {role}")
                 frappe.logger().warning(f"No users found with role: {role}")
                 continue
 
             user_emails = [user.user for user in users]
+            print(
+                f"[ScheduledNotif] Found {len(user_emails)} user(s) for role '{role}': {user_emails}"
+            )
             frappe.logger().info(
                 f"Sending 30-min reminder to {len(user_emails)} users with role {role}"
             )
 
             # Send email notifications to all users
             if settings.scheduled_order_reminder_template:
+                print(
+                    f"[ScheduledNotif] Using email template: {settings.scheduled_order_reminder_template}"
+                )
                 try:
                     email_template = frappe.get_doc(
                         "Email Template", settings.scheduled_order_reminder_template
@@ -398,6 +410,9 @@ def send_scheduled_order_notification_to_staff(invoice):
                                 template_args,
                             )
 
+                            print(
+                                f"[ScheduledNotif] Sending EMAIL to: {user_email} | Subject: {subject}"
+                            )
                             # Send email
                             frappe.sendmail(
                                 recipients=[user_email],
@@ -406,23 +421,35 @@ def send_scheduled_order_notification_to_staff(invoice):
                                 now=True,
                             )
 
+                            print(
+                                f"[ScheduledNotif] EMAIL sent successfully to: {user_email}"
+                            )
                             frappe.logger().info(
                                 f"Email notification sent to: {user_email}"
                             )
                             notifications_sent = True
 
                         except Exception as e:
+                            print(
+                                f"[ScheduledNotif] ERROR sending email to {user_email}: {str(e)}"
+                            )
                             frappe.log_error(
                                 f"Error sending email to {user_email}: {str(e)}",
                                 "Scheduled Order Notification - Email Error",
                             )
 
                 except Exception as e:
+                    print(
+                        f"[ScheduledNotif] ERROR loading email template for role {role}: {str(e)}"
+                    )
                     frappe.log_error(
                         message=f"Error processing email template for role {role}: {str(e)}",
                         title="Scheduled Order Notification - Email Template Error",
                     )
             else:
+                print(
+                    f"[ScheduledNotif] WARNING: No email template configured in ArcPOS Settings — skipping email"
+                )
                 frappe.logger().warning(
                     f"No email template configured in ArcPOS Settings (scheduled_order_reminder_template) for role {role}"
                 )
@@ -446,6 +473,9 @@ def send_scheduled_order_notification_to_staff(invoice):
                     )
 
                     if existing_notification:
+                        print(
+                            f"[ScheduledNotif] SKIP system notification for {user_email} — already sent in last 30s"
+                        )
                         continue
 
                     notification = frappe.get_doc(
@@ -474,9 +504,13 @@ def send_scheduled_order_notification_to_staff(invoice):
                         },
                     )
                     notifications_sent = True
+                    print(f"[ScheduledNotif] SYSTEM notification sent to: {user_email}")
                     frappe.logger().info(f"System notification sent to: {user_email}")
 
                 except Exception as e:
+                    print(
+                        f"[ScheduledNotif] ERROR sending system notification to {user_email}: {str(e)}"
+                    )
                     frappe.log_error(
                         message=f"Error sending system notification to {user_email}: {str(e)}",
                         title="Scheduled Order Notification - System Error",
@@ -490,6 +524,10 @@ def send_scheduled_order_notification_to_staff(invoice):
                         "ArcPOS Notification Token",
                         filters={"user": ["in", user_emails]},
                         fields=["name", "user"],
+                    )
+
+                    print(
+                        f"[ScheduledNotif] Found {len(token_docs)} Expo token doc(s) for role '{role}'"
                     )
 
                     if token_docs:
@@ -508,6 +546,9 @@ def send_scheduled_order_notification_to_staff(invoice):
                                             token_row.token
                                         )
                                     ):
+                                        print(
+                                            f"[ScheduledNotif] Queuing PUSH to token: {token_row.token} (user: {token_doc.user})"
+                                        )
                                         push_messages.append(
                                             PushMessage(
                                                 to=token_row.token,
@@ -532,6 +573,9 @@ def send_scheduled_order_notification_to_staff(invoice):
 
                         # Send push notifications in chunks
                         if push_messages:
+                            print(
+                                f"[ScheduledNotif] Sending {len(push_messages)} PUSH notification(s) for role '{role}'"
+                            )
                             push_client = PushClient()
                             chunk_size = 100
                             for i in range(0, len(push_messages), chunk_size):
@@ -542,31 +586,51 @@ def send_scheduled_order_notification_to_staff(invoice):
                                         try:
                                             response.validate_response()
                                         except DeviceNotRegisteredError:
+                                            print(
+                                                f"[ScheduledNotif] PUSH token expired/unregistered — skipping"
+                                            )
                                             pass  # Token expired, ignore
                                         except (
                                             PushTicketError,
                                             PushServerError,
                                         ) as exc:
+                                            print(
+                                                f"[ScheduledNotif] PUSH error: {exc.message}"
+                                            )
                                             frappe.logger().warning(
                                                 f"Push notification error: {exc.message}"
                                             )
                                 except Exception as e:
+                                    print(
+                                        f"[ScheduledNotif] ERROR sending push chunk: {str(e)}"
+                                    )
                                     frappe.log_error(
                                         message=f"Error sending push notification chunk: {str(e)}",
                                         title="Scheduled Order Notification - Push Error",
                                     )
 
+                            print(
+                                f"[ScheduledNotif] PUSH notifications done for role: {role}"
+                            )
                             frappe.logger().info(
                                 f"Push notifications sent to role: {role}"
                             )
+                        else:
+                            print(
+                                f"[ScheduledNotif] No valid Expo push tokens found for role '{role}'"
+                            )
 
                 except Exception as e:
+                    print(
+                        f"[ScheduledNotif] ERROR processing push notifications for role {role}: {str(e)}"
+                    )
                     frappe.log_error(
                         message=f"Error processing push notifications for role {role}: {str(e)}",
                         title="Scheduled Order Notification - Push Error",
                     )
 
         except Exception as e:
+            print(f"[ScheduledNotif] ERROR for role {role}: {str(e)}")
             frappe.log_error(
                 message=f"Error sending notification to role {role}: {str(e)}",
                 title="Scheduled Order Notification - Role Error",
@@ -647,4 +711,43 @@ def send_reservation_reminders():
     if reminders_sent > 0:
         frappe.logger().info(
             f"Sent {reminders_sent} reservation 24-hour reminder emails"
+        )
+
+
+def auto_cancel_rejected_invoices():
+    """
+    Auto-cancel submitted Sales Invoices where order status is Rejected.
+    Runs every hour via long queue.
+
+    Condition: custom_order_status = 'Rejected' AND docstatus = 1 (Submitted)
+    """
+    invoices = frappe.get_all(
+        "Sales Invoice",
+        filters={
+            "docstatus": 1,
+            "custom_order_status": "Rejected",
+        },
+        pluck="name",
+    )
+
+    cancelled_count = 0
+    for invoice_name in invoices:
+        try:
+            doc = frappe.get_doc("Sales Invoice", invoice_name)
+            doc.cancel()
+            frappe.db.commit()
+            cancelled_count += 1
+            frappe.logger().info(
+                f"Auto-cancelled rejected Sales Invoice: {invoice_name}"
+            )
+        except Exception as e:
+            frappe.db.rollback()
+            frappe.log_error(
+                message=f"Failed to auto-cancel Sales Invoice {invoice_name}: {str(e)}",
+                title="Auto Cancel Rejected Invoice Error",
+            )
+
+    if invoices:
+        frappe.logger().info(
+            f"Auto-cancel job completed: {cancelled_count}/{len(invoices)} rejected invoices cancelled"
         )
