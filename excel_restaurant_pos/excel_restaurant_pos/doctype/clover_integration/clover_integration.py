@@ -5,9 +5,12 @@ import frappe
 from frappe.model.document import Document
 
 
+CREDENTIAL_FIELDS = ("client_id", "client_secret", "api_token", "merchant_id")
+
+
 class CloverIntegration(Document):
     def before_save(self):
-        """Recompute the authorization URL and webhook URL whenever the doc is saved."""
+        """Recompute URLs and clear stale OAuth token when credentials change."""
         env = self.environment or "Sandbox"
         base = "https://sandbox.dev.clover.com" if env == "Sandbox" else "https://www.clover.com"
         site_url = frappe.utils.get_url()
@@ -22,3 +25,17 @@ class CloverIntegration(Document):
             )
 
         self.webhook_url = f"{site_url}/api/method/excel_restaurant_pos.api.clover.clover.webhook"
+
+        # Clear OAuth access token if any credential field changed
+        if not self.is_new():
+            old = self.get_doc_before_save()
+            if old and any(
+                self.get(f) != old.get(f) for f in CREDENTIAL_FIELDS
+            ):
+                self.access_token = ""
+                self.token_expiry = None
+
+    def on_update(self):
+        """Clear token cache after any credential change."""
+        from excel_restaurant_pos.api.clover.clover_api import clear_token_cache
+        clear_token_cache()

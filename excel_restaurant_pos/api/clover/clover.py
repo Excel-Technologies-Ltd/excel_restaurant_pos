@@ -48,7 +48,23 @@ def oauth_callback():
     if not code:
         frappe.throw("Missing authorisation code in Clover callback", frappe.ValidationError)
 
-    result = exchange_code_for_token(code)
+    # Validate the client_id in the callback matches what's stored in the doctype
+    callback_client_id = frappe.request.args.get("client_id")
+    if callback_client_id:
+        settings = frappe.get_single("Clover Integration")
+        if settings.client_id != callback_client_id:
+            frappe.log_error(
+                "Clover OAuth Client ID Mismatch",
+                f"Callback client_id={callback_client_id}, doctype client_id={settings.client_id}"
+            )
+            frappe.throw(
+                f"OAuth client ID mismatch: callback used app <b>{callback_client_id}</b> "
+                f"but Clover Integration has <b>{settings.client_id}</b>. "
+                f"Update the Client ID in Clover Integration to <b>{callback_client_id}</b> and try again.",
+                frappe.ValidationError
+            )
+
+    result = exchange_code_for_token(code, merchant_id_hint=merchant_id)
     mid = result.get("merchant_id", merchant_id or "")
 
     frappe.respond_as_web_page(
@@ -85,6 +101,14 @@ def disconnect():
 
     clear_token_cache()
     return {"status": "disconnected"}
+
+
+@frappe.whitelist()
+def clear_cache():
+    """Clear the cached Clover access token (forces re-read from DB on next request)."""
+    from .clover_api import clear_token_cache
+    clear_token_cache()
+    return {"status": "cache cleared"}
 
 
 @frappe.whitelist(allow_guest=True)

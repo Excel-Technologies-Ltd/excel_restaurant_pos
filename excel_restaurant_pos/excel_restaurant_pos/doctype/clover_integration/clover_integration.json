@@ -10,8 +10,10 @@
   "column_break_1",
   "client_id",
   "client_secret",
-  "section_break_oauth",
+  "section_break_apitoken",
+  "api_token",
   "merchant_id",
+  "section_break_oauth",
   "access_token",
   "token_expiry",
   "column_break_oauth2",
@@ -52,21 +54,33 @@
    "reqd": 1
   },
   {
-   "fieldname": "section_break_oauth",
+   "fieldname": "section_break_apitoken",
    "fieldtype": "Section Break",
-   "label": "OAuth Tokens"
+   "label": "API Token"
+  },
+  {
+   "fieldname": "api_token",
+   "fieldtype": "Password",
+   "label": "API Token",
+   "description": "Paste a Clover API token created from Account & Setup → API Tokens. Used instead of OAuth if set."
   },
   {
    "fieldname": "merchant_id",
    "fieldtype": "Data",
    "label": "Merchant ID",
-   "read_only": 1,
-   "description": "Populated automatically after OAuth authorisation"
+   "description": "Your Clover Merchant ID. Set automatically after OAuth or enter manually."
+  },
+  {
+   "fieldname": "section_break_oauth",
+   "fieldtype": "Section Break",
+   "label": "OAuth Tokens",
+   "collapsible": 1,
+   "collapsed": 1
   },
   {
    "fieldname": "access_token",
    "fieldtype": "Password",
-   "label": "Access Token",
+   "label": "OAuth Access Token",
    "read_only": 1,
    "description": "Populated automatically after OAuth authorisation"
   },
