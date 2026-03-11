@@ -1,0 +1,205 @@
+{
+ "actions": [],
+ "autoname": "format:CLVR-PAY-{YYYY}-{#####}",
+ "creation": "2026-03-11 00:00:00",
+ "default_view": "List",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "payment_id",
+  "result",
+  "column_break_1",
+  "merchant_id",
+  "offline",
+  "section_break_order",
+  "order_id",
+  "order_title",
+  "column_break_order",
+  "order_state",
+  "order_currency",
+  "section_break_tender",
+  "tender_id",
+  "tender_label",
+  "column_break_tender",
+  "employee_id",
+  "section_break_amounts",
+  "amount",
+  "tip_amount",
+  "column_break_amounts",
+  "cashback_amount",
+  "section_break_times",
+  "created_time",
+  "modified_time",
+  "section_break_raw",
+  "raw_payload"
+ ],
+ "fields": [
+  {
+   "fieldname": "payment_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Clover Payment ID",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "result",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Result",
+   "options": "\nSUCCESS\nFAIL\nAUTH\nVOID\nNONE"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "merchant_id",
+   "fieldtype": "Data",
+   "label": "Merchant ID"
+  },
+  {
+   "fieldname": "offline",
+   "fieldtype": "Check",
+   "label": "Offline"
+  },
+  {
+   "fieldname": "section_break_order",
+   "fieldtype": "Section Break",
+   "label": "Order"
+  },
+  {
+   "fieldname": "order_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Clover Order ID"
+  },
+  {
+   "fieldname": "order_title",
+   "fieldtype": "Data",
+   "label": "Order Title"
+  },
+  {
+   "fieldname": "column_break_order",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "order_state",
+   "fieldtype": "Data",
+   "label": "Order State"
+  },
+  {
+   "fieldname": "order_currency",
+   "fieldtype": "Data",
+   "label": "Currency"
+  },
+  {
+   "fieldname": "section_break_tender",
+   "fieldtype": "Section Break",
+   "label": "Tender & Employee"
+  },
+  {
+   "fieldname": "tender_id",
+   "fieldtype": "Data",
+   "label": "Tender ID"
+  },
+  {
+   "fieldname": "tender_label",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Tender"
+  },
+  {
+   "fieldname": "column_break_tender",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "employee_id",
+   "fieldtype": "Data",
+   "label": "Employee ID"
+  },
+  {
+   "fieldname": "section_break_amounts",
+   "fieldtype": "Section Break",
+   "label": "Amounts"
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Amount"
+  },
+  {
+   "fieldname": "tip_amount",
+   "fieldtype": "Currency",
+   "label": "Tip Amount"
+  },
+  {
+   "fieldname": "column_break_amounts",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cashback_amount",
+   "fieldtype": "Currency",
+   "label": "Cashback Amount"
+  },
+  {
+   "fieldname": "section_break_times",
+   "fieldtype": "Section Break",
+   "label": "Timestamps"
+  },
+  {
+   "fieldname": "created_time",
+   "fieldtype": "Datetime",
+   "label": "Created Time"
+  },
+  {
+   "fieldname": "modified_time",
+   "fieldtype": "Datetime",
+   "label": "Modified Time"
+  },
+  {
+   "fieldname": "section_break_raw",
+   "fieldtype": "Section Break",
+   "label": "Raw Payload"
+  },
+  {
+   "fieldname": "raw_payload",
+   "fieldtype": "Long Text",
+   "label": "Raw Payload"
+  }
+ ],
+ "links": [],
+ "modified": "2026-03-11 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Excel Restaurant Pos",
+ "name": "Clover Payment",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 0,
+   "read": 1,
+   "role": "ArcPOS Manager",
+   "write": 1
+  }
+ ],
+ "sort_field": "created_time",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

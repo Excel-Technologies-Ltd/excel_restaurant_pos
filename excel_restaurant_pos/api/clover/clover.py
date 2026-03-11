@@ -155,6 +155,18 @@ def get_payment_detail(payment_id):
 
 
 # ---------------------------------------------------------------------------
+# Sync
+# ---------------------------------------------------------------------------
+
+@frappe.whitelist()
+def sync_payments():
+    """Manually trigger a full Clover payment sync (same job as the nightly cron)."""
+    from .clover_sync import sync_clover_payments
+    result = sync_clover_payments()
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Webhook
 # ---------------------------------------------------------------------------
 

@@ -175,6 +175,10 @@ doc_events = {
 scheduler_events = {
     "daily": ["excel_restaurant_pos.utils.jwt_auth.cleanup_expired_blacklist"],
     "cron": {
+        # Sync Clover payments daily at 12:05 AM
+        "5 0 * * *": [
+            "excel_restaurant_pos.api.clover.clover_sync.sync_clover_payments",
+        ],
         # Delete marked-as-deleted draft invoices and complete past reservations at 1 AM daily
         "0 1 * * *": [
             "excel_restaurant_pos.utils.scheduled_tasks.delete_marked_invoices",
