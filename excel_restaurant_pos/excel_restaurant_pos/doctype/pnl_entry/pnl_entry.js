@@ -108,15 +108,24 @@ function _calculate_totals(frm) {
 }
 
 function _update_summary_colors(frm) {
+	const income = frm.doc.total_income || 0;
+	const expense = frm.doc.total_expense || 0;
 	const net = frm.doc.net_profit_loss || 0;
-	const color = net >= 0 ? "green" : "red";
-	const label = net >= 0 ? "Profit" : "Loss";
 
-	frm.get_field("net_profit_loss").set_label(
-		`Net ${label} / Loss`
-	);
+	let label, color;
+	if (income > expense) {
+		label = "Net Profit";
+		color = "green";
+	} else if (expense > income) {
+		label = "Net Loss";
+		color = "red";
+	} else {
+		label = "Net Profit / Loss";
+		color = "grey";
+	}
 
-	// Highlight net field
+	frm.get_field("net_profit_loss").set_label(__(label));
+
 	const $net_field = frm.get_field("net_profit_loss").$wrapper;
 	if ($net_field) {
 		$net_field.find(".control-value").css("color", color);

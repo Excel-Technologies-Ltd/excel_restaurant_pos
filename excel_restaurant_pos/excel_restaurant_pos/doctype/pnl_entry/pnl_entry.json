@@ -37,14 +37,17 @@
   {
    "fieldname": "pnl_type",
    "fieldtype": "Select",
-   "in_list_view": 1,
+   "hidden": 1,
+   "in_list_view": 0,
    "in_standard_filter": 1,
    "label": "PnL Type",
-   "options": "\nIncome\nExpense\nBoth"
+   "options": "\nIncome\nExpense\nBoth",
+   "print_hide": 1
   },
   {
    "fieldname": "posting_date",
    "fieldtype": "Date",
+   "default": "Today",
    "in_list_view": 1,
    "label": "Posting Date",
    "reqd": 1
@@ -52,6 +55,7 @@
   {
    "fieldname": "posting_time",
    "fieldtype": "Time",
+   "default": "Now",
    "label": "Posting Time",
    "reqd": 1
   },
