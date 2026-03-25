@@ -28,12 +28,19 @@ def get_children(doctype, parent=None, is_root=False, **kwargs):
 	else:
 		filters.append(["ifnull(parent_pnl_category, '')", "=", ""])
 
-	return frappe.get_all(
+	rows = frappe.get_all(
 		doctype,
-		fields=["name as value", "is_group", "pnl_type"],
+		fields=["name", "category_name", "is_group", "pnl_type"],
 		filters=filters,
 		order_by="category_name",
 	)
+
+	# Frappe tree view requires `value` (the doc name) and `title` (display label)
+	for row in rows:
+		row["value"] = row["name"]
+		row["title"] = row.get("category_name") or row["name"]
+
+	return rows
 
 
 def add_node():

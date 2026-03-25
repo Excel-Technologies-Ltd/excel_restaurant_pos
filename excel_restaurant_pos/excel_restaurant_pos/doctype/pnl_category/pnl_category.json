@@ -11,7 +11,10 @@
   "category_name",
   "pnl_type",
   "is_group",
-  "parent_pnl_category"
+  "parent_pnl_category",
+  "lft",
+  "rgt",
+  "old_parent"
  ],
  "fields": [
   {
@@ -40,12 +43,42 @@
    "fieldtype": "Link",
    "label": "Parent PnL Category",
    "options": "PnL Category"
+  },
+  {
+   "fieldname": "lft",
+   "fieldtype": "Int",
+   "hidden": 1,
+   "label": "lft",
+   "no_copy": 1,
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "rgt",
+   "fieldtype": "Int",
+   "hidden": 1,
+   "label": "rgt",
+   "no_copy": 1,
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "old_parent",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "Old Parent",
+   "no_copy": 1,
+   "options": "PnL Category",
+   "print_hide": 1,
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 0,
  "is_tree": 1,
  "links": [],
- "modified": "2026-03-25 00:00:00.000000",
+ "modified": "2026-03-25 00:00:01.000000",
  "modified_by": "Administrator",
  "module": "Excel Restaurant Pos",
  "name": "PnL Category",
@@ -79,8 +112,10 @@
   }
  ],
  "quick_entry": 1,
- "sort_field": "modified",
- "sort_order": "DESC",
+ "show_name_in_global_search": 1,
+ "sort_field": "lft",
+ "sort_order": "ASC",
  "states": [],
+ "title_field": "category_name",
  "track_changes": 1
 }
