@@ -1,14 +1,13 @@
 {
  "actions": [],
  "allow_import": 1,
- "autoname": "naming_series:",
+ "autoname": "PNL-.YYYY.-.####",
  "creation": "2026-03-25 00:00:00.000000",
  "default_view": "List",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "naming_series",
   "pnl_type",
   "posting_date",
   "posting_time",
@@ -26,14 +25,6 @@
   "notes"
  ],
  "fields": [
-  {
-   "fieldname": "naming_series",
-   "fieldtype": "Select",
-   "label": "Series",
-   "options": "PNL-.YYYY.-.####",
-   "reqd": 1,
-   "set_only_once": 1
-  },
   {
    "fieldname": "pnl_type",
    "fieldtype": "Select",
@@ -140,7 +131,7 @@
  "modified_by": "Administrator",
  "module": "Excel Restaurant Pos",
  "name": "PnL Entry",
- "naming_rule": "By \"Naming Series\" field",
+ "naming_rule": "Expression (make_autoname)",
  "owner": "Administrator",
  "permissions": [
   {
@@ -203,6 +194,6 @@
    "title": "Cancelled"
   }
  ],
- "title_field": "naming_series",
+ "title_field": "posting_date",
  "track_changes": 1
 }
