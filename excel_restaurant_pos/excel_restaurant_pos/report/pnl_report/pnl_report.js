@@ -9,6 +9,7 @@ frappe.query_reports["PnL Report"] = {
 			fieldtype: "Date",
 			default: frappe.datetime.month_start(),
 			reqd: 1,
+			
 		},
 		{
 			fieldname: "to_date",
@@ -84,6 +85,12 @@ frappe.query_reports["PnL Report"] = {
 
 		// Net Profit / Net Loss
 		if (data._section === "net" && isAmount) {
+			const color = (data.amount || 0) >= 0 ? "#28a745" : "#dc3545";
+			return `<span style="color:${color}; font-weight:700;">${value}</span>`;
+		}
+
+		// Net Profit / Net Loss — bold label
+		if (data._section === "net" && column.fieldname === "particulars" && value) {
 			const color = (data.amount || 0) >= 0 ? "#28a745" : "#dc3545";
 			return `<span style="color:${color}; font-weight:700;">${value}</span>`;
 		}
