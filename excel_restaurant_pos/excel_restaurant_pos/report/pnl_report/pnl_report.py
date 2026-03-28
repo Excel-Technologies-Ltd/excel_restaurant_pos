@@ -73,32 +73,26 @@ def get_columns():
 def get_data(filters):
 	rows = []
 
-	include_income = filters.get("section") in (None, "", "Both", "Income")
-	include_expense = filters.get("section") in (None, "", "Both", "Expense")
+	income_entries = _fetch_entries("income", filters)
+	rows += _build_section_rows("Income", income_entries, "income_type", "income_sub_type")
 
-	if include_income:
-		income_entries = _fetch_entries("income", filters)
-		rows += _build_section_rows("Income", income_entries, "income_type", "income_sub_type")
-
-	if include_expense:
-		expense_entries = _fetch_entries("expense", filters)
-		rows += _build_section_rows("Expense", expense_entries, "expense_type", "expense_sub_type")
+	expense_entries = _fetch_entries("expense", filters)
+	rows += _build_section_rows("Expense", expense_entries, "expense_type", "expense_sub_type")
 
 	# Net row
 	total_income = sum(r["amount"] for r in rows if r.get("_section") == "income_total")
 	total_expense = sum(r["amount"] for r in rows if r.get("_section") == "expense_total")
 	net = flt(total_income - total_expense, 2)
 
-	if include_income or include_expense:
-		rows.append(_separator())
-		net_label = _("Net Profit") if net >= 0 else _("Net Loss")
-		rows.append({
-			"particulars": net_label,
-			"amount": net,
-			"bold": 1,
-			"indent": 0,
-			"_section": "net",
-		})
+	rows.append(_separator())
+	net_label = _("Net Profit") if net >= 0 else _("Net Loss")
+	rows.append({
+		"particulars": net_label,
+		"amount": net,
+		"bold": 1,
+		"indent": 0,
+		"_section": "net",
+	})
 
 	return rows
 

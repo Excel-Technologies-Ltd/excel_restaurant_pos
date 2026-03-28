@@ -18,35 +18,14 @@ frappe.query_reports["PnL Report"] = {
 			reqd: 1,
 		},
 		{
-			fieldname: "company",
-			label: __("Company"),
-			fieldtype: "Link",
-			options: "Company",
-			default: frappe.defaults.get_user_default("Company"),
-		},
-		{
-			fieldname: "section",
-			label: __("Section"),
-			fieldtype: "Select",
-			options: ["Both", "Income", "Expense"],
-			default: "Both",
-		},
-		{
 			fieldname: "type",
 			label: __("Type"),
 			fieldtype: "Link",
 			options: "PnL Category",
-			// filtered dynamically by on_change below
 			get_query() {
-				const section = frappe.query_report.get_filter_value("section");
-				const filters = { is_group: 1 };
-				if (section && section !== "Both") {
-					filters.pnl_type = section;
-				}
-				return { filters };
+				return { filters: { is_group: 1 } };
 			},
 			on_change() {
-				// Reset sub_type whenever type changes
 				frappe.query_report.set_filter_value("sub_type", "");
 			},
 		},
@@ -65,6 +44,13 @@ frappe.query_reports["PnL Report"] = {
 				};
 			},
 		},
+		{
+			fieldname: "company",
+			label: __("Company"),
+			fieldtype: "Link",
+			options: "Company",
+			default: frappe.defaults.get_user_default("Company"),
+		},
 	],
 
 	// ------------------------------------------------------------------
@@ -75,30 +61,50 @@ frappe.query_reports["PnL Report"] = {
 
 		if (!data) return value;
 
-		// Section headers (INCOME / EXPENSE) — dark background stripe
-		if (data.bold && data.indent === 0 && data._section && data._section.endsWith("_header")) {
+		const isAmount = column.fieldname === "amount";
+
+		// Separator rows — never show $0.00
+		if (data._section === "separator") {
+			return isAmount ? "" : value;
+		}
+
+		// Section headers (INCOME / EXPENSE) — no amount shown
+		if (data._section && data._section.endsWith("_header")) {
+			if (isAmount) return "";
 			return `<span style="font-weight:700; letter-spacing:.05em;">${value}</span>`;
 		}
 
-		// Total rows
-		if (data.bold && data.indent === 0 && data._section && data._section.endsWith("_total")) {
-			return `<span style="font-weight:700;">${value}</span>`;
+		// Total rows — no color on the label, bold on amount
+		if (data._section && data._section.endsWith("_total")) {
+			if (!isAmount) return `<span style="font-weight:700;">${value}</span>`;
+			const isIncome = data._section === "income_total";
+			const color = isIncome ? "#1a6b2f" : "#8b1a1a";
+			return `<span style="color:${color}; font-weight:700;">${value}</span>`;
 		}
 
 		// Net Profit / Net Loss
-		if (data._section === "net" && column.fieldname === "amount") {
+		if (data._section === "net" && isAmount) {
 			const color = (data.amount || 0) >= 0 ? "#28a745" : "#dc3545";
 			return `<span style="color:${color}; font-weight:700;">${value}</span>`;
 		}
 
-		// Income amounts — green tint
-		if (data._section === "income" && column.fieldname === "amount" && value) {
-			return `<span style="color:#28a745;">${value}</span>`;
+		// Income amounts — multi-level green shades
+		if (data._section === "income" && isAmount && value) {
+			// indent 1 = type group (dark), indent 2 = sub-type (medium), indent 3 = leaf (light)
+			const color = data.indent === 1 ? "#1a6b2f"
+				: data.indent === 2 ? "#28a745"
+				: "#5fa85f";
+			const weight = data.bold ? "700" : "400";
+			return `<span style="color:${color}; font-weight:${weight};">${value}</span>`;
 		}
 
-		// Expense amounts — red tint
-		if (data._section === "expense" && column.fieldname === "amount" && value) {
-			return `<span style="color:#dc3545;">${value}</span>`;
+		// Expense amounts — multi-level red shades
+		if (data._section === "expense" && isAmount && value) {
+			const color = data.indent === 1 ? "#8b1a1a"
+				: data.indent === 2 ? "#c0392b"
+				: "#e07060";
+			const weight = data.bold ? "700" : "400";
+			return `<span style="color:${color}; font-weight:${weight};">${value}</span>`;
 		}
 
 		return value;
