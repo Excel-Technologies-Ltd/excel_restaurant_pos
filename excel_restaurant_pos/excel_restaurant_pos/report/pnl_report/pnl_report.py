@@ -312,7 +312,7 @@ def get_report_summary(data):
 			"value": flt(total_income, 2),
 			"label": _("Total Income"),
 			"datatype": "Currency",
-			"indicator": "Green",
+			"indicator": "Blue",
 		},
 		{
 			"value": flt(total_expense, 2),
@@ -341,19 +341,19 @@ def get_chart(data):
 	if not total_income and not total_expense:
 		return None
 
-	net_color = "#2196f3" if net >= 0 else "#ff5722"
+	net_color = "#28a745" if net >= 0 else "#dc3545"
 
 	return {
 		"data": {
 			"labels": [_("Income"), _("Expense"), _("Net Profit/Loss")],
 			"datasets": [
-				{"name": _("Income"),         "values": [flt(total_income, 2), 0, 0]},
-				{"name": _("Expense"),        "values": [0, flt(total_expense, 2), 0]},
-				{"name": _("Net Profit/Loss"),"values": [0, 0, net]},
+				{"name": _("Income"),          "values": [flt(total_income, 2), 0, 0]},
+				{"name": _("Expense"),         "values": [0, flt(total_expense, 2), 0]},
+				{"name": _("Net Profit/Loss"), "values": [0, 0, net]},
 			],
 		},
 		"type": "bar",
-		"colors": ["#28a745", "#dc3545", net_color],
+		"colors": ["#2196f3", "#fd7e14", net_color],
 		"barOptions": {"stacked": 1},
 	}
 

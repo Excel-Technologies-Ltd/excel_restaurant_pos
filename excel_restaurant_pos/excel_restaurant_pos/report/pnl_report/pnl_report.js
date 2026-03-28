@@ -88,9 +88,9 @@ frappe.query_reports["PnL Report"] = {
 			return `<span style="color:${color}; font-weight:700;">${value}</span>`;
 		}
 
-		// Type & Particulars columns — bold on type group rows (indent 1), normal on sub-type rows
-		if ((column.fieldname === "category_type" || column.fieldname === "particulars") && value) {
-			const weight = (data.bold && data.indent === 1) ? "700" : "400";
+		// Type, Sub Type & Particulars columns — bold on type (indent 1) and sub-type (indent 2) group rows
+		if ((column.fieldname === "category_type" || column.fieldname === "category_sub_type" || column.fieldname === "particulars") && value) {
+			const weight = (data.bold && (data.indent === 1 || data.indent === 2)) ? "700" : "400";
 			return `<span style="font-weight:${weight};">${value}</span>`;
 		}
 
@@ -120,6 +120,24 @@ frappe.query_reports["PnL Report"] = {
 	// Toolbar button — quick date shortcuts
 	// ------------------------------------------------------------------
 	onload(report) {
+		// Bold & larger summary tile values
+		if (!document.getElementById("pnl-summary-style")) {
+			const style = document.createElement("style");
+			style.id = "pnl-summary-style";
+			style.textContent = `
+				.report-summary .summary-value {
+					font-weight: 700 !important;
+					font-size: 1.4rem !important;
+				}
+				.report-summary .summary-label {
+					font-weight: 600 !important;
+					font-size: 0.85rem !important;
+					letter-spacing: 0.03em;
+				}
+			`;
+			document.head.appendChild(style);
+		}
+
 		report.page.add_inner_button(__("This Month"), () => {
 			report.set_filter_value("from_date", frappe.datetime.month_start());
 			report.set_filter_value("to_date", frappe.datetime.month_end());
