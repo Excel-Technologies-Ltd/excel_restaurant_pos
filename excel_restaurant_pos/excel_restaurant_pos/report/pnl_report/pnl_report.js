@@ -88,6 +88,12 @@ frappe.query_reports["PnL Report"] = {
 			return `<span style="color:${color}; font-weight:700;">${value}</span>`;
 		}
 
+		// Type & Particulars columns — bold on type group rows (indent 1), normal on sub-type rows
+		if ((column.fieldname === "category_type" || column.fieldname === "particulars") && value) {
+			const weight = (data.bold && data.indent === 1) ? "700" : "400";
+			return `<span style="font-weight:${weight};">${value}</span>`;
+		}
+
 		// Income amounts — multi-level green shades
 		if (data._section === "income" && isAmount && value) {
 			// indent 1 = type group (dark), indent 2 = sub-type (medium), indent 3 = leaf (light)
