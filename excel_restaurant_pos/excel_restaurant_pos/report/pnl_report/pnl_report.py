@@ -330,46 +330,31 @@ def get_report_summary(data):
 
 
 # ---------------------------------------------------------------------------
-# Chart (bar chart — Income vs Expense by type)
+# Chart (simple bar — Total Income, Total Expense, Net Profit/Loss)
 # ---------------------------------------------------------------------------
 
 def get_chart(data):
-	income_labels, income_values = [], []
-	expense_labels, expense_values = [], []
+	total_income = sum(r["amount"] for r in data if r.get("_section") == "income_total")
+	total_expense = sum(r["amount"] for r in data if r.get("_section") == "expense_total")
+	net = flt(total_income - total_expense, 2)
 
-	for row in data:
-		if row.get("_section") == "income" and row.get("bold") and row.get("indent") == 1:
-			income_labels.append(row["particulars"])
-			income_values.append(row["amount"])
-		elif row.get("_section") == "expense" and row.get("bold") and row.get("indent") == 1:
-			expense_labels.append(row["particulars"])
-			expense_values.append(row["amount"])
-
-	if not income_labels and not expense_labels:
+	if not total_income and not total_expense:
 		return None
 
-	# Merge labels for a combined chart
-	all_labels = list(dict.fromkeys(income_labels + expense_labels))
-	income_map = dict(zip(income_labels, income_values))
-	expense_map = dict(zip(expense_labels, expense_values))
+	net_color = "#2196f3" if net >= 0 else "#ff5722"
 
 	return {
 		"data": {
-			"labels": all_labels,
+			"labels": [_("Income"), _("Expense"), _("Net Profit/Loss")],
 			"datasets": [
-				{
-					"name": _("Income"),
-					"values": [income_map.get(l, 0) for l in all_labels],
-				},
-				{
-					"name": _("Expense"),
-					"values": [expense_map.get(l, 0) for l in all_labels],
-				},
+				{"name": _("Income"),         "values": [flt(total_income, 2), 0, 0]},
+				{"name": _("Expense"),        "values": [0, flt(total_expense, 2), 0]},
+				{"name": _("Net Profit/Loss"),"values": [0, 0, net]},
 			],
 		},
 		"type": "bar",
-		"colors": ["#28a745", "#dc3545"],
-		"barOptions": {"stacked": 0},
+		"colors": ["#28a745", "#dc3545", net_color],
+		"barOptions": {"stacked": 1},
 	}
 
 
