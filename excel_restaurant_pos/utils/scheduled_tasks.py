@@ -168,7 +168,7 @@ def delete_stale_website_orders():
 def check_scheduled_order_notifications():
     """
     Check for scheduled pickup/delivery orders and send notifications
-    30 minutes before the delivery time to Restaurant Chef and Restaurant Manager.
+    at the time stored in custom_pickup_ready field.
     Runs every 5 minutes.
 
     Conditions:
@@ -176,20 +176,16 @@ def check_scheduled_order_notifications():
     - Order Status: Open, Accepted, Waiting, In kitchen, Preparing, Scheduled,
                     Ready to Deliver, Ready to Pickup, Handover to Delivery
     - Order Schedule Type: Scheduled Later
-    - DeliveryDate: Current Date
-    - Current Time: 30 minutes before DeliveryTime (within 5-minute window)
+    - custom_pickup_ready: set and falls within the current ±2-minute window
     """
-    from frappe.utils import get_datetime, getdate
+    from frappe.utils import get_datetime
 
-    # Get current datetime
     current_datetime = now_datetime()
-    current_date = getdate(current_datetime)
 
-    # Calculate the target time range (30 minutes from now, with 4-minute window)
-    target_time_start = add_to_date(current_datetime, minutes=28)
-    target_time_end = add_to_date(current_datetime, minutes=32)
+    # ±2-minute window around now (task runs every 5 minutes)
+    window_start = add_to_date(current_datetime, minutes=-2)
+    window_end = add_to_date(current_datetime, minutes=2)
 
-    # Define allowed statuses
     allowed_statuses = [
         "Open",
         "Accepted",
@@ -201,25 +197,21 @@ def check_scheduled_order_notifications():
         "Ready to Pickup",
         "Handover to Delivery",
     ]
-
-    # Define allowed service types
     allowed_service_types = ["Pickup", "Delivery"]
 
-    # Query Sales Invoices matching criteria (both draft and submitted)
     invoices = frappe.get_all(
         "Sales Invoice",
         filters={
             "custom_service_type": ["in", allowed_service_types],
             "custom_order_status": ["in", allowed_statuses],
             "custom_order_schedule_type": "Scheduled Later",
-            "custom_delivery_date": current_date,
+            "custom_pickup_ready": ["is", "set"],
         },
         fields=[
             "name",
-            "custom_delivery_time",
+            "custom_pickup_ready",
             "custom_service_type",
             "custom_order_status",
-            "custom_delivery_date",
             "customer",
             "customer_name",
             "grand_total",
@@ -227,55 +219,48 @@ def check_scheduled_order_notifications():
     )
 
     if not invoices:
-        frappe.logger().debug("No scheduled delivery/pickup orders found for today")
+        frappe.logger().debug("No scheduled delivery/pickup orders with pickup_ready time found")
         return
 
-    # Filter invoices within the 30-minute notification window
     notifications_sent = 0
     for invoice in invoices:
         try:
-            # Check if delivery_time exists
-            if not invoice.custom_delivery_time:
+            if not invoice.custom_pickup_ready:
                 continue
 
-            # Combine delivery date and time
-            delivery_datetime = get_datetime(
-                f"{invoice.custom_delivery_date} {invoice.custom_delivery_time}"
-            )
+            pickup_ready_datetime = get_datetime(invoice.custom_pickup_ready)
 
-            # Check if delivery time falls within the notification window
-            if target_time_start <= delivery_datetime <= target_time_end:
-                # Check if notification was already sent (cache key with 2-hour TTL)
-                # Must match the key used in check_scheduled_notification_30min_before
-                cache_key = f"scheduled_30min_notification_{invoice.name}"
-                if frappe.cache().get_value(cache_key):
-                    frappe.logger().debug(
-                        f"30-min notification already sent for {invoice.name}, skipping"
-                    )
-                    continue
+            # Send notification only when current time reaches custom_pickup_ready
+            if not (window_start <= pickup_ready_datetime <= window_end):
+                continue
 
-                # Send notification to Restaurant Chef and Restaurant Manager
-                success = send_scheduled_order_notification_to_staff(invoice)
+            cache_key = f"scheduled_30min_notification_{invoice.name}"
+            if frappe.cache().get_value(cache_key):
+                frappe.logger().debug(
+                    f"Pickup-ready notification already sent for {invoice.name}, skipping"
+                )
+                continue
 
-                if success:
-                    # Mark as notified (2-hour cache to prevent duplicate notifications)
-                    frappe.cache().set_value(cache_key, True, expires_in_sec=7200)
-                    notifications_sent += 1
-                    frappe.logger().info(
-                        f"Sent 30-min notification for scheduled order: {invoice.name} "
-                        f"(Delivery time: {invoice.custom_delivery_time})"
-                    )
+            success = send_scheduled_order_notification_to_staff(invoice)
+
+            if success:
+                frappe.cache().set_value(cache_key, True, expires_in_sec=7200)
+                notifications_sent += 1
+                frappe.logger().info(
+                    f"Sent pickup-ready notification for order: {invoice.name} "
+                    f"(Pickup ready: {invoice.custom_pickup_ready})"
+                )
 
         except Exception as e:
             frappe.log_error(
-                message=f"Error processing 30-min notification for {invoice.name}: {str(e)}",
-                title="Scheduled Order 30-Min Notification Error",
+                message=f"Error processing pickup-ready notification for {invoice.name}: {str(e)}",
+                title="Scheduled Order Pickup-Ready Notification Error",
             )
             continue
 
     if notifications_sent > 0:
         frappe.logger().info(
-            f"Sent {notifications_sent} scheduled order 30-minute notifications"
+            f"Sent {notifications_sent} pickup-ready notifications"
         )
 
 

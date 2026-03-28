@@ -721,83 +721,66 @@ def send_delivery_pickup_notification(sales_invoice_name, template_name, delay_s
 
 def check_scheduled_notification_30min_before(doc, settings):
     """
-    Check if current order needs 30-minute reminder notification for scheduled delivery/pickup.
+    Check if current order needs a pickup-ready reminder notification.
+
+    Sends notification when current time matches the custom_pickup_ready field value
+    (within a ±2-minute window). No manual 30-minute calculation is done here.
 
     Conditions:
     - Service Type: Pickup OR Delivery
     - Order Status: Open, Accepted, Waiting, In kitchen, Preparing, Scheduled,
                     Ready to Deliver, Ready to Pickup, Handover to Delivery
     - Order Schedule Type: Scheduled Later
-    - DeliveryDate: Current Date
-    - Current Time: 30 minutes before DeliveryTime
+    - custom_pickup_ready: set and within ±2 minutes of current time
 
     Args:
         doc: Sales Invoice document
         settings: ArcPOS Settings document
     """
     try:
-        # Check basic conditions
         service_type = doc.get("custom_service_type") or ""
         order_status = doc.get("custom_order_status") or ""
         order_schedule_type = doc.get("custom_order_schedule_type") or ""
-        delivery_date = doc.get("custom_delivery_date")
-        delivery_time = doc.get("custom_delivery_time")
+        pickup_ready = doc.get("custom_pickup_ready")
 
-        print("Chekc All the condition : ", service_type, order_status, order_schedule_type, delivery_date, delivery_time)
-
-        # Check if this is a scheduled pickup/delivery order
         if service_type not in ["Pickup", "Delivery"]:
-            print("Faield here ", service_type)
             return
 
         if order_schedule_type != "Scheduled Later":
-            print("Faield here ", order_schedule_type)
             return
 
-        # Check order status
         allowed_statuses = [
             "Open", "Accepted", "Waiting", "In kitchen", "Preparing", "Scheduled",
             "Ready to Deliver", "Ready to Pickup", "Handover to Delivery"
         ]
         if order_status not in allowed_statuses:
-            print("Faield here ", order_status)
             return
 
-        # Check if delivery date and time are set
-        if not delivery_date or not delivery_time:
-            print("Faield here ", delivery_date)
+        if not pickup_ready:
             return
 
-        # Check delivery date is today
-        current_date = getdate(now_datetime())
-        if delivery_date != current_date:
-            return
-
-        # Check if delivery is within the 28–32 minute window (30 min ± 2 min)
-        delivery_datetime = get_datetime(f"{delivery_date} {delivery_time}")
+        # Send notification only when current time reaches custom_pickup_ready (±2 min)
+        pickup_ready_datetime = get_datetime(pickup_ready)
         current_datetime = now_datetime()
-        time_diff_minutes = (delivery_datetime - current_datetime).total_seconds() / 60
-        print(f"[30minNotif] Time until delivery: {time_diff_minutes:.1f} min for {doc.name}")
-        if not (28 <= time_diff_minutes <= 32):
+        time_diff_minutes = abs((pickup_ready_datetime - current_datetime).total_seconds() / 60)
+
+        if time_diff_minutes > 2:
             return
 
-        # Check cache to prevent duplicate notifications
         cache_key = f"scheduled_30min_notification_{doc.name}"
         if frappe.cache().get_value(cache_key):
-            print(f"[30minNotif] Already sent for {doc.name}, skipping")
             return
 
         frappe.cache().set_value(cache_key, True, expires_in_sec=3600)
 
-        # Send notifications to matching roles
         send_scheduled_30min_notification(doc, settings)
 
-        print(f"Sent 30-minute reminder notification for scheduled order: {doc.name} (Delivery time: {delivery_time})")
+        print(f"Sent pickup-ready notification for: {doc.name} (pickup_ready: {pickup_ready})")
 
     except Exception as e:
         frappe.log_error(
-            f"Error checking 30-minute notification: {str(e)}\nDocument: {doc.name}",
-            "Scheduled 30-Min Notification Check Error"
+            f"Error checking pickup-ready notification: {str(e)}\nDocument: {doc.name}",
+            "Pickup-Ready Notification Check Error"
         )
 
 
