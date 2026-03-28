@@ -1,0 +1,121 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-03-28 17:30:37.191244",
+ "default_view": "List",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "offer_name",
+  "column_break_q8t6k",
+  "status",
+  "section_break_p7qtp",
+  "starting_date",
+  "column_break_rsbof",
+  "ending_date",
+  "section_break_ey1s1",
+  "from_amount",
+  "column_break_hddl1",
+  "to_amount",
+  "column_break_ukyew",
+  "free_item"
+ ],
+ "fields": [
+  {
+   "fieldname": "offer_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Offer Name"
+  },
+  {
+   "fieldname": "column_break_q8t6k",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_p7qtp",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "starting_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Starting Date"
+  },
+  {
+   "fieldname": "column_break_rsbof",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "ending_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Ending Date"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Enabled\nDisabled\nExpired"
+  },
+  {
+   "fieldname": "section_break_ey1s1",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "from_amount",
+   "fieldtype": "Currency",
+   "label": "From Amount"
+  },
+  {
+   "fieldname": "column_break_hddl1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "to_amount",
+   "fieldtype": "Currency",
+   "label": "To Amount"
+  },
+  {
+   "fieldname": "column_break_ukyew",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "free_item",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Free Item",
+   "options": "Item"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-03-28 17:31:31.244737",
+ "modified_by": "Administrator",
+ "module": "Excel Restaurant Pos",
+ "name": "ArcPOS Offers",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
