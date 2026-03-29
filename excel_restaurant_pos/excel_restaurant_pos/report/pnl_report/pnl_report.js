@@ -101,12 +101,12 @@ frappe.query_reports["PnL Report"] = {
 			return `<span style="font-weight:${weight};">${value}</span>`;
 		}
 
-		// Income amounts — multi-level green shades
+		// Income amounts — multi-level green shades #51a451ff
 		if (data._section === "income" && isAmount && value) {
 			// indent 1 = type group (dark), indent 2 = sub-type (medium), indent 3 = leaf (light)
 			const color = data.indent === 1 ? "#1a6b2f"
 				: data.indent === 2 ? "#28a745"
-				: "#5fa85f";
+				: "#1a6b2f"; 
 			const weight = data.bold ? "700" : "400";
 			return `<span style="color:${color}; font-weight:${weight};">${value}</span>`;
 		}
@@ -115,7 +115,7 @@ frappe.query_reports["PnL Report"] = {
 		if (data._section === "expense" && isAmount && value) {
 			const color = data.indent === 1 ? "#8b1a1a"
 				: data.indent === 2 ? "#c0392b"
-				: "#e07060";
+				: "#8b1a1a";
 			const weight = data.bold ? "700" : "400";
 			return `<span style="color:${color}; font-weight:${weight};">${value}</span>`;
 		}
@@ -157,13 +157,6 @@ frappe.query_reports["PnL Report"] = {
 			report.refresh();
 		});
 
-		report.page.add_inner_button(__("Last Month"), () => {
-			const today = frappe.datetime.get_today();
-			const firstOfThisMonth = frappe.datetime.month_start(today);
-			const lastMonth = frappe.datetime.add_days(firstOfThisMonth, -1);
-			report.set_filter_value("from_date", frappe.datetime.month_start(lastMonth));
-			report.set_filter_value("to_date", lastMonth);
-			report.refresh();
-		});
+		
 	},
 };
