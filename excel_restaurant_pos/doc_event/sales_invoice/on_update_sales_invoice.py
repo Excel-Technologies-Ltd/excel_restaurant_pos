@@ -723,15 +723,15 @@ def check_scheduled_notification_30min_before(doc, settings):
     """
     Check if current order needs a pickup-ready reminder notification.
 
-    Sends notification when current time matches the custom_pickup_ready field value
-    (within a ±2-minute window). No manual 30-minute calculation is done here.
+    Sends notification 30 minutes before the custom_pickup_ready field value
+    (within a ±2-minute window around custom_pickup_ready - 30 min).
 
     Conditions:
     - Service Type: Pickup OR Delivery
     - Order Status: Open, Accepted, Waiting, In kitchen, Preparing, Scheduled,
                     Ready to Deliver, Ready to Pickup, Handover to Delivery
     - Order Schedule Type: Scheduled Later
-    - custom_pickup_ready: set and within ±2 minutes of current time
+    - custom_pickup_ready: set and 30 min from now (±2 minute window)
 
     Args:
         doc: Sales Invoice document
@@ -759,10 +759,11 @@ def check_scheduled_notification_30min_before(doc, settings):
         if not pickup_ready:
             return
 
-        # Send notification only when current time reaches custom_pickup_ready (±2 min)
+        # Send notification 30 minutes before custom_pickup_ready (±2 min window)
         pickup_ready_datetime = get_datetime(pickup_ready)
+        notify_at = add_to_date(pickup_ready_datetime, minutes=-30)
         current_datetime = now_datetime()
-        time_diff_minutes = abs((pickup_ready_datetime - current_datetime).total_seconds() / 60)
+        time_diff_minutes = abs((notify_at - current_datetime).total_seconds() / 60)
 
         if time_diff_minutes > 2:
             return

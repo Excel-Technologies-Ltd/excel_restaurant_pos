@@ -168,7 +168,7 @@ def delete_stale_website_orders():
 def check_scheduled_order_notifications():
     """
     Check for scheduled pickup/delivery orders and send notifications
-    at the time stored in custom_pickup_ready field.
+    30 minutes before the time stored in custom_pickup_ready field.
     Runs every 5 minutes.
 
     Conditions:
@@ -176,7 +176,7 @@ def check_scheduled_order_notifications():
     - Order Status: Open, Accepted, Waiting, In kitchen, Preparing, Scheduled,
                     Ready to Deliver, Ready to Pickup, Handover to Delivery
     - Order Schedule Type: Scheduled Later
-    - custom_pickup_ready: set and falls within the current ±2-minute window
+    - custom_pickup_ready: set and 30 min from now (±2-minute window)
     """
     from frappe.utils import get_datetime
 
@@ -230,8 +230,9 @@ def check_scheduled_order_notifications():
 
             pickup_ready_datetime = get_datetime(invoice.custom_pickup_ready)
 
-            # Send notification only when current time reaches custom_pickup_ready
-            if not (window_start <= pickup_ready_datetime <= window_end):
+            # Send notification 30 minutes before custom_pickup_ready
+            notify_at = add_to_date(pickup_ready_datetime, minutes=-30)
+            if not (window_start <= notify_at <= window_end):
                 continue
 
             cache_key = f"scheduled_30min_notification_{invoice.name}"
