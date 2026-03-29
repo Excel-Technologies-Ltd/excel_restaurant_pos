@@ -868,7 +868,7 @@ def send_scheduled_30min_notification(doc, settings):
     delivery_time = doc.custom_delivery_time
     customer_name = doc.customer_name or doc.customer
 
-    title = f"Scheduled {service_type} - 30 Minutes Reminder : {doc.name}"
+    title = f"Scheduled {service_type} Reminder | {doc.name}"
     body = (
         f"Order {doc.name} for {customer_name} is scheduled for "
         f"{service_type.lower()} at {delivery_time}. "
