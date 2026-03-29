@@ -11,11 +11,12 @@ def get_next_available_offers():
     """
     Return the next applicable ArcPOS Offers for a reference amount.
 
-    Tier selection (tiers sorted by ``from_amount`` ascending):
+    Tier selection (distinct ``(from_amount, to_amount)`` bands, sorted by ``from_amount``):
 
-    - Amount below the first tier's ``from_amount``: all offers in the lowest ``(from_amount, to_amount)`` band.
-    - Amount in ``[tier[i].from_amount, tier[i+1].from_amount)``: all offers in tiers ``i`` and ``i+1``.
-    - Amount at or above the last tier's ``from_amount``: all offers in the last two bands (or the only band).
+    - Amount below the first band's ``from_amount``: only the lowest band.
+    - Amount inside a band ``[from, to]``: that band plus the **next** band (never the previous).
+    - Amount in a gap between bands: the next band upward plus the one after it (if any).
+    - Amount above the last band's ``to_amount``: only the last band.
     Multiple offers sharing the same range are all included when that band matches.
 
     Request: ``amount`` (required). ``item_section`` (optional): when provided, only offers for that ArcPOS Item Section are returned.
@@ -82,26 +83,36 @@ def _group_offers_by_range(rows: list) -> tuple[list[tuple[float, float]], dict]
 
 def _select_offers_for_amount(active: list, amount: float) -> list:
     """
-    Pick all offers in each matching tier. Multiple offers sharing the same range
-    are all returned when that tier is selected.
+    Return offers for the band that matches ``amount`` plus the next band only
+    (never the previous band).
     """
     keys, buckets = _group_offers_by_range(active)
     if not keys:
         return []
 
     amt = flt(amount)
-    first_from = keys[0][0]
+    n = len(keys)
 
-    if amt < first_from:
+    if amt < keys[0][0]:
         return list(buckets[keys[0]])
 
-    n = len(keys)
-    for j in range(n - 1):
-        low = keys[j][0]
-        nxt_from = keys[j + 1][0]
-        if low <= amt < nxt_from:
-            return buckets[keys[j]] + buckets[keys[j + 1]]
+    def _band_plus_next(i: int) -> list:
+        out = list(buckets[keys[i]])
+        if i + 1 < n:
+            out += buckets[keys[i + 1]]
+        return out
 
-    if n >= 2:
-        return buckets[keys[-2]] + buckets[keys[-1]]
+    for i, (f, t) in enumerate(keys):
+        if f <= amt <= t:
+            return _band_plus_next(i)
+
+    if amt > keys[-1][1]:
+        return list(buckets[keys[-1]])
+
+    for i in range(n - 1):
+        lo_to = keys[i][1]
+        hi_from = keys[i + 1][0]
+        if lo_to < amt < hi_from:
+            return _band_plus_next(i + 1)
+
     return list(buckets[keys[-1]])
