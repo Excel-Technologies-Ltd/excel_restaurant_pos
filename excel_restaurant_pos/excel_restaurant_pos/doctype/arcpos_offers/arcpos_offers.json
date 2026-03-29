@@ -19,7 +19,9 @@
   "column_break_hddl1",
   "to_amount",
   "column_break_ukyew",
-  "free_item"
+  "free_item",
+  "column_break_hg2uk",
+  "item_section"
  ],
  "fields": [
   {
@@ -27,7 +29,8 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Offer Name"
+   "label": "Offer Name",
+   "reqd": 1
   },
   {
    "fieldname": "column_break_q8t6k",
@@ -40,9 +43,9 @@
   {
    "fieldname": "starting_date",
    "fieldtype": "Date",
-   "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Starting Date"
+   "label": "Starting Date",
+   "reqd": 1
   },
   {
    "fieldname": "column_break_rsbof",
@@ -53,7 +56,8 @@
    "fieldtype": "Date",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Ending Date"
+   "label": "Ending Date",
+   "reqd": 1
   },
   {
    "fieldname": "status",
@@ -61,7 +65,8 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Status",
-   "options": "Enabled\nDisabled\nExpired"
+   "options": "Enabled\nDisabled\nExpired",
+   "reqd": 1
   },
   {
    "fieldname": "section_break_ey1s1",
@@ -70,7 +75,9 @@
   {
    "fieldname": "from_amount",
    "fieldtype": "Currency",
-   "label": "From Amount"
+   "in_list_view": 1,
+   "label": "From Amount",
+   "reqd": 1
   },
   {
    "fieldname": "column_break_hddl1",
@@ -79,23 +86,38 @@
   {
    "fieldname": "to_amount",
    "fieldtype": "Currency",
-   "label": "To Amount"
+   "label": "To Amount",
+   "reqd": 1
   },
   {
    "fieldname": "column_break_ukyew",
-   "fieldtype": "Column Break"
+   "fieldtype": "Section Break"
   },
   {
    "fieldname": "free_item",
    "fieldtype": "Link",
    "in_standard_filter": 1,
    "label": "Free Item",
-   "options": "Item"
+   "options": "Item",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_hg2uk",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "item_section",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Item Section",
+   "options": "ArcPOS Item Section",
+   "reqd": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-28 17:31:31.244737",
+ "modified": "2026-03-28 18:10:09.284584",
  "modified_by": "Administrator",
  "module": "Excel Restaurant Pos",
  "name": "ArcPOS Offers",
