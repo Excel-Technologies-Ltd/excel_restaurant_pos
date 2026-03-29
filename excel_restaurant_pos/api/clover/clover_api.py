@@ -10,6 +10,7 @@ Handles OAuth token storage/retrieval and REST API calls for:
 import requests
 import frappe
 from frappe import cache
+from frappe.utils.password import set_encrypted_password
 
 # ---------------------------------------------------------------------------
 # Endpoints
@@ -26,8 +27,16 @@ ENDPOINTS = {
     },
 }
 
-CACHE_KEY = "clover_access_token"
 TOKEN_TTL = 86400 * 25  # 25 days (Clover tokens are long-lived)
+
+
+def _cache_key():
+    """Return a cache key scoped to the current environment (sandbox vs production)."""
+    try:
+        env = frappe.db.get_single_value("Clover Integration", "environment") or "Sandbox"
+    except Exception:
+        env = "Sandbox"
+    return f"clover_access_token_{env.lower()}"
 
 
 # ---------------------------------------------------------------------------
@@ -105,15 +114,14 @@ def exchange_code_for_token(code, merchant_id_hint=None):
         frappe.log_error("Clover OAuth - No Token", str(data))
         frappe.throw("Clover OAuth response did not include an access_token")
 
-    # Persist directly to DB to bypass read_only field restrictions on form save
-    frappe.db.set_value("Clover Integration", "Clover Integration", {
-        "access_token": access_token,
-        "merchant_id": merchant_id or "",
-    })
+    # Store merchant_id in main table
+    frappe.db.set_value("Clover Integration", "Clover Integration", "merchant_id", merchant_id or "")
+    # Store access_token in __Auth table so get_password() can retrieve it
+    set_encrypted_password("Clover Integration", "Clover Integration", access_token, "access_token")
     frappe.db.commit()
 
-    # Warm the cache
-    cache().set_value(CACHE_KEY, access_token, expires_in_sec=TOKEN_TTL)
+    # Clear the cache so the next call rebuilds it with correct priority (api_token > access_token)
+    cache().delete_value(_cache_key())
 
     frappe.logger().info(f"Clover OAuth token stored for merchant {merchant_id}")
     return {"access_token": access_token, "merchant_id": merchant_id}
@@ -121,7 +129,7 @@ def exchange_code_for_token(code, merchant_id_hint=None):
 
 def clear_token_cache():
     """Remove the cached token, forcing a fresh read from the doctype."""
-    cache().delete_value(CACHE_KEY)
+    cache().delete_value(_cache_key())
 
 
 def get_access_token():
@@ -132,7 +140,7 @@ def get_access_token():
     2. Manually entered API token (api_token field)
     3. OAuth access token (access_token field)
     """
-    cached = cache().get_value(CACHE_KEY)
+    cached = cache().get_value(_cache_key())
     if cached:
         return cached
 
@@ -144,7 +152,7 @@ def get_access_token():
     if not token:
         frappe.throw("No Clover access token found. Please paste an API Token or connect via OAuth.")
 
-    cache().set_value(CACHE_KEY, token, expires_in_sec=TOKEN_TTL)
+    cache().set_value(_cache_key(), token, expires_in_sec=TOKEN_TTL)
     return token
 
 
