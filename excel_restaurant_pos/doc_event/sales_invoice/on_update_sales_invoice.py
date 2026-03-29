@@ -147,6 +147,9 @@ def on_update_sales_invoice(doc, method: str):
         if matched_rules == 0:
             print(f"No notification rules matched for Sales Invoice: {doc.name}")
 
+        # Check and send 30-min before pickup-ready notification
+        check_scheduled_notification_30min_before(doc, settings)
+
     except Exception as e:
         frappe.log_error(
             f"Error in on_update_sales_invoice: {str(e)}\nDocument: {doc.name}",
