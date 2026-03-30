@@ -178,13 +178,13 @@ def check_scheduled_order_notifications():
     - Order Schedule Type: Scheduled Later
     - custom_pickup_ready: set and 30 min from now (±2-minute window)
     """
-    from frappe.utils import get_datetime
+    from frappe.utils import get_datetime, convert_utc_to_system_timezone
 
     current_datetime = now_datetime()
 
-    # ±2-minute window around now (task runs every 5 minutes)
-    window_start = add_to_date(current_datetime, minutes=-2)
-    window_end = add_to_date(current_datetime, minutes=2)
+    # ±3-minute window around now — ensures no gaps between consecutive 5-minute runs
+    window_start = add_to_date(current_datetime, minutes=-3)
+    window_end = add_to_date(current_datetime, minutes=3)
 
     allowed_statuses = [
         "Open",
@@ -229,13 +229,18 @@ def check_scheduled_order_notifications():
                 continue
 
             pickup_ready_datetime = get_datetime(invoice.custom_pickup_ready)
+            # Convert UTC-aware to local naive to match now_datetime()
+            if pickup_ready_datetime.tzinfo:
+                pickup_ready_datetime = convert_utc_to_system_timezone(
+                    pickup_ready_datetime.replace(tzinfo=None)
+                ).replace(tzinfo=None)
 
             # Send notification 30 minutes before custom_pickup_ready
             notify_at = add_to_date(pickup_ready_datetime, minutes=-30)
             if not (window_start <= notify_at <= window_end):
                 continue
 
-            cache_key = f"scheduled_30min_notification_{invoice.name}"
+            cache_key = f"scheduled_30min_notification_{invoice.name}_{invoice.custom_pickup_ready}"
             if frappe.cache().get_value(cache_key):
                 frappe.logger().debug(
                     f"Pickup-ready notification already sent for {invoice.name}, skipping"
@@ -465,7 +470,7 @@ def send_scheduled_order_notification_to_staff(invoice):
                     # Publish realtime event
                     frappe.publish_realtime(
                         "sales_invoice_notification_" + user_email,
-                        data={
+                        {
                             "title": title,
                             "body": body,
                             "document_type": "Sales Invoice",
@@ -740,3 +745,54 @@ def complete_past_reservations():
     if completed:
         frappe.db.commit()
         frappe.logger().info(f"Marked {completed} past reservation(s) as Completed")
+
+
+def check_pending_delivery_notifications():
+    """
+    Send pending delivery/pickup email notifications when their scheduled time is due.
+    Runs every minute. Notifications are stored in Redis when the order status changes,
+    then picked up here at the exact send_at time.
+    """
+    from frappe.utils import get_datetime
+
+    hash_key = f"{frappe.local.site}:pending_delivery_notifications"
+    pending = frappe.cache().hgetall(hash_key) or {}
+
+    if not pending:
+        return
+
+    current_time = now_datetime()
+    sent = 0
+
+    for raw_key, raw_value in pending.items():
+        invoice_name = raw_key.decode() if isinstance(raw_key, bytes) else raw_key
+        try:
+            data = frappe.parse_json(
+                raw_value.decode() if isinstance(raw_value, bytes) else raw_value
+            )
+            send_at = get_datetime(data["send_at"])
+
+            if current_time < send_at:
+                continue
+
+            # Remove from Redis first to prevent duplicate sends
+            frappe.cache().hdel(hash_key, invoice_name)
+
+            frappe.enqueue(
+                "excel_restaurant_pos.doc_event.sales_invoice.on_update_sales_invoice.send_delivery_pickup_notification",
+                queue="short",
+                timeout=120,
+                enqueue_after_commit=False,
+                sales_invoice_name=data["sales_invoice_name"],
+                template_name=data["template"],
+            )
+            sent += 1
+            frappe.logger().info(
+                f"Enqueued delivery/pickup notification for {invoice_name} (was due at {send_at})"
+            )
+
+        except Exception as e:
+            frappe.log_error(
+                message=f"Error processing pending delivery notification for {invoice_name}: {str(e)}",
+                title="Delivery Notification Scheduler Error",
+            )

@@ -192,6 +192,10 @@ scheduler_events = {
         "*/5 * * * *": [
             "excel_restaurant_pos.utils.scheduled_tasks.check_scheduled_order_notifications"
         ],
+        # Send pending delivery/pickup notifications at exact scheduled time every minute
+        "* * * * *": [
+            "excel_restaurant_pos.utils.scheduled_tasks.check_pending_delivery_notifications"
+        ],
         # Send 24-hour reminder emails for table reservations every hour
         # Auto-cancel submitted invoices with Rejected order status every hour
         "0 * * * *": [
