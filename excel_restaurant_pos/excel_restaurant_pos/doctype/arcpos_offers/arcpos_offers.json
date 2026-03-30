@@ -21,7 +21,9 @@
   "column_break_ukyew",
   "free_item",
   "column_break_hg2uk",
-  "item_section"
+  "item_section",
+  "section_break_jozvd",
+  "item_type"
  ],
  "fields": [
   {
@@ -113,11 +115,20 @@
    "label": "Item Section",
    "options": "ArcPOS Item Section",
    "reqd": 1
+  },
+  {
+   "fieldname": "item_type",
+   "fieldtype": "Data",
+   "label": "Item Type"
+  },
+  {
+   "fieldname": "section_break_jozvd",
+   "fieldtype": "Section Break"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-28 18:10:09.284584",
+ "modified": "2026-03-30 10:23:27.459930",
  "modified_by": "Administrator",
  "module": "Excel Restaurant Pos",
  "name": "ArcPOS Offers",

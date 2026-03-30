@@ -46,6 +46,7 @@ def get_next_available_offers():
             "ending_date",
             "status",
             "item_section",
+            "item_type",
         ],
         order_by="from_amount asc",
         ignore_permissions=True,
