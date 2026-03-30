@@ -182,9 +182,11 @@ def check_scheduled_order_notifications():
 
     current_datetime = now_datetime()
 
-    # ±3-minute window around now — ensures no gaps between consecutive 5-minute runs
-    window_start = add_to_date(current_datetime, minutes=-3)
-    window_end = add_to_date(current_datetime, minutes=3)
+    # Look back 6 min (one full cron interval + slack) so orders created just after
+    # the previous run are still caught even if this run fires a few seconds late.
+    # Look forward only 1 min to avoid premature notifications.
+    window_start = add_to_date(current_datetime, minutes=-6)
+    window_end = add_to_date(current_datetime, minutes=1)
 
     allowed_statuses = [
         "Open",
@@ -315,7 +317,7 @@ def send_scheduled_order_notification_to_staff(invoice):
     delivery_time = doc.custom_delivery_time
     customer_name = doc.customer_name or doc.customer
 
-    title = f"Scheduled {service_type} - 30 Minutes Reminder"
+    title = f"Scheduled {service_type} Reminder | {doc.name}"
     body = (
         f"Order {doc.name} for {customer_name} is scheduled for "
         f"{service_type.lower()} at {delivery_time}. "

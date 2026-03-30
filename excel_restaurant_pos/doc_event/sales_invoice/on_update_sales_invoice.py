@@ -742,6 +742,15 @@ def check_scheduled_notification_30min_before(doc, settings):
         if not pickup_ready:
             return
 
+        # Skip if custom_pickup_ready was just changed in this save — the scheduled cron
+        # (check_scheduled_order_notifications) will fire at the correct time.
+        # This prevents the notification from firing immediately when pickup_ready is
+        # auto-set or updated on a Pickup order save.
+        previous_doc = doc.get_doc_before_save()
+        previous_pickup_ready = previous_doc.get("custom_pickup_ready") if previous_doc else None
+        if pickup_ready != previous_pickup_ready:
+            return
+
         # Send notification 30 minutes before custom_pickup_ready (±3 min window)
         pickup_ready_datetime = get_datetime(pickup_ready)
         # Convert UTC-aware to local naive to match now_datetime()
@@ -753,9 +762,9 @@ def check_scheduled_notification_30min_before(doc, settings):
         print(f"Checking 30-min notification for {doc.name}: pickup_ready at {pickup_ready_datetime}")
         notify_at = add_to_date(pickup_ready_datetime, minutes=-30)
         current_datetime = now_datetime()
-        time_diff_minutes = abs((notify_at - current_datetime).total_seconds() / 60)
-
-        if time_diff_minutes > 3:
+        # Fire if notify_at was up to 6 min ago (cron may have missed it) or up to 1 min ahead.
+        diff_minutes = (notify_at - current_datetime).total_seconds() / 60
+        if not (-6 <= diff_minutes <= 1):
             return
 
         cache_key = f"scheduled_30min_notification_{doc.name}_{pickup_ready}"
