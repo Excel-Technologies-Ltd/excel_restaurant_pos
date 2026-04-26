@@ -44,33 +44,18 @@ def on_update_sales_invoice(doc, method: str):
 
             print("Order Status ",order_status,"Delay (seconds): ", delay_seconds)
             if should_send:
-                if delay_seconds and delay_seconds > 0:
-                    # Schedule notification with delay on long queue to avoid blocking short queue workers
-                    print(f"\n\n Scheduling delayed notification ({delay_seconds}s) \n\n")
-                    frappe.enqueue(
-                        send_delivery_pickup_notification,
-                        queue="long",
-                        timeout=max(300, delay_seconds + 120),
-                        enqueue_after_commit=True,
-                        at_front=False,
-                        job_id=f"delivery_pickup_notification_{doc.name}",
-                        sales_invoice_name=doc.name,
-                        template_name=template,
-                        delay_seconds=delay_seconds
-                    )
-                    print(f"Scheduled delivery/pickup notification for {doc.name} after {delay_seconds} seconds")
-                else:
-                    # Send notification immediately
-                    print("\n\n This Condition is Working immediately \n\n")
-                    frappe.enqueue(
-                        send_delivery_pickup_notification,
-                        queue="short",
-                        timeout=300,
-                        enqueue_after_commit=True,
-                        sales_invoice_name=doc.name,
-                        template_name=template
-                    )
-                    print(f"Queued immediate delivery/pickup notification for {doc.name}")
+                send_at = add_to_date(now_datetime(), seconds=delay_seconds) if delay_seconds else now_datetime()
+                hash_key = f"{frappe.local.site}:pending_delivery_notifications"
+                frappe.cache().hset(
+                    hash_key,
+                    doc.name,
+                    frappe.as_json({
+                        "send_at": str(send_at),
+                        "template": template,
+                        "sales_invoice_name": doc.name,
+                    })
+                )
+                print(f"Delivery/pickup notification for {doc.name} scheduled at {send_at} (delay: {delay_seconds}s)")
         else:
             print("Delivery and Pickup Template is missing in ArcPOS Settings")
 
@@ -655,23 +640,15 @@ def get_notification_body(doc, rule):
     return " | ".join(parts) if parts else f"Sales Invoice {doc.name} has been updated."
 
 
-def send_delivery_pickup_notification(sales_invoice_name, template_name, delay_seconds=0):
+def send_delivery_pickup_notification(sales_invoice_name, template_name, delay_seconds=None):
     """
     Send delivery or pickup notification to customer using the specified template.
 
     Args:
         sales_invoice_name: Name of the Sales Invoice document
         template_name: Name of the Notification Template to use
-        delay_seconds: Number of seconds to wait before sending (Duration field value)
     """
     try:
-        # Wait for the specified delay before sending
-        if delay_seconds and delay_seconds > 0:
-            import time
-            print(f"Waiting {delay_seconds} seconds before sending notification for {sales_invoice_name}")
-            time.sleep(delay_seconds)
-            print(f"Delay complete, sending notification for {sales_invoice_name}")
-
         # Get the Sales Invoice document
         doc = frappe.get_doc("Sales Invoice", sales_invoice_name)
 
@@ -741,10 +718,13 @@ def check_scheduled_notification_30min_before(doc, settings):
         settings: ArcPOS Settings document
     """
     try:
+
+        print("\nChecking if 30-min pickup-ready notification should be sent...")
         service_type = doc.get("custom_service_type") or ""
         order_status = doc.get("custom_order_status") or ""
         order_schedule_type = doc.get("custom_order_schedule_type") or ""
         pickup_ready = doc.get("custom_pickup_ready")
+        print(f"\nChecking 30-min notification for {doc.name}: service_type={service_type}, order_status={order_status}, order_schedule_type={order_schedule_type}, pickup_ready={pickup_ready}")
 
         if service_type not in ["Pickup", "Delivery"]:
             return
@@ -754,7 +734,7 @@ def check_scheduled_notification_30min_before(doc, settings):
 
         allowed_statuses = [
             "Open", "Accepted", "Waiting", "In kitchen", "Preparing", "Scheduled",
-            "Ready to Deliver", "Ready to Pickup", "Handover to Delivery"
+            "Ready to Deliver", "Ready to Pickup", "Handover to Delivery",
         ]
         if order_status not in allowed_statuses:
             return
@@ -762,16 +742,32 @@ def check_scheduled_notification_30min_before(doc, settings):
         if not pickup_ready:
             return
 
-        # Send notification 30 minutes before custom_pickup_ready (±2 min window)
-        pickup_ready_datetime = get_datetime(pickup_ready)
-        notify_at = add_to_date(pickup_ready_datetime, minutes=-30)
-        current_datetime = now_datetime()
-        time_diff_minutes = abs((notify_at - current_datetime).total_seconds() / 60)
-
-        if time_diff_minutes > 2:
+        # Skip if custom_pickup_ready was just changed in this save — the scheduled cron
+        # (check_scheduled_order_notifications) will fire at the correct time.
+        # This prevents the notification from firing immediately when pickup_ready is
+        # auto-set or updated on a Pickup order save.
+        previous_doc = doc.get_doc_before_save()
+        previous_pickup_ready = previous_doc.get("custom_pickup_ready") if previous_doc else None
+        if pickup_ready != previous_pickup_ready:
             return
 
-        cache_key = f"scheduled_30min_notification_{doc.name}"
+        # Send notification 30 minutes before custom_pickup_ready (±3 min window)
+        pickup_ready_datetime = get_datetime(pickup_ready)
+        # Convert UTC-aware to local naive to match now_datetime()
+        if pickup_ready_datetime.tzinfo:
+            from frappe.utils import convert_utc_to_system_timezone
+            pickup_ready_datetime = convert_utc_to_system_timezone(
+                pickup_ready_datetime.replace(tzinfo=None)
+            ).replace(tzinfo=None)
+        print(f"Checking 30-min notification for {doc.name}: pickup_ready at {pickup_ready_datetime}")
+        notify_at = add_to_date(pickup_ready_datetime, minutes=-30)
+        current_datetime = now_datetime()
+        # Fire if notify_at was up to 6 min ago (cron may have missed it) or up to 1 min ahead.
+        diff_minutes = (notify_at - current_datetime).total_seconds() / 60
+        if not (-6 <= diff_minutes <= 1):
+            return
+
+        cache_key = f"scheduled_30min_notification_{doc.name}_{pickup_ready}"
         if frappe.cache().get_value(cache_key):
             return
 
