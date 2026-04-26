@@ -4,22 +4,21 @@ from frappe.utils import flt, add_days, getdate
 
 def update_sales_invoice(invoice_name, items):
     sales_invoice = frappe.get_doc("Sales Invoice", invoice_name)
-    print(sales_invoice.as_dict())
 
-    # Ensure posting_date is set and valid
-    if not sales_invoice.posting_date:
-        sales_invoice.posting_date = frappe.utils.today()
+    # # Ensure posting_date is set and valid
+    # if not sales_invoice.posting_date:
+    #     sales_invoice.posting_date = frappe.utils.today()
 
-    # Normalize posting_date to ensure proper date comparison
-    posting_date = getdate(sales_invoice.posting_date)
+    # # Normalize posting_date to ensure proper date comparison
+    # posting_date = getdate(sales_invoice.posting_date)
 
-    # Set due_date to be at least equal to posting_date (1 day after)
-    # Use getdate to normalize the result and ensure proper date format
-    sales_invoice.due_date = getdate(add_days(posting_date, 1))
+    # # Set due_date to be at least equal to posting_date (1 day after)
+    # # Use getdate to normalize the result and ensure proper date format
+    # sales_invoice.due_date = getdate(add_days(posting_date, 1))
 
-    # Safety check: ensure due_date is never before posting_date
-    if getdate(sales_invoice.due_date) < posting_date:
-        sales_invoice.due_date = posting_date
+    # # Safety check: ensure due_date is never before posting_date
+    # if getdate(sales_invoice.due_date) < posting_date:
+    #     sales_invoice.due_date = posting_date
 
     for item_data in items:
         item_code = item_data.get("item_code", None)
@@ -45,14 +44,10 @@ def update_sales_invoice(invoice_name, items):
                 "custom_is_print": item_data.get("custom_is_print"),
                 "custom_new_ordered_item": item_data.get("custom_new_ordered_item"),
                 "custom_guest_choice": item_data.get("custom_guest_choice"),
+                "custom_is_offer_price": item_data.get("custom_is_offer_price"),
+                "custom_choose_qty": item_data.get("custom_choose_qty"),
             },
         )
     sales_invoice.save(ignore_permissions=True)
-
-    customer_order_status = ""
-
-    disallow_from = ["QR - Table", "Table", "In Store"]
-
-    # if customer_order_status not in disallow_from and customer_order_status != "Rejected":
 
     return sales_invoice

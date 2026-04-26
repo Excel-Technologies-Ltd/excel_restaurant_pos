@@ -131,6 +131,8 @@ def _add_items(sales_invoice, items):
                 "custom_special_note": item_data.get("custom_special_note"),
                 "custom_is_print": item_data.get("custom_is_print"),
                 "custom_guest_choice": item_data.get("custom_guest_choice"),
+                "custom_is_offer_price": item_data.get("custom_is_offer_price"),
+                "custom_choose_qty": item_data.get("custom_choose_qty"),
             },
         )
 
