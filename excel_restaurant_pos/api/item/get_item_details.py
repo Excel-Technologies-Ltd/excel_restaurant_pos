@@ -47,12 +47,35 @@ def get_item_details():
         order_by="creation",
     )
 
+    # Fetch linked Item Attribute Value details for attribute_value.
+    attribute_names = list(
+        {attribute.attribute for attribute in attributes if attribute.get("attribute")}
+    )
+    item_attribute_value_map: dict[tuple[str, str], dict] = {}
+    if attribute_names:
+        item_attribute_values = frappe.get_all(
+            "Item Attribute Value",
+            filters={"parent": ["in", attribute_names]},
+            fields=[
+                "attribute_value",
+                "abbr",
+                "custom_child_item_name",
+                "custom_child_max_choice",
+            ],
+        )
+        item_attribute_value_map = {
+            (row.parent, row.attribute_value): row for row in item_attribute_values
+        }
+
     attributes_map: dict[str, list[dict]] = {}
     for attribute in attributes:
         parent = attribute.parent
         # if attribute value is None, skip it
         if attribute.attribute_value is None:
             continue
+        attribute.attribute_value_details = item_attribute_value_map.get(
+            (attribute.attribute, attribute.attribute_value)
+        )
         # if parent not in attributes_map, create a new list
         if parent not in attributes_map:
             attributes_map[parent] = []
