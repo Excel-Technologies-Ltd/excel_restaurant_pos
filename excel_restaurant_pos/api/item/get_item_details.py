@@ -2,52 +2,42 @@ import frappe
 from frappe.utils import today, getdate
 
 
-# get item details
-@frappe.whitelist(allow_guest=True)
-def get_item_details():
-    """
-    Get item details with variants
-    """
+VARIANT_FIELDS = [
+    "name",
+    "item_name",
+    "item_code",
+    "item_group",
+    "image",
+    "description",
+]
+VARIANT_ATTRIBUTE_FIELDS = [
+    "attribute",
+    "attribute_value",
+    "custom_choice_type",
+    "parent",
+    "custom_max_choice_count",
+]
+REGULAR_PRICE_FIELDS = ["item_code", "price_list", "price_list_rate", "valid_upto"]
+ADDON_PRICE_FIELDS = ["item_code", "price_list_rate"]
 
-    item_code = frappe.form_dict.get("item_code")
-    if not item_code:
-        frappe.throw("item_code is required")
 
-    # Get item document and convert to dict
-    item_details = frappe.get_doc("Item", item_code).as_dict()
-
-    # Get variant items
-    variant_fields = [
-        "name",
-        "item_name",
-        "item_code",
-        "item_group",
-        "image",
-        "description",
-    ]
-    variants_items = frappe.get_all(
-        "Item", filters={"variant_of": item_code}, fields=variant_fields
+def _get_variant_items(item_code: str):
+    return frappe.get_all(
+        "Item", filters={"variant_of": item_code}, fields=VARIANT_FIELDS
     )
 
-    # list of variant item codes
-    regular_item_codes = [item.item_code for item in variants_items]
 
-    # prepare attributes
-    attributes_fields = [
-        "attribute",
-        "attribute_value",
-        "custom_choice_type",
-        "parent",
-        "custom_max_choice_count",
-    ]
+def _get_attributes_map(regular_item_codes: list[str]) -> dict[str, list[dict]]:
+    if not regular_item_codes:
+        return {}
+
     attributes = frappe.get_all(
         "Item Variant Attribute",
         filters={"parent": ["in", regular_item_codes]},
-        fields=attributes_fields,
+        fields=VARIANT_ATTRIBUTE_FIELDS,
         order_by="creation",
     )
 
-    # Fetch linked Item Attribute Value details for attribute_value.
     attribute_names = list(
         {attribute.attribute for attribute in attributes if attribute.get("attribute")}
     )
@@ -57,6 +47,7 @@ def get_item_details():
             "Item Attribute Value",
             filters={"parent": ["in", attribute_names]},
             fields=[
+                "parent",
                 "attribute_value",
                 "abbr",
                 "custom_child_item_name",
@@ -69,70 +60,82 @@ def get_item_details():
 
     attributes_map: dict[str, list[dict]] = {}
     for attribute in attributes:
-        parent = attribute.parent
-        # if attribute value is None, skip it
         if attribute.attribute_value is None:
             continue
+
         attribute.attribute_value_details = item_attribute_value_map.get(
             (attribute.attribute, attribute.attribute_value)
         )
-        # if parent not in attributes_map, create a new list
+
+        parent = attribute.parent
         if parent not in attributes_map:
             attributes_map[parent] = []
         attributes_map[parent].append(attribute)
 
-    # prepare addons items
-    addons_items = item_details.get("custom_addons_items", [])
-    addon_item_codes = [item.item_code for item in addons_items]
+    return attributes_map
 
-    # attach attributes to variants
-    for variant in variants_items:
-        variant.attributes = attributes_map.get(variant.item_code, [])
 
-    # add docs item code
-    regular_item_codes.append(item_code)
+def _get_regular_price_map(item_codes: list[str]) -> dict[str, list[dict]]:
+    if not item_codes:
+        return {}
 
-    # item prices
-    regular_prices = frappe.get_all(
+    prices = frappe.get_all(
         "Item Price",
-        filters={"item_code": ["in", regular_item_codes], "selling": 1},
-        fields=["item_code", "price_list", "price_list_rate", "valid_upto"],
+        filters={"item_code": ["in", item_codes], "selling": 1},
+        fields=REGULAR_PRICE_FIELDS,
     )
+
+    today_date = getdate(today())
+    valid_price_map: dict[str, list[dict]] = {}
+    for price in prices:
+        if price.valid_upto and getdate(price.valid_upto) < today_date:
+            continue
+
+        valid_price_map.setdefault(price.item_code, []).append(price)
+
+    return valid_price_map
+
+
+def _get_addon_price_map(addon_item_codes: list[str]) -> dict[str, float]:
+    if not addon_item_codes:
+        return {}
 
     addon_prices = frappe.get_all(
         "Item Price",
         filters={"item_code": ["in", addon_item_codes], "price_list": "Add-on Price"},
-        fields=["item_code", "price_list_rate"],
+        fields=ADDON_PRICE_FIELDS,
     )
+    return {price.item_code: price.price_list_rate for price in addon_prices}
 
-    # Filter out expired prices based on valid_upto (only for regular items)
-    today_date = getdate(today())
 
-    # Filter regular prices
-    valid_regular_prices = {}
-    for price in regular_prices:
-        if price.valid_upto:
-            valid_upto_date = getdate(price.valid_upto)
-            if valid_upto_date < today_date:
-                continue  # Price is expired, skip it
+@frappe.whitelist(allow_guest=True)
+def get_item_details():
+    """Get item details with variants."""
+    item_code = frappe.form_dict.get("item_code")
+    if not item_code:
+        frappe.throw("item_code is required")
 
-        i_code = price.item_code
-        if i_code not in valid_regular_prices:
-            valid_regular_prices[i_code] = []
-        valid_regular_prices[i_code].append(price)
+    item_details = frappe.get_doc("Item", item_code).as_dict()
+    variants_items = _get_variant_items(item_code)
+    regular_item_codes = [item.item_code for item in variants_items]
 
-    addon_price_map = {price.item_code: price.price_list_rate for price in addon_prices}
+    attributes_map = _get_attributes_map(regular_item_codes)
+    addons_items = item_details.get("custom_addons_items", [])
+    addon_item_codes = [item.item_code for item in addons_items]
 
-    # attach price to variants and addons
+    for variant in variants_items:
+        variant.attributes = attributes_map.get(variant.item_code, [])
+
+    regular_item_codes.append(item_code)
+    valid_regular_prices = _get_regular_price_map(regular_item_codes)
+    addon_price_map = _get_addon_price_map(addon_item_codes)
+
     for variant in variants_items:
         variant.price = valid_regular_prices.get(variant.item_code, [])
 
-    # attach price to addons
     for addon in addons_items:
         addon.price = addon_price_map.get(addon.item_code, 0)
 
-    # attach variants and addons to item details
     item_details["variants_items"] = variants_items
     item_details["prices"] = valid_regular_prices.get(item_code, [])
-
     return item_details
