@@ -261,7 +261,8 @@ def _fetch_income_entries(start_date, end_date, type_filter, sub_type_filter, co
 		FROM `tabPnL Entry` pe
 		INNER JOIN `tabPnL Income Item` pii ON pii.parent = pe.name
 		WHERE pe.docstatus = 1
-		  AND pe.posting_date BETWEEN %(start_date)s AND %(end_date)s
+		  AND pe.posting_date >= %(start_date)s 
+          AND pe.posting_date <= %(end_date)s
 		  {extra_conditions}
 		ORDER BY pe.posting_date DESC, pe.posting_time DESC
 		""",
@@ -305,7 +306,7 @@ def _fetch_expense_entries(start_date, end_date, type_filter, sub_type_filter, c
 		INNER JOIN `tabPnL Expense Item` pei ON pei.parent = pe.name
 		WHERE pe.docstatus = 1
 		  AND pe.posting_date >= %(start_date)s 
-          AND pe.posting_date <= %(end_date)s;
+          AND pe.posting_date <= %(end_date)s
 		  {extra_conditions}
 		ORDER BY pe.posting_date DESC, pe.posting_time DESC
 		""",
