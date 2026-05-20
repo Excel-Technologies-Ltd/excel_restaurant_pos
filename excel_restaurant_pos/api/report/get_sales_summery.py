@@ -25,8 +25,8 @@ def get_sales_summery():
 
     # DB function likely treats end_date as exclusive (< end_date).
     # To make the API behave inclusive, pass end_date + 1 day.
-    end_date_for_query = add_days(end_date, 1)
-    values = {"start_date": start_date, "end_date": end_date_for_query}
+    # end_date_for_query = add_days(end_date, 1)
+    values = {"start_date": start_date, "end_date": end_date}
 
     try:
         # SQL function-style call (often returns JSON text)
