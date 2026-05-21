@@ -32,12 +32,16 @@ def check_delivery_and_charges_fraudulency(doc, method: str):
     """
 
     s_type = doc.get("custom_service_type", "")
+    c_order_from = doc.get("custom_order_from", "")
     allow_delivery_charge = frappe.db.get_single_value(
         "ArcPOS Settings", "allow_delivery_charge"
     )
 
     # if service type is not delivery, return
     if s_type != "Delivery":
+        return
+
+    if c_order_from == "BC Bites":
         return
 
     # if delivery charge is not allowed, return
