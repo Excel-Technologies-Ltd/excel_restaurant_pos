@@ -23,7 +23,9 @@
   "column_break_hg2uk",
   "item_section",
   "section_break_jozvd",
-  "item_type"
+  "item_type",
+  "column_break_h1lzv",
+  "offer_applied_on"
  ],
  "fields": [
   {
@@ -124,11 +126,21 @@
   {
    "fieldname": "section_break_jozvd",
    "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_h1lzv",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "offer_applied_on",
+   "fieldtype": "Select",
+   "label": "Offer Applied On",
+   "options": "Both\nDelivery\nPickup"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-30 10:23:27.459930",
+ "modified": "2026-06-02 07:46:45.070963",
  "modified_by": "Administrator",
  "module": "Excel Restaurant Pos",
  "name": "ArcPOS Offers",
