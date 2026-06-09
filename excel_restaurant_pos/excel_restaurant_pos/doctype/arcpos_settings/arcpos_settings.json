@@ -58,6 +58,18 @@
   "default_kop_format",
   "auto_print_for_online_order",
   "coupon_code_list_tab",
+  "allow_auto_generate_cd",
+  "auto_generate_on",
+  "allow_manual_generate_cd",
+  "coupon_type",
+  "default_pricing_rule",
+  "discount_type",
+  "discount_rate",
+  "column_break_mykd9",
+  "expire_after_days",
+  "max_use",
+  "minimum_subtotal",
+  "cd_allow_on",
   "code_list",
   "website_tab",
   "portal_base_url",
@@ -248,6 +260,7 @@
   {
    "fieldname": "code_list",
    "fieldtype": "Table",
+   "hidden": 1,
    "label": "Code List",
    "options": "Restaurant Coupon"
   },
@@ -987,13 +1000,99 @@
    "fieldname": "connect_with_uberdirect",
    "fieldtype": "Check",
    "label": "Connect with UberDirect"
+  },
+  {
+   "default": "0",
+   "description": "Marking will allow to auto generate Coupon Code on Invoice submission",
+   "fieldname": "allow_auto_generate_cd",
+   "fieldtype": "Check",
+   "label": "Allow Auto Generate?"
+  },
+  {
+   "depends_on": "eval:doc.allow_auto_generate_cd || doc.allow_manual_generate_cd",
+   "fieldname": "coupon_type",
+   "fieldtype": "Select",
+   "label": "Coupon Type",
+   "mandatory_depends_on": "eval:doc.allow_auto_generate_cd || doc.allow_manual_generate_cd",
+   "options": "Promotional\nGift Card"
+  },
+  {
+   "depends_on": "eval:doc.allow_auto_generate_cd || doc.allow_manual_generate_cd",
+   "fieldname": "default_pricing_rule",
+   "fieldtype": "Link",
+   "label": "Default Pricing Rule",
+   "mandatory_depends_on": "eval:doc.allow_auto_generate_cd || doc.allow_manual_generate_cd",
+   "options": "Pricing Rule"
+  },
+  {
+   "depends_on": "eval:doc.allow_auto_generate_cd || doc.allow_manual_generate_cd",
+   "fieldname": "discount_type",
+   "fieldtype": "Select",
+   "label": "Discount Type",
+   "mandatory_depends_on": "eval:doc.allow_auto_generate_cd || doc.allow_manual_generate_cd",
+   "options": "\nPercentage\nFlat Amount"
+  },
+  {
+   "depends_on": "eval:doc.discount_type",
+   "fieldname": "discount_rate",
+   "fieldtype": "Float",
+   "label": "Discount Rate",
+   "mandatory_depends_on": "eval:doc.discount_type"
+  },
+  {
+   "fieldname": "column_break_mykd9",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.allow_auto_generate_cd || doc.allow_manual_generate_cd",
+   "fieldname": "expire_after_days",
+   "fieldtype": "Float",
+   "label": "Expire After (Days)",
+   "mandatory_depends_on": "eval:doc.allow_auto_generate_cd || doc.allow_manual_generate_cd",
+   "precision": "0"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.allow_auto_generate_cd || doc.allow_manual_generate_cd",
+   "fieldname": "max_use",
+   "fieldtype": "Float",
+   "label": "Max Use",
+   "precision": "0"
+  },
+  {
+   "depends_on": "eval:doc.allow_auto_generate_cd || doc.allow_manual_generate_cd",
+   "fieldname": "minimum_subtotal",
+   "fieldtype": "Currency",
+   "label": "Minimum Subtotal"
+  },
+  {
+   "default": "0",
+   "fieldname": "allow_manual_generate_cd",
+   "fieldtype": "Check",
+   "label": "Allow Manual Generate?"
+  },
+  {
+   "depends_on": "eval:doc.allow_auto_generate_cd || doc.allow_manual_generate_cd",
+   "fieldname": "cd_allow_on",
+   "fieldtype": "Select",
+   "label": "Allow On",
+   "mandatory_depends_on": "eval:doc.allow_auto_generate_cd || doc.allow_manual_generate_cd",
+   "options": "\nPOS\nOnline Pickup\nOnline Delivery\nOnly Online\nAll"
+  },
+  {
+   "depends_on": "eval:doc.allow_auto_generate_cd",
+   "fieldname": "auto_generate_on",
+   "fieldtype": "Select",
+   "label": "Auto Generate On",
+   "mandatory_depends_on": "eval:doc.allow_auto_generate_cd",
+   "options": "\nPOS\nOnline Pickup\nOnline Delivery\nOnly Online\nAll"
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
  "make_attachments_public": 1,
- "modified": "2026-05-24 06:18:09.176921",
+ "modified": "2026-06-09 04:08:00.411473",
  "modified_by": "Administrator",
  "module": "Excel Restaurant Pos",
  "name": "ArcPOS Settings",
