@@ -2,15 +2,16 @@
  "actions": [],
  "allow_import": 1,
  "autoname": "PNL-.YYYY.-.####",
- "creation": "2026-03-25 00:00:00.000000",
+ "creation": "2026-03-25 00:00:00",
  "default_view": "List",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "pnl_type",
   "posting_date",
   "posting_time",
+  "column_break_sqkqq",
+  "pnl_type",
   "company",
   "amended_from",
   "income_section",
@@ -22,31 +23,30 @@
   "summary_section",
   "net_profit_loss",
   "notes_section",
-  "notes"
+  "notes",
+  "attachments_section",
+  "pnl_attachments"
  ],
  "fields": [
   {
    "fieldname": "pnl_type",
    "fieldtype": "Select",
-   "hidden": 1,
-   "in_list_view": 0,
    "in_standard_filter": 1,
    "label": "PnL Type",
-   "options": "\nIncome\nExpense\nBoth",
-   "print_hide": 1
+   "options": "Income\nExpense"
   },
   {
+   "default": "Today",
    "fieldname": "posting_date",
    "fieldtype": "Date",
-   "default": "Today",
    "in_list_view": 1,
    "label": "Posting Date",
    "reqd": 1
   },
   {
+   "default": "Now",
    "fieldname": "posting_time",
    "fieldtype": "Time",
-   "default": "Now",
    "label": "Posting Time",
    "reqd": 1
   },
@@ -56,8 +56,8 @@
    "in_list_view": 1,
    "label": "Company",
    "options": "Company",
-   "reqd": 1,
-   "remember_last_selected_value": 1
+   "remember_last_selected_value": 1,
+   "reqd": 1
   },
   {
    "fieldname": "amended_from",
@@ -80,6 +80,7 @@
    "options": "PnL Income Item"
   },
   {
+   "depends_on": "eval:doc.total_income>0",
    "fieldname": "total_income",
    "fieldtype": "Currency",
    "label": "Total Income",
@@ -97,6 +98,7 @@
    "options": "PnL Expense Item"
   },
   {
+   "depends_on": "eval:doc.total_expense>0.00",
    "fieldname": "total_expense",
    "fieldtype": "Currency",
    "label": "Total Expense",
@@ -122,16 +124,30 @@
    "fieldname": "notes",
    "fieldtype": "Small Text",
    "label": "Notes"
+  },
+  {
+   "fieldname": "column_break_sqkqq",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "attachments_section",
+   "fieldtype": "Section Break",
+   "label": "Attachments"
+  },
+  {
+   "fieldname": "pnl_attachments",
+   "fieldtype": "Table",
+   "label": "PnL Attachments",
+   "options": "PnL Attachments"
   }
  ],
- "index_web_pages_for_search": 0,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-03-25 00:00:00.000000",
+ "modified": "2026-06-21 01:59:07.353136",
  "modified_by": "Administrator",
  "module": "Excel Restaurant Pos",
  "name": "PnL Entry",
- "naming_rule": "Expression (make_autoname)",
+ "naming_rule": "Expression (old style)",
  "owner": "Administrator",
  "permissions": [
   {
@@ -145,6 +161,7 @@
    "read": 1,
    "report": 1,
    "role": "System Manager",
+   "select": 1,
    "share": 1,
    "submit": 1,
    "write": 1
@@ -153,29 +170,64 @@
    "amend": 1,
    "cancel": 1,
    "create": 1,
-   "delete": 0,
    "email": 1,
    "export": 1,
    "print": 1,
    "read": 1,
    "report": 1,
    "role": "Restaurant Manager",
+   "select": 1,
    "share": 1,
    "submit": 1,
    "write": 1
   },
   {
-   "create": 0,
-   "delete": 0,
    "email": 1,
    "export": 1,
    "print": 1,
    "read": 1,
    "report": 1,
    "role": "Restaurant Cashier",
-   "share": 0,
-   "submit": 0,
-   "write": 0
+   "select": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "ArcPOS PnL Creator",
+   "select": 1,
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "ArcPOS PnL Approver",
+   "select": 1,
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "ArcPOS Manager",
+   "select": 1,
+   "share": 1,
+   "submit": 1,
+   "write": 1
   }
  ],
  "sort_field": "posting_date",
