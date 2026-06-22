@@ -1,13 +1,15 @@
 {
  "actions": [],
  "allow_import": 1,
- "autoname": "PNL-.YYYY.-.####",
+ "allow_rename": 1,
+ "autoname": "naming_series:",
  "creation": "2026-03-25 00:00:00",
  "default_view": "List",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "naming_series",
   "posting_date",
   "posting_time",
   "column_break_sqkqq",
@@ -31,6 +33,7 @@
   {
    "fieldname": "pnl_type",
    "fieldtype": "Select",
+   "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "PnL Type",
    "options": "Income\nExpense"
@@ -53,7 +56,6 @@
   {
    "fieldname": "company",
    "fieldtype": "Link",
-   "in_list_view": 1,
    "label": "Company",
    "options": "Company",
    "remember_last_selected_value": 1,
@@ -83,6 +85,7 @@
    "depends_on": "eval:doc.total_income>0",
    "fieldname": "total_income",
    "fieldtype": "Currency",
+   "in_list_view": 1,
    "label": "Total Income",
    "read_only": 1
   },
@@ -101,6 +104,7 @@
    "depends_on": "eval:doc.total_expense>0.00",
    "fieldname": "total_expense",
    "fieldtype": "Currency",
+   "in_list_view": 1,
    "label": "Total Expense",
    "read_only": 1
   },
@@ -139,15 +143,23 @@
    "fieldtype": "Table",
    "label": "PnL Attachments",
    "options": "PnL Attachments"
+  },
+  {
+   "default": "PNL-.YYYY.-.####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "INC-.YYYY.-.####\nEXP-.YYYY.-.####\nPNL-.YYYY.-.####"
   }
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-06-21 01:59:07.353136",
+ "modified": "2026-06-22 00:39:45.411795",
  "modified_by": "Administrator",
  "module": "Excel Restaurant Pos",
  "name": "PnL Entry",
- "naming_rule": "Expression (old style)",
+ "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
  "permissions": [
   {
