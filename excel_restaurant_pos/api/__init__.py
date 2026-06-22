@@ -19,6 +19,7 @@ from .pos_counter import pos_counter_api_routes
 from .uber_eats import uber_eats_api_routes
 from .payment_entry import payment_entry_api_routes
 from .arcpos_offers import arcpos_offers_api_routes
+from .pnl_entry import pnl_entry_api_routes
 
 api_routes = {
     **tips_api_routes,
@@ -42,4 +43,5 @@ api_routes = {
     **uber_eats_api_routes,
     **payment_entry_api_routes,
     **arcpos_offers_api_routes,
+    **pnl_entry_api_routes,
 }
