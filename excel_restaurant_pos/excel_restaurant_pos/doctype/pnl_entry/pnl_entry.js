@@ -1,6 +1,3 @@
-// Copyright (c) 2026, Sohanur Rahman and contributors
-// For license information, please see license.txt
-
 frappe.ui.form.on("PnL Entry", {
 	setup(frm) {
 		// --- Income Items: filter Type to Income group categories only ---
@@ -44,7 +41,12 @@ frappe.ui.form.on("PnL Entry", {
 		});
 	},
 
+	pnl_type(frm) {
+		_set_naming_series(frm);
+	},
+
 	refresh(frm) {
+		_set_naming_series(frm);
 		_update_summary_colors(frm);
 	},
 });
@@ -84,6 +86,22 @@ frappe.ui.form.on("PnL Expense Item", {
 // ------------------------------------------------------------------
 // Helpers
 // ------------------------------------------------------------------
+const PNL_NAMING_SERIES = {
+	Income: "INC-.YYYY.-.####",
+	Expense: "EXP-.YYYY.-.####",
+};
+
+function _set_naming_series(frm) {
+	if (!frm.doc.__islocal || !frm.doc.pnl_type) {
+		return;
+	}
+
+	const series = PNL_NAMING_SERIES[frm.doc.pnl_type];
+	if (series && frm.doc.naming_series !== series) {
+		frm.set_value("naming_series", series);
+	}
+}
+
 function _calculate_totals(frm) {
 	let total_income = 0;
 	(frm.doc.income_items || []).forEach((row) => {

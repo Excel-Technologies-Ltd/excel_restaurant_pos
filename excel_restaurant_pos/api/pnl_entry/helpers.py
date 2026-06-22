@@ -4,6 +4,10 @@ import frappe
 from frappe import _
 from frappe.utils import cint, get_url, nowdate, nowtime
 
+from excel_restaurant_pos.excel_restaurant_pos.doctype.pnl_entry.pnl_entry import (
+	get_naming_series_for_pnl_type,
+)
+
 
 INCOME_ITEM_FIELDS = ("type", "sub_type", "amount", "description")
 EXPENSE_ITEM_FIELDS = ("type", "sub_type", "amount", "description")
@@ -58,7 +62,23 @@ def parse_bool(value, default=False):
 		return default
 	if isinstance(value, bool):
 		return value
+	if isinstance(value, (int, float)):
+		return cint(value) == 1
+	if isinstance(value, str):
+		normalized = value.strip().lower()
+		if normalized in ("1", "true", "yes", "on"):
+			return True
+		if normalized in ("0", "false", "no", "off", ""):
+			return False
 	return cint(value) == 1
+
+
+def resolve_submit_flag(explicit_submit=None, data=None):
+	if parse_bool(explicit_submit):
+		return True
+	if data:
+		return parse_bool(data.get("submit"))
+	return False
 
 
 def pick_row_fields(row, allowed_fields):
@@ -76,6 +96,11 @@ def validate_required_fields(data, fields):
 def ensure_draft(doc):
 	if doc.docstatus != 0:
 		frappe.throw(_("Only draft PnL Entries can be modified"), frappe.ValidationError)
+
+
+def ensure_submitted(doc):
+	if doc.docstatus != 1:
+		frappe.throw(_("Only submitted PnL Entries can be cancelled"), frappe.ValidationError)
 
 
 def _get_uploaded_files():
@@ -189,6 +214,9 @@ def apply_pnl_entry_fields(doc, data, is_create=False):
 			if data.get(field) is not None:
 				doc.set(field, data.get(field))
 
+	if doc.is_new() and doc.pnl_type:
+		doc.naming_series = get_naming_series_for_pnl_type(doc.pnl_type)
+
 	if "income_items" in data:
 		set_child_rows(doc, "income_items", parse_list(data.get("income_items")), INCOME_ITEM_FIELDS)
 
@@ -206,6 +234,7 @@ def format_attachment_row(row):
 def format_pnl_entry_response(doc):
 	return {
 		"name": doc.name,
+		"naming_series": doc.naming_series,
 		"posting_date": doc.posting_date,
 		"posting_time": doc.posting_time,
 		"company": doc.company,

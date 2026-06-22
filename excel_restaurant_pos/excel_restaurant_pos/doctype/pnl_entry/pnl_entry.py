@@ -3,7 +3,23 @@
 
 import frappe
 from frappe.model.document import Document
-from frappe.utils import now_datetime, nowdate, nowtime
+from frappe.utils import nowdate, nowtime
+
+
+PNL_NAMING_SERIES = {
+	"Income": "INC-.YYYY.-.####",
+	"Expense": "EXP-.YYYY.-.####",
+}
+
+
+def get_naming_series_for_pnl_type(pnl_type):
+	series = PNL_NAMING_SERIES.get(pnl_type)
+	if not series:
+		frappe.throw(
+			frappe._("pnl_type must be 'Income' or 'Expense'"),
+			frappe.ValidationError,
+		)
+	return series
 
 
 class PnLEntry(Document):
@@ -13,11 +29,13 @@ class PnLEntry(Document):
 			self.posting_date = nowdate()
 		if not self.posting_time:
 			self.posting_time = nowtime()
+		self._set_naming_series()
 
 	def after_insert(self):
 		pass
 
 	def validate(self):
+		self._set_naming_series()
 		self._validate_categories()
 		self._calculate_totals()
 
@@ -34,6 +52,12 @@ class PnLEntry(Document):
 	# ------------------------------------------------------------------
 	# Private helpers
 	# ------------------------------------------------------------------
+
+	def _set_naming_series(self):
+		if not self.pnl_type or not self.is_new():
+			return
+
+		self.naming_series = get_naming_series_for_pnl_type(self.pnl_type)
 
 	def _validate_categories(self):
 		"""Ensure type / sub_type consistency in child rows."""

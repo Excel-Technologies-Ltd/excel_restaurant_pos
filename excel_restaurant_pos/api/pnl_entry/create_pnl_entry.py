@@ -10,15 +10,15 @@ from .helpers import (
 	format_pnl_entry_response,
 	get_request_data,
 	link_files_to_doc,
-	parse_bool,
+	resolve_submit_flag,
 	validate_required_fields,
 )
 
 
 @frappe.whitelist(allow_guest=False, methods=["POST"])
-def create_pnl_entry():
+def create_pnl_entry(submit=0):
 	"""
-	Create a draft PnL Entry with income/expense rows and file attachments.
+	Create a PnL Entry with income/expense rows and file attachments.
 
 	Use ``multipart/form-data`` and send files under ``attachments``.
 	Entry fields can be sent as normal form fields or as one JSON string in ``data``.
@@ -29,15 +29,28 @@ def create_pnl_entry():
 
 	Optional
 	--------
-	posting_date, posting_time, notes, income_items, expense_items, submit
+	posting_date, posting_time, notes
+	income_items   — use when pnl_type is "Income"
+	expense_items  — use when pnl_type is "Expense"
+	submit (0|1|true|false) — save as draft by default; pass 1 to submit immediately
 
-	Example (curl)
-	--------------
+	Child row fields
+	----------------
+	type, sub_type, amount, description
+
+	Example — Expense entry
+	-----------------------
 	curl -X POST https://site/api/method/api.pnl.create \\
 	  -H "Authorization: token key:secret" \\
-	  -F 'data={"company":"My Company","pnl_type":"Expense","expense_items":[{"type":"COGS","sub_type":"Food","amount":100}]}' \\
-	  -F "attachments=@/path/receipt-1.pdf" \\
-	  -F "attachments=@/path/receipt-2.jpg"
+	  -F 'data={"company":"My Company","pnl_type":"Expense","submit":1,"expense_items":[{"type":"COGS","sub_type":"Food","amount":100}]}' \\
+	  -F "attachments=@/path/receipt-1.pdf"
+
+	Example — Income entry
+	----------------------
+	curl -X POST https://site/api/method/api.pnl.create \\
+	  -H "Authorization: token key:secret" \\
+	  -F 'data={"company":"My Company","pnl_type":"Income","submit":1,"income_items":[{"type":"Sales","sub_type":"Dine In","amount":500,"description":"Lunch sales"}]}' \\
+	  -F "attachments=@/path/receipt-1.pdf"
 	"""
 	data = get_request_data()
 	validate_required_fields(data, ["company", "pnl_type"])
@@ -46,6 +59,7 @@ def create_pnl_entry():
 		frappe.throw(_("pnl_type must be 'Income' or 'Expense'"), frappe.ValidationError)
 
 	attachment_urls = collect_uploaded_attachment_urls()
+	should_submit = resolve_submit_flag(submit, data)
 
 	doc = frappe.new_doc("PnL Entry")
 	apply_pnl_entry_fields(doc, data, is_create=True)
@@ -54,7 +68,7 @@ def create_pnl_entry():
 	doc.insert()
 	link_files_to_doc(doc, attachment_urls)
 
-	if parse_bool(data.get("submit")):
+	if should_submit:
 		doc.submit()
 
 	frappe.db.commit()

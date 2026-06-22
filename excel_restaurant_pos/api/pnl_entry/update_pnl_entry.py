@@ -14,12 +14,13 @@ from .helpers import (
 	link_files_to_doc,
 	parse_bool,
 	parse_list,
+	resolve_submit_flag,
 	validate_required_fields,
 )
 
 
 @frappe.whitelist(allow_guest=False, methods=["PUT", "POST"])
-def update_pnl_entry():
+def update_pnl_entry(submit=0):
 	"""
 	Update a draft PnL Entry and append/remove file attachments.
 
@@ -33,7 +34,8 @@ def update_pnl_entry():
 	Optional
 	--------
 	posting_date, posting_time, company, pnl_type, notes
-	income_items, expense_items, remove_attachments, delete_removed_files, submit
+	income_items, expense_items, remove_attachments, delete_removed_files
+	submit (0|1|true|false) — pass 1 to submit after save
 
 	Example (curl)
 	--------------
@@ -63,7 +65,8 @@ def update_pnl_entry():
 	doc.save()
 	link_files_to_doc(doc, attachment_urls)
 
-	if parse_bool(data.get("submit")):
+	should_submit = resolve_submit_flag(submit, data)
+	if should_submit:
 		doc.submit()
 
 	frappe.db.commit()
