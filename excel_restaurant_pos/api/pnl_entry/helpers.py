@@ -210,9 +210,12 @@ def apply_pnl_entry_fields(doc, data, is_create=False):
 		doc.company = data.get("company")
 		doc.pnl_type = data.get("pnl_type")
 	else:
-		for field in ("posting_date", "posting_time", "company", "pnl_type", "notes"):
+		for field in ("posting_date", "posting_time", "company", "pnl_type"):
 			if data.get(field) is not None:
 				doc.set(field, data.get(field))
+
+	if data.get("notes") is not None:
+		doc.notes = data.get("notes")
 
 	if doc.is_new() and doc.pnl_type:
 		doc.naming_series = get_naming_series_for_pnl_type(doc.pnl_type)
