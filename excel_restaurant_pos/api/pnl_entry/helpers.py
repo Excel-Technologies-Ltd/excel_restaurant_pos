@@ -131,7 +131,7 @@ def _get_uploaded_files():
 	return unique_files
 
 
-def save_uploaded_file(uploaded_file, is_private=1):
+def save_uploaded_file(uploaded_file, is_private=0):
 	if not uploaded_file:
 		return None
 
