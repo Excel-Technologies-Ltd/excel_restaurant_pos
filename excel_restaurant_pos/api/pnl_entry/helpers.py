@@ -2,18 +2,44 @@
 
 import frappe
 from frappe import _
-from frappe.utils import cint, nowdate, nowtime
+from frappe.utils import cint, get_url, nowdate, nowtime
 
 
 INCOME_ITEM_FIELDS = ("type", "sub_type", "amount", "description")
 EXPENSE_ITEM_FIELDS = ("type", "sub_type", "amount", "description")
+JSON_LIST_FIELDS = ("income_items", "expense_items", "remove_attachments")
+MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024
+ALLOWED_ATTACHMENT_TYPES = {
+	"application/pdf",
+	"image/jpeg",
+	"image/jpg",
+	"image/png",
+	"image/webp",
+	"image/heic",
+	"image/heif",
+}
 
 
 def get_request_data():
-	"""Return a mutable dict from the current request payload."""
+	"""
+	Parse request payload for JSON or multipart/form-data.
+
+	Multipart clients can send all entry fields in a JSON string field named
+	``data`` and upload files under ``attachments``.
+	"""
 	data = dict(frappe.form_dict)
-	for key in ("cmd", "data"):
-		data.pop(key, None)
+	data.pop("cmd", None)
+
+	bundled = data.pop("data", None)
+	if bundled:
+		payload = frappe.parse_json(bundled)
+		if isinstance(payload, dict):
+			data.update(payload)
+
+	for field in JSON_LIST_FIELDS:
+		if field in data:
+			data[field] = parse_list(data.get(field))
+
 	return data
 
 
@@ -52,21 +78,56 @@ def ensure_draft(doc):
 		frappe.throw(_("Only draft PnL Entries can be modified"), frappe.ValidationError)
 
 
-def normalize_attachment_url(value):
-	if isinstance(value, dict):
-		value = value.get("attachment")
-	if not value:
-		return None
-	return str(value).strip()
+def _get_uploaded_files():
+	request_files = getattr(frappe.request, "files", None)
+	if not request_files:
+		return []
+
+	uploaded_files = []
+	for fieldname in ("attachments", "attachments[]", "attachment"):
+		uploaded_files.extend(request_files.getlist(fieldname))
+
+	if not uploaded_files:
+		for fieldname in ("attachments", "attachment"):
+			single_file = request_files.get(fieldname)
+			if single_file:
+				uploaded_files.append(single_file)
+
+	# Deduplicate while preserving order (some clients send the same file twice).
+	seen = set()
+	unique_files = []
+	for uploaded_file in uploaded_files:
+		file_id = id(uploaded_file)
+		if file_id in seen:
+			continue
+		seen.add(file_id)
+		unique_files.append(uploaded_file)
+
+	return unique_files
 
 
 def save_uploaded_file(uploaded_file, is_private=1):
 	if not uploaded_file:
 		return None
 
+	content_type = (uploaded_file.content_type or "").split(";")[0].strip().lower()
+	if content_type and content_type not in ALLOWED_ATTACHMENT_TYPES:
+		frappe.throw(
+			_("File type {0} is not allowed. Allowed types: PDF and images.").format(
+				uploaded_file.content_type
+			),
+			frappe.ValidationError,
+		)
+
 	file_content = uploaded_file.stream.read()
 	if not file_content:
 		frappe.throw(_("Uploaded file is empty"), frappe.ValidationError)
+
+	if len(file_content) > MAX_ATTACHMENT_SIZE:
+		frappe.throw(
+			_("File {0} is too large. Maximum size is 10 MB.").format(uploaded_file.filename),
+			frappe.ValidationError,
+		)
 
 	file_doc = frappe.get_doc(
 		{
@@ -80,24 +141,30 @@ def save_uploaded_file(uploaded_file, is_private=1):
 	return file_doc.file_url
 
 
-def collect_attachment_urls(data):
-	"""Collect attachment file URLs from JSON payload and multipart uploads."""
+def collect_uploaded_attachment_urls():
+	"""Save multipart files from the current request and return their file URLs."""
 	urls = []
-
-	for item in parse_list(data.get("pnl_attachments")):
-		url = normalize_attachment_url(item)
+	for uploaded_file in _get_uploaded_files():
+		url = save_uploaded_file(uploaded_file)
 		if url:
 			urls.append(url)
-
-	request_files = getattr(frappe.request, "files", None)
-	if request_files:
-		uploaded_files = request_files.getlist("attachments")
-		for uploaded_file in uploaded_files:
-			url = save_uploaded_file(uploaded_file)
-			if url:
-				urls.append(url)
-
 	return urls
+
+
+def link_files_to_doc(doc, file_urls):
+	for file_url in file_urls:
+		file_name = frappe.db.get_value("File", {"file_url": file_url}, "name")
+		if not file_name:
+			continue
+
+		frappe.db.set_value(
+			"File",
+			file_name,
+			{
+				"attached_to_doctype": doc.doctype,
+				"attached_to_name": doc.name,
+			},
+		)
 
 
 def append_attachments(doc, attachment_urls):
@@ -129,6 +196,13 @@ def apply_pnl_entry_fields(doc, data, is_create=False):
 		set_child_rows(doc, "expense_items", parse_list(data.get("expense_items")), EXPENSE_ITEM_FIELDS)
 
 
+def format_attachment_row(row):
+	row_dict = row.as_dict()
+	if row.attachment:
+		row_dict["attachment_url"] = get_url(row.attachment)
+	return row_dict
+
+
 def format_pnl_entry_response(doc):
 	return {
 		"name": doc.name,
@@ -143,7 +217,7 @@ def format_pnl_entry_response(doc):
 		"net_profit_loss": doc.net_profit_loss,
 		"income_items": [row.as_dict() for row in (doc.income_items or [])],
 		"expense_items": [row.as_dict() for row in (doc.expense_items or [])],
-		"pnl_attachments": [row.as_dict() for row in (doc.pnl_attachments or [])],
+		"pnl_attachments": [format_attachment_row(row) for row in (doc.pnl_attachments or [])],
 	}
 
 

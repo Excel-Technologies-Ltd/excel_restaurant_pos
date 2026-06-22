@@ -6,11 +6,12 @@ from frappe import _
 from .helpers import (
 	append_attachments,
 	apply_pnl_entry_fields,
-	collect_attachment_urls,
+	collect_uploaded_attachment_urls,
 	delete_attachment_row,
 	ensure_draft,
 	format_pnl_entry_response,
 	get_request_data,
+	link_files_to_doc,
 	parse_bool,
 	parse_list,
 	validate_required_fields,
@@ -20,21 +21,26 @@ from .helpers import (
 @frappe.whitelist(allow_guest=False, methods=["PUT", "POST"])
 def update_pnl_entry():
 	"""
-	Update a draft PnL Entry and add/remove attachments.
+	Update a draft PnL Entry and append/remove file attachments.
 
-	JSON / form fields
-	------------------
-	name                                           (required)
+	Use ``multipart/form-data`` and send new files under ``attachments``.
+	Entry fields can be sent as normal form fields or as one JSON string in ``data``.
+
+	Required
+	--------
+	name
+
+	Optional
+	--------
 	posting_date, posting_time, company, pnl_type, notes
-	income_items, expense_items                    (optional arrays, replaces table when sent)
-	pnl_attachments                                (optional, new attachments to append)
-	remove_attachments                             (optional array of child row names)
-	delete_removed_files                           (optional, 0|1 — delete File docs for removed rows)
-	submit                                         (optional, 0|1)
+	income_items, expense_items, remove_attachments, delete_removed_files, submit
 
-	Multipart upload
-	----------------
-	Send new files under the field name ``attachments``.
+	Example (curl)
+	--------------
+	curl -X POST https://site/api/method/api.pnl.update \\
+	  -H "Authorization: token key:secret" \\
+	  -F 'data={"name":"PNL-2026-0001","notes":"Updated","remove_attachments":["child-row-name"],"delete_removed_files":1}' \\
+	  -F "attachments=@/path/new-receipt.pdf"
 	"""
 	data = get_request_data()
 	validate_required_fields(data, ["name"])
@@ -49,10 +55,14 @@ def update_pnl_entry():
 	for row_name in parse_list(data.get("remove_attachments")):
 		delete_attachment_row(doc, row_name, delete_file=delete_removed_files)
 
+	attachment_urls = collect_uploaded_attachment_urls()
+
 	apply_pnl_entry_fields(doc, data, is_create=False)
-	append_attachments(doc, collect_attachment_urls(data))
+	append_attachments(doc, attachment_urls)
 
 	doc.save()
+	link_files_to_doc(doc, attachment_urls)
+
 	if parse_bool(data.get("submit")):
 		doc.submit()
 
