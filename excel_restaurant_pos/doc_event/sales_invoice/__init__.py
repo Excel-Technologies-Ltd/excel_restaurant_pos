@@ -4,6 +4,7 @@ from .after_save_sales_invoice import after_save_sales_invoice
 from .on_trash_sales_invoice import on_trash_sales_invoice
 from .before_insert_sales_invoice import before_insert_sales_invoice
 from .on_update_sales_invoice import on_update_sales_invoice
+from .validate_item_group_visibility import validate_sales_invoice_item_group_visibility
 
 
 __all__ = [
@@ -13,4 +14,5 @@ __all__ = [
     "on_trash_sales_invoice",
     "before_insert_sales_invoice",
     "on_update_sales_invoice",
+    "validate_sales_invoice_item_group_visibility",
 ]

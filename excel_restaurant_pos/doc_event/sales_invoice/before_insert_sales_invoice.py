@@ -23,7 +23,7 @@ def before_insert_sales_invoice(doc, method: str):
     if doc.custom_order_from:
         order_from = doc.custom_order_from.lower()
 
-    if "table" in order_from and doc.custom_linked_table:
+    if order_from and "table" in order_from and doc.custom_linked_table:
         table_name = doc.custom_linked_table
         status = frappe.db.get_value("Restaurant Table", table_name, "status")
 

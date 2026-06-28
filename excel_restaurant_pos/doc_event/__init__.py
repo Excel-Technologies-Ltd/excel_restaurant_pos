@@ -17,6 +17,7 @@ __all__ = [
 
 custom_doc_events = {
     "Sales Invoice": {
+        "validate": "excel_restaurant_pos.doc_event.sales_invoice.validate_item_group_visibility.validate_sales_invoice_item_group_visibility",
         "on_submit": "excel_restaurant_pos.doc_event.sales_invoice.submit_sales_invoice",
         "on_trash": "excel_restaurant_pos.doc_event.sales_invoice.on_trash_sales_invoice",
         "on_change": "excel_restaurant_pos.doc_event.sales_invoice.change_sales_invoice",
