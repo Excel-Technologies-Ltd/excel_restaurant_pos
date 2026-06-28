@@ -60,17 +60,18 @@
   "coupon_code_list_tab",
   "allow_auto_generate_cc",
   "auto_generate_on",
+  "minimum_subtotal_generate",
   "allow_manual_generate_cc",
   "coupon_type",
   "default_pricing_rule",
   "discount_type",
   "discount_rate",
   "column_break_mykd9",
-  "naming_series_starts_from",
+  "coupon_code_prefix",
   "expire_after_days",
   "max_use",
-  "minimum_subtotal",
-  "cc_allow_on",
+  "minimum_subtotal_redeem",
+  "cc_allow_on_redeem",
   "allowed_to_apply_cc",
   "code_list",
   "website_tab",
@@ -1004,27 +1005,22 @@
    "label": "Connect with UberDirect"
   },
   {
-   "depends_on": "eval:doc.allow_auto_generate_cc || doc.allow_manual_generate_cc",
    "fieldname": "coupon_type",
    "fieldtype": "Select",
    "label": "Coupon Type",
-   "mandatory_depends_on": "eval:doc.allow_auto_generate_cc || doc.allow_manual_generate_cc",
    "options": "Promotional\nGift Card"
   },
   {
-   "depends_on": "eval:doc.allow_auto_generate_cc || doc.allow_manual_generate_cc",
+   "description": "Necessary because of internal procedures, not because it impacts the actual work.",
    "fieldname": "default_pricing_rule",
    "fieldtype": "Link",
    "label": "Default Pricing Rule",
-   "mandatory_depends_on": "eval:doc.allow_auto_generate_cc || doc.allow_manual_generate_cc",
    "options": "Pricing Rule"
   },
   {
-   "depends_on": "eval:doc.allow_auto_generate_cc || doc.allow_manual_generate_cc",
    "fieldname": "discount_type",
    "fieldtype": "Select",
    "label": "Discount Type",
-   "mandatory_depends_on": "eval:doc.allow_auto_generate_cc || doc.allow_manual_generate_cc",
    "options": "\nPercentage\nFlat Amount"
   },
   {
@@ -1039,26 +1035,17 @@
    "fieldtype": "Column Break"
   },
   {
-   "depends_on": "eval:doc.allow_auto_generate_cc || doc.allow_manual_generate_cc",
    "fieldname": "expire_after_days",
    "fieldtype": "Float",
    "label": "Expire After (Days)",
-   "mandatory_depends_on": "eval:doc.allow_auto_generate_cc || doc.allow_manual_generate_cc",
    "precision": "0"
   },
   {
    "default": "1",
-   "depends_on": "eval:doc.allow_auto_generate_cc || doc.allow_manual_generate_cc",
    "fieldname": "max_use",
    "fieldtype": "Float",
    "label": "Max Use",
    "precision": "0"
-  },
-  {
-   "depends_on": "eval:doc.allow_auto_generate_cc || doc.allow_manual_generate_cc",
-   "fieldname": "minimum_subtotal",
-   "fieldtype": "Currency",
-   "label": "Minimum Subtotal"
   },
   {
    "depends_on": "eval:doc.allow_auto_generate_cc",
@@ -1083,31 +1070,41 @@
    "label": "Allow Manual Generate?"
   },
   {
-   "description": "e.g. SAVE26####",
-   "fieldname": "naming_series_starts_from",
-   "fieldtype": "Data",
-   "label": "Naming Series Starts From"
-  },
-  {
-   "depends_on": "eval:doc.allow_auto_generate_cc || doc.allow_manual_generate_cc",
-   "fieldname": "cc_allow_on",
-   "fieldtype": "Select",
-   "label": "Allow On",
-   "options": "All\nPOS\nOnline Pickup\nOnline Delivery\nOnly Online"
-  },
-  {
    "description": "This settings is only for Online Orders. In POS, always allowed to apply.",
    "fieldname": "allowed_to_apply_cc",
    "fieldtype": "Select",
    "label": "Allowed to Apply Coupon Code",
    "options": "None\nPickup\nDelivery\nBoth"
+  },
+  {
+   "depends_on": "eval:doc.allow_auto_generate_cc",
+   "fieldname": "minimum_subtotal_generate",
+   "fieldtype": "Currency",
+   "label": "Minimum Subtotal (Generate)"
+  },
+  {
+   "description": "e.g. SAVE26-####, will generate like \"SAVE26A1B1\"",
+   "fieldname": "coupon_code_prefix",
+   "fieldtype": "Data",
+   "label": "Coupon Code Prefix"
+  },
+  {
+   "fieldname": "minimum_subtotal_redeem",
+   "fieldtype": "Currency",
+   "label": "Minimum Subtotal (Redeem)"
+  },
+  {
+   "fieldname": "cc_allow_on_redeem",
+   "fieldtype": "Select",
+   "label": "Allow On (Redeem)",
+   "options": "All\nPOS\nOnline Pickup\nOnline Delivery\nOnly Online"
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
  "make_attachments_public": 1,
- "modified": "2026-06-21 02:15:15.305301",
+ "modified": "2026-06-28 02:57:01.279987",
  "modified_by": "Administrator",
  "module": "Excel Restaurant Pos",
  "name": "ArcPOS Settings",
