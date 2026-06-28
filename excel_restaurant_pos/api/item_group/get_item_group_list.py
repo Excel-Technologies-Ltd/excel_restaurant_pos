@@ -1,5 +1,7 @@
 import frappe
 
+from excel_restaurant_pos.api.item_group.visibility import filter_visible_item_groups
+
 
 @frappe.whitelist(allow_guest=True)
 def get_item_group_list():
@@ -55,4 +57,4 @@ def get_item_group_list():
 
     item_group_list = frappe.get_all("Item Group", **frappe.form_dict)
 
-    return item_group_list
+    return filter_visible_item_groups(item_group_list)
