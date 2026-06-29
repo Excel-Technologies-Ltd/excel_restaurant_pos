@@ -1,6 +1,6 @@
 import frappe
 
-from excel_restaurant_pos.api.item_group.visibility import filter_visible_item_groups
+from .visibility import filter_visible_item_groups
 
 
 @frappe.whitelist(allow_guest=True)
