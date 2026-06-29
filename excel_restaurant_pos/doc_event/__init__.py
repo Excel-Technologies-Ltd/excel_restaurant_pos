@@ -32,4 +32,9 @@ custom_doc_events = {
     "Sales Taxes and Charges Template": {
         "on_update": "excel_restaurant_pos.doc_event.on_doctype_update",
     },
+    "Item Group": {
+        "after_insert": "excel_restaurant_pos.doc_event.item_group.clear_visibility_cache.clear_item_group_visibility_cache",
+        "on_update": "excel_restaurant_pos.doc_event.item_group.clear_visibility_cache.clear_item_group_visibility_cache",
+        "on_trash": "excel_restaurant_pos.doc_event.item_group.clear_visibility_cache.clear_item_group_visibility_cache",
+    },
 }

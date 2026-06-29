@@ -4,6 +4,9 @@ import frappe
 from frappe import _
 from frappe.utils import get_time, getdate, nowdate, nowtime
 
+VISIBILITY_CACHE_PREFIX = "arcpos:visible_item_groups"
+VISIBILITY_CACHE_TTL = 60
+
 
 def _time_to_seconds(value):
     if not value:
@@ -107,6 +110,106 @@ def get_item_group_visibility_map(item_group_names, current_date=None, current_t
     }
 
 
+def get_visible_item_group_names(item_group_names, current_date=None, current_time=None):
+    """Return item group names that are currently visible."""
+    visibility_map = get_item_group_visibility_map(
+        item_group_names, current_date=current_date, current_time=current_time
+    )
+    return [name for name in item_group_names if visibility_map.get(name, True)]
+
+
+def _visibility_cache_key(current_date=None, current_time=None):
+    current_date = getdate(current_date or nowdate())
+    current_time = get_time(current_time or nowtime())
+    return (
+        f"{VISIBILITY_CACHE_PREFIX}:{current_date}:"
+        f"{current_time.hour:02d}:{current_time.minute:02d}"
+    )
+
+
+def get_cached_visible_item_group_names(current_date=None, current_time=None):
+    """Return currently visible item groups, cached by minute."""
+    cache_key = _visibility_cache_key(current_date, current_time)
+    cached = frappe.cache().get_value(cache_key)
+    if cached is not None:
+        return cached
+
+    all_groups = frappe.get_all("Item Group", pluck="name")
+    visible_groups = get_visible_item_group_names(
+        all_groups, current_date=current_date, current_time=current_time
+    )
+    frappe.cache().set_value(cache_key, visible_groups, expires_in_sec=VISIBILITY_CACHE_TTL)
+    return visible_groups
+
+
+def clear_visible_item_group_cache():
+    """Clear cached visible item group snapshots."""
+    frappe.cache().delete_keys(f"{VISIBILITY_CACHE_PREFIX}:*")
+
+
+def _extract_item_group_filter_values(filters):
+    values = set()
+    has_item_group_filter = False
+
+    for filter_row in filters:
+        if not isinstance(filter_row, (list, tuple)) or len(filter_row) < 3:
+            continue
+
+        field, operator, value = filter_row[0], filter_row[1], filter_row[2]
+        if field != "item_group":
+            continue
+
+        has_item_group_filter = True
+        if operator == "=":
+            values.add(value)
+        elif operator == "in":
+            values.update(value if isinstance(value, (list, tuple, set)) else [value])
+
+    return values if has_item_group_filter else None
+
+
+def _without_item_group_filters(filters):
+    return [
+        filter_row
+        for filter_row in filters
+        if not (
+            isinstance(filter_row, (list, tuple))
+            and len(filter_row) >= 1
+            and filter_row[0] == "item_group"
+        )
+    ]
+
+
+def build_visible_item_filters(filters, current_date=None, current_time=None):
+    """
+    Extend item filters to only include items in currently visible item groups.
+
+    Returns updated filters, or None when no visible items match.
+    """
+    visible_groups = set(
+        get_cached_visible_item_group_names(current_date=current_date, current_time=current_time)
+    )
+    if not visible_groups:
+        return None
+
+    restricted_groups = _extract_item_group_filter_values(filters)
+    if restricted_groups is not None:
+        visible_groups &= restricted_groups
+
+    if not visible_groups:
+        return None
+
+    visibility_filters = _without_item_group_filters(filters)
+    visible_group_list = list(visible_groups)
+
+    if len(visible_group_list) == 1:
+        visibility_filters.append(["item_group", "=", visible_group_list[0]])
+    else:
+        visibility_filters.append(["item_group", "in", visible_group_list])
+
+    return visibility_filters
+
+
 def filter_visible_item_groups(item_group_list, current_date=None, current_time=None):
     """Filter item groups by configured visibility date range and time slots."""
     if not item_group_list:
@@ -124,6 +227,51 @@ def filter_visible_item_groups(item_group_list, current_date=None, current_time=
             visible_item_groups.append(item_group)
 
     return visible_item_groups
+
+
+def filter_visible_items(item_list, current_date=None, current_time=None):
+    """Filter items by their item group's visibility date range and time slots."""
+    if not item_list:
+        return item_list
+
+    item_group_names = []
+    item_codes_missing_group = []
+
+    for item in item_list:
+        item_group = item.get("item_group")
+        if item_group:
+            item_group_names.append(item_group)
+            continue
+
+        item_code = item.get("item_code") or item.get("name")
+        if item_code:
+            item_codes_missing_group.append(item_code)
+
+    if item_codes_missing_group:
+        item_rows = frappe.get_all(
+            "Item",
+            filters={"name": ["in", item_codes_missing_group]},
+            fields=["name", "item_group"],
+        )
+        item_group_by_code = {row["name"]: row["item_group"] for row in item_rows}
+        for item in item_list:
+            if item.get("item_group"):
+                continue
+            item_code = item.get("item_code") or item.get("name")
+            item_group = item_group_by_code.get(item_code)
+            if item_group:
+                item["item_group"] = item_group
+                item_group_names.append(item_group)
+
+    visibility_map = get_item_group_visibility_map(
+        item_group_names, current_date=current_date, current_time=current_time
+    )
+
+    return [
+        item
+        for item in item_list
+        if not item.get("item_group") or visibility_map.get(item.get("item_group"), True)
+    ]
 
 
 def _normalize_invoice_items(items):
