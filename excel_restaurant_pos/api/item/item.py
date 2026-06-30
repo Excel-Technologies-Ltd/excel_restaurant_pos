@@ -556,39 +556,25 @@ def check_coupon_code(data):
     if not coupon_code:
         return {"status": "error", "message": "Invalid"}
     try:
-        if frappe.session.user == "Guest":
-            result = frappe.db.get_value(
-                "Restaurant Coupon",
-                {"is_active": 1, "is_public": 1, "coupon_code": coupon_code},
-                ["discount_type", "amount"],
-            )
-            if (
-                result and len(result) == 2
-            ):  # Ensure result is a tuple with two elements
-                discount_type, amount = result
-                return {
-                    "status": "success",
-                    "discount_type": discount_type,
-                    "amount": amount,
-                }
-            else:
-                return {"status": "error", "message": "Invalid"}
-
-        # Check for logged-in user
-        result = frappe.db.get_value(
-            "Restaurant Coupon",
-            {"is_active": 1, "coupon_code": coupon_code},
-            ["discount_type", "amount"],
+        from excel_restaurant_pos.shared.coupon.services import (
+            COUPON_STATUS_ACTIVE,
+            refresh_coupon_status,
         )
-        if result and len(result) == 2:  # Ensure result is a tuple with two elements
-            discount_type, amount = result
-            return {
-                "status": "success",
-                "discount_type": discount_type,
-                "amount": amount,
-            }
-        else:
+
+        coupon_name = frappe.db.get_value("Coupon Code", {"coupon_code": coupon_code}, "name")
+        if not coupon_name:
             return {"status": "error", "message": "Invalid"}
+
+        coupon = frappe.get_doc("Coupon Code", coupon_name)
+        status = refresh_coupon_status(coupon)
+        if status != COUPON_STATUS_ACTIVE:
+            return {"status": "error", "message": status}
+
+        return {
+            "status": "success",
+            "discount_type": coupon.custom_discount_type,
+            "amount": coupon.custom_discount_amount,
+        }
 
     except Exception as e:
         frappe.log_error(f"Error in check_coupon_code: {str(e)}")
