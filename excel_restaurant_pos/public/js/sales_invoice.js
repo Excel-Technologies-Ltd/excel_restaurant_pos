@@ -1,3 +1,6 @@
+const COUPON_BUTTON_GROUP = __("Coupon");
+const COUPON_BUTTON_LABEL = __("Generate Coupon");
+
 function open_generate_coupon_dialog(frm) {
     frappe.db.get_doc("ArcPOS Settings", "ArcPOS Settings").then((settings) => {
         const linked_email = frm.doc.custom_coupon_for || frm.doc.custom_email_address || "";
@@ -149,26 +152,48 @@ function open_generate_coupon_dialog(frm) {
     });
 }
 
-frappe.ui.form.on("Sales Invoice", {
-    refresh(frm) {
-        if (frm.is_new()) {
+function should_show_generate_coupon_button(frm, settings) {
+    if (frm.is_new()) {
+        return false;
+    }
+    if (cint(settings.allow_auto_generate_cc)) {
+        return false;
+    }
+    if (!cint(settings.allow_manual_generate_cc)) {
+        return false;
+    }
+    if (![0, 1].includes(frm.doc.docstatus)) {
+        return false;
+    }
+    if (frm.doc.custom_generated_coupon_code) {
+        return false;
+    }
+    return true;
+}
+
+function setup_generate_coupon_button(frm) {
+    frm._coupon_button_request_id = (frm._coupon_button_request_id || 0) + 1;
+    const request_id = frm._coupon_button_request_id;
+
+    frappe.db.get_doc("ArcPOS Settings", "ArcPOS Settings").then((settings) => {
+        if (request_id !== frm._coupon_button_request_id) {
             return;
         }
 
-        frappe.db.get_single_value("ArcPOS Settings", "allow_auto_generate_cc").then((allowAutoGenerate) => {
-            if (Number(allowAutoGenerate)) {
-                return;
-            }
+        if (!should_show_generate_coupon_button(frm, settings)) {
+            return;
+        }
 
-            frappe.db.get_single_value("ArcPOS Settings", "allow_manual_generate_cc").then((allowManualGenerate) => {
-                if (!Number(allowManualGenerate) || ![0, 1].includes(frm.doc.docstatus)) {
-                    return;
-                }
+        frm.add_custom_button(
+            COUPON_BUTTON_LABEL,
+            () => open_generate_coupon_dialog(frm),
+            COUPON_BUTTON_GROUP
+        );
+    });
+}
 
-                frm.add_custom_button(__("Generate Coupon"), () => {
-                    open_generate_coupon_dialog(frm);
-                });
-            });
-        });
+frappe.ui.form.on("Sales Invoice", {
+    refresh(frm) {
+        setup_generate_coupon_button(frm);
     },
 });
