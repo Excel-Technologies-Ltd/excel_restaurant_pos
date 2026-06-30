@@ -224,6 +224,34 @@ def refresh_coupon_status(coupon_doc_or_name, save: bool = True) -> str:
     return status
 
 
+def expire_due_coupon_codes() -> int:
+    """Mark active coupons as expired once valid_upto has passed."""
+    today = nowdate()
+    coupon_names = frappe.db.sql(
+        """
+        SELECT name
+        FROM `tabCoupon Code`
+        WHERE valid_upto IS NOT NULL
+          AND valid_upto < %s
+          AND IFNULL(custom_status, %s) = %s
+        """,
+        (today, COUPON_STATUS_ACTIVE, COUPON_STATUS_ACTIVE),
+        pluck=True,
+    )
+
+    expired_count = 0
+    for coupon_name in coupon_names:
+        status = refresh_coupon_status(coupon_name, save=True)
+        if status == COUPON_STATUS_EXPIRED:
+            expired_count += 1
+
+    if expired_count:
+        frappe.db.commit()
+        frappe.logger("coupon").info(f"Marked {expired_count} coupon codes as expired")
+
+    return expired_count
+
+
 def get_existing_generated_coupon(doc):
     """Return an existing coupon generated for the given invoice, if any."""
     coupon_name = doc.get("custom_generated_coupon_code") or doc.get("custom_coupon_code")

@@ -7,6 +7,24 @@ from excel_restaurant_pos.doc_event.sales_invoice.handlers.create_payment_entry 
 )
 
 
+def expire_coupon_codes():
+    """
+    Mark coupon codes as expired when valid_upto has passed.
+    Runs daily via scheduler.
+    """
+    from excel_restaurant_pos.shared.coupon.services import expire_due_coupon_codes
+
+    try:
+        expired_count = expire_due_coupon_codes()
+        if expired_count:
+            frappe.logger().info(f"Coupon expiry scheduler updated {expired_count} coupon(s)")
+    except Exception as e:
+        frappe.log_error(
+            message=f"Coupon expiry scheduler failed: {str(e)}",
+            title="Coupon Expiry Scheduler Error",
+        )
+
+
 def delete_marked_invoices():
     """
     Delete Sales Invoices that are marked as deleted.

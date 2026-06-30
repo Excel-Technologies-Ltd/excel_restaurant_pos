@@ -173,7 +173,10 @@ doc_events = {
 # ---------------
 
 scheduler_events = {
-    "daily": ["excel_restaurant_pos.utils.jwt_auth.cleanup_expired_blacklist"],
+    "daily": [
+        "excel_restaurant_pos.utils.jwt_auth.cleanup_expired_blacklist",
+        "excel_restaurant_pos.utils.scheduled_tasks.expire_coupon_codes",
+    ],
     "cron": {
         # Sync Clover payments daily at 12:05 AM
         "*/5 * * * *": [
