@@ -78,7 +78,12 @@ def calculate_invoice_subtotal(doc) -> float:
 
 
 def is_online_order(doc) -> bool:
-    return (doc.get("custom_order_from") or "").strip().lower() == "website"
+    """Return True for website pickup or delivery orders."""
+    return is_channel_allowed(
+        doc.get("custom_order_from"),
+        doc.get("custom_service_type"),
+        "Only Online",
+    )
 
 
 def normalize_channel(order_from: str | None, service_type: str | None) -> tuple[str, str]:
@@ -94,7 +99,6 @@ def is_channel_allowed(order_from: str | None, service_type: str | None, allowed
         ("table", "dine-in"),
         ("table", "takeout"),
         ("in store", "pickup"),
-        ("in store", "delivery"),
     }
     online_pickup_pair = ("website", "pickup")
     online_delivery_pair = ("website", "delivery")
@@ -254,7 +258,7 @@ def expire_due_coupon_codes() -> int:
 
 def get_existing_generated_coupon(doc):
     """Return an existing coupon generated for the given invoice, if any."""
-    coupon_name = (doc.get("custom_generated_coupon_code") or doc.get("custom_coupon_code") or "").strip()
+    coupon_name = (doc.get("custom_generated_coupon_code") or "").strip()
     if coupon_name and frappe.db.exists("Coupon Code", coupon_name):
         coupon = frappe.get_doc("Coupon Code", coupon_name)
         if not coupon.custom_generated_on_order or coupon.custom_generated_on_order == doc.name:
@@ -291,7 +295,11 @@ def is_generation_allowed(doc, settings) -> bool:
     ):
         return False
     minimum_subtotal = flt(settings.minimum_subtotal_generate)
-    if minimum_subtotal and calculate_invoice_subtotal(doc) < minimum_subtotal:
+    if (
+        minimum_subtotal
+        and is_online_order(doc)
+        and calculate_invoice_subtotal(doc) < minimum_subtotal
+    ):
         return False
     if has_non_generated_coupon_on_invoice(doc):
         return False
@@ -375,27 +383,27 @@ def create_coupon_doc(doc, settings, overrides=None, defer_invoice_link=False):
 
 
 def link_coupon_to_invoice(doc, coupon_code: str):
-    """Attach the generated coupon to the invoice in-memory."""
-    doc.custom_coupon_code = coupon_code
+    """Attach a generated coupon to the invoice in-memory (not an applied redemption)."""
     doc.custom_generated_coupon_code = coupon_code
+    if (doc.get("custom_coupon_code") or "").strip() == coupon_code:
+        doc.custom_coupon_code = None
 
 
 def persist_coupon_links_to_invoice(docname: str, coupon_code: str):
-    """Persist coupon links directly for submitted/manual flows."""
-    frappe.db.set_value(
-        "Sales Invoice",
-        docname,
-        {
-            "custom_coupon_code": coupon_code,
-            "custom_generated_coupon_code": coupon_code,
-        },
-        update_modified=False,
-    )
+    """Persist the generated coupon link on the invoice."""
+    values = {"custom_generated_coupon_code": coupon_code}
+
+    # Clear legacy rows where generation incorrectly copied into custom_coupon_code.
+    applied_coupon = (frappe.db.get_value("Sales Invoice", docname, "custom_coupon_code") or "").strip()
+    if applied_coupon == coupon_code:
+        values["custom_coupon_code"] = None
+
+    frappe.db.set_value("Sales Invoice", docname, values, update_modified=False)
 
 
 def finalize_auto_generated_coupon(doc):
     """Link a generated coupon to the invoice after submit succeeds."""
-    coupon_code = (doc.get("custom_generated_coupon_code") or doc.get("custom_coupon_code") or "").strip()
+    coupon_code = (doc.get("custom_generated_coupon_code") or "").strip()
     if not coupon_code or not frappe.db.exists("Coupon Code", coupon_code):
         return
 
