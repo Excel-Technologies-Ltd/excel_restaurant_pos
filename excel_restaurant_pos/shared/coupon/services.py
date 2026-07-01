@@ -99,6 +99,7 @@ def is_channel_allowed(order_from: str | None, service_type: str | None, allowed
         ("table", "dine-in"),
         ("table", "takeout"),
         ("in store", "pickup"),
+        ("in store", "delivery"),
     }
     online_pickup_pair = ("website", "pickup")
     online_delivery_pair = ("website", "delivery")
@@ -273,19 +274,6 @@ def get_existing_generated_coupon(doc):
     return None
 
 
-def has_non_generated_coupon_on_invoice(doc) -> bool:
-    """Return True when the invoice already carries a different applied coupon."""
-    coupon_code = (doc.get("custom_coupon_code") or "").strip()
-    if not coupon_code:
-        return False
-
-    existing_generated_coupon = get_existing_generated_coupon(doc)
-    if existing_generated_coupon and existing_generated_coupon.name == coupon_code:
-        return False
-
-    return True
-
-
 def is_generation_allowed(doc, settings) -> bool:
     """Check whether the invoice is eligible for coupon generation."""
     if not settings or not cint(settings.allow_auto_generate_cc):
@@ -300,8 +288,6 @@ def is_generation_allowed(doc, settings) -> bool:
         and is_online_order(doc)
         and calculate_invoice_subtotal(doc) < minimum_subtotal
     ):
-        return False
-    if has_non_generated_coupon_on_invoice(doc):
         return False
     return not bool(get_existing_generated_coupon(doc))
 
@@ -431,8 +417,6 @@ def generate_coupon_for_sales_invoice(docname: str, overrides=None) -> str:
 
     if not cint(settings.allow_manual_generate_cc):
         frappe.throw(_("Manual coupon generation is disabled in ArcPOS Settings."))
-    if has_non_generated_coupon_on_invoice(doc):
-        frappe.throw(_("This invoice already has an applied coupon code."))
 
     existing_coupon = get_existing_generated_coupon(doc)
     if existing_coupon:
@@ -488,6 +472,144 @@ def validate_coupon_redemption(doc, coupon_doc):
                     frappe.format_value(minimum_subtotal, {"fieldtype": "Currency"}),
                 )
             )
+
+
+def _build_apply_pricing_rule_args(doc, coupon_code: str):
+    """Build args for ERPNext apply_pricing_rule from a Sales Invoice."""
+    items = []
+    for item in doc.get("items") or []:
+        if not item.get("item_code"):
+            continue
+        items.append(
+            {
+                "doctype": item.doctype,
+                "name": item.name,
+                "child_docname": item.name,
+                "item_code": item.item_code,
+                "item_group": item.get("item_group"),
+                "brand": item.get("brand"),
+                "qty": item.qty,
+                "stock_qty": item.get("stock_qty"),
+                "uom": item.get("uom"),
+                "stock_uom": item.get("stock_uom"),
+                "parenttype": doc.doctype,
+                "parent": doc.name,
+                "pricing_rules": item.get("pricing_rules"),
+                "is_free_item": item.get("is_free_item"),
+                "warehouse": item.get("warehouse"),
+                "price_list_rate": item.get("price_list_rate"),
+                "conversion_factor": item.get("conversion_factor") or 1,
+            }
+        )
+
+    customer_group = territory = None
+    if doc.get("customer"):
+        customer_values = frappe.get_cached_value(
+            "Customer", doc.customer, ["customer_group", "territory"]
+        )
+        if customer_values:
+            customer_group, territory = customer_values
+
+    return frappe._dict(
+        {
+            "items": items,
+            "customer": doc.get("customer"),
+            "customer_group": customer_group,
+            "territory": territory,
+            "currency": doc.get("currency"),
+            "conversion_rate": doc.get("conversion_rate"),
+            "price_list": doc.get("selling_price_list"),
+            "price_list_currency": doc.get("price_list_currency"),
+            "plc_conversion_rate": doc.get("plc_conversion_rate"),
+            "company": doc.get("company"),
+            "transaction_date": doc.get("posting_date"),
+            "campaign": doc.get("campaign"),
+            "sales_partner": doc.get("sales_partner"),
+            "ignore_pricing_rule": doc.get("ignore_pricing_rule") or 0,
+            "doctype": doc.doctype,
+            "name": doc.name,
+            "is_return": cint(doc.get("is_return")),
+            "update_stock": cint(doc.get("update_stock")),
+            "pos_profile": doc.get("pos_profile") or "",
+            "coupon_code": coupon_code,
+        }
+    )
+
+
+def _apply_coupon_custom_discount(doc, coupon_doc):
+    """Apply coupon discount from custom fields when pricing rule is not used."""
+    discount_type = (coupon_doc.custom_discount_type or "").strip().lower()
+    discount_value = flt(coupon_doc.custom_discount_amount)
+    if not discount_value:
+        return False
+
+    doc.apply_discount_on = doc.apply_discount_on or "Net Total"
+    if discount_type in ("percentage", "percent"):
+        doc.additional_discount_percentage = discount_value
+        doc.discount_amount = 0
+    else:
+        doc.discount_amount = discount_value
+        doc.additional_discount_percentage = 0
+    return True
+
+
+def _coupon_discount_was_applied(doc) -> bool:
+    if flt(doc.get("discount_amount")) or flt(doc.get("additional_discount_percentage")):
+        return True
+    return any(flt(item.get("discount_amount")) or flt(item.get("discount_percentage")) for item in doc.items)
+
+
+def apply_sales_invoice_coupon_discount(doc, method=None):
+    """Apply coupon discount on Sales Invoice from pricing rule or coupon fields."""
+    coupon_code = (doc.get("custom_coupon_code") or "").strip()
+    if not coupon_code:
+        return
+    if doc.flags.get("coupon_discount_applied_for") == coupon_code:
+        return
+    if not frappe.db.exists("Coupon Code", coupon_code):
+        return
+
+    coupon_doc = frappe.get_doc("Coupon Code", coupon_code)
+    if should_skip_redemption_validation(doc, coupon_doc):
+        return
+
+    # ERPNext pricing helpers read `coupon_code`, not `custom_coupon_code`.
+    doc.coupon_code = coupon_code
+
+    applied = False
+    pricing_rule_name = (coupon_doc.pricing_rule or "").strip()
+    if pricing_rule_name and frappe.db.exists("Pricing Rule", pricing_rule_name):
+        pricing_rule = frappe.get_cached_doc("Pricing Rule", pricing_rule_name)
+        try:
+            if pricing_rule.apply_on == "Transaction":
+                from erpnext.accounts.doctype.pricing_rule.utils import apply_pricing_rule_on_transaction
+
+                apply_pricing_rule_on_transaction(doc)
+            else:
+                from erpnext.accounts.doctype.pricing_rule.pricing_rule import apply_pricing_rule
+
+                args = _build_apply_pricing_rule_args(doc, coupon_code)
+                if args.items:
+                    results = apply_pricing_rule(args, doc=doc) or []
+                    item_map = {item.name: item for item in doc.get("items") or []}
+                    for result in results:
+                        item = item_map.get(result.get("child_docname"))
+                        if item and result.get("pricing_rules"):
+                            doc.apply_pricing_rule_on_items(item, result)
+            applied = _coupon_discount_was_applied(doc)
+        except Exception:
+            frappe.log_error(
+                title="Coupon Pricing Rule Application Failed",
+                message=frappe.get_traceback(),
+            )
+
+    if not applied:
+        applied = _apply_coupon_custom_discount(doc, coupon_doc)
+
+    if applied:
+        doc.calculate_taxes_and_totals()
+
+    doc.flags.coupon_discount_applied_for = coupon_code
 
 
 def validate_sales_invoice_coupon(doc, method=None):

@@ -570,9 +570,13 @@ def check_coupon_code(data):
         if status != COUPON_STATUS_ACTIVE:
             return {"status": "error", "message": status}
 
+        discount_type = (coupon.custom_discount_type or "").strip().lower()
+        if discount_type == "flat amount":
+            discount_type = "flat"
+
         return {
             "status": "success",
-            "discount_type": coupon.custom_discount_type,
+            "discount_type": discount_type,
             "amount": coupon.custom_discount_amount,
         }
 

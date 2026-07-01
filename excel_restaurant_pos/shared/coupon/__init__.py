@@ -1,4 +1,5 @@
 from .services import (
+    apply_sales_invoice_coupon_discount,
     before_submit_sales_invoice_coupon,
     expire_due_coupon_codes,
     finalize_auto_generated_coupon,
@@ -10,6 +11,7 @@ from .services import (
 )
 
 __all__ = [
+    "apply_sales_invoice_coupon_discount",
     "before_submit_sales_invoice_coupon",
     "expire_due_coupon_codes",
     "finalize_auto_generated_coupon",

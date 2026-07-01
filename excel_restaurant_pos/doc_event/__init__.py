@@ -17,7 +17,10 @@ __all__ = [
 
 custom_doc_events = {
     "Sales Invoice": {
-        "validate": "excel_restaurant_pos.shared.coupon.services.validate_sales_invoice_coupon",
+        "validate": [
+            "excel_restaurant_pos.shared.coupon.services.apply_sales_invoice_coupon_discount",
+            "excel_restaurant_pos.shared.coupon.services.validate_sales_invoice_coupon",
+        ],
         "before_submit": "excel_restaurant_pos.shared.coupon.services.before_submit_sales_invoice_coupon",
         "on_submit": [
             "excel_restaurant_pos.shared.coupon.services.on_submit_sales_invoice_coupon",

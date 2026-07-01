@@ -16,7 +16,7 @@ class TestCouponServices(FrappeTestCase):
     def test_pos_channel_matching(self):
         self.assertTrue(is_channel_allowed("Table", "Dine-in", "POS"))
         self.assertTrue(is_channel_allowed("In Store", "Pickup", "POS"))
-        self.assertFalse(is_channel_allowed("In Store", "Delivery", "POS"))
+        self.assertTrue(is_channel_allowed("In Store", "Delivery", "POS"))
         self.assertFalse(is_channel_allowed("Website", "Pickup", "POS"))
 
     def test_online_channel_matching(self):

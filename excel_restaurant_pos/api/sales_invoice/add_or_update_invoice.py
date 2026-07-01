@@ -101,12 +101,18 @@ def _set_optional_fields(sales_invoice, data):
         "custom_dropoff_ready",
         "custom_dropoff_deadline",
         "custom_order_schedule_type",
+        "custom_coupon_code",
+        "coupon_code",
         "docstatus",
     ]
 
     for field in optional_fields:
         if data.get(field):
             setattr(sales_invoice, field, data.get(field))
+
+    coupon_code = (data.get("custom_coupon_code") or data.get("coupon_code") or "").strip()
+    if coupon_code:
+        sales_invoice.custom_coupon_code = coupon_code
 
 
 # add items
