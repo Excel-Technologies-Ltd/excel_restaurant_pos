@@ -428,12 +428,52 @@ def generate_coupon_for_sales_invoice(docname: str, overrides=None) -> str:
     return coupon.name
 
 
-def should_skip_redemption_validation(doc, coupon_doc) -> bool:
-    """Skip redemption rules for the source invoice that generated the coupon."""
+def normalize_coupon_name(value) -> str:
+    """Resolve a Coupon Code document name from a link value or coupon string."""
+    coupon_value = (value or "").strip()
+    if not coupon_value:
+        return ""
+
+    if frappe.db.exists("Coupon Code", coupon_value):
+        return coupon_value
+
+    return frappe.db.get_value("Coupon Code", {"coupon_code": coupon_value}, "name") or ""
+
+
+def resolve_applied_coupon_code(doc) -> str:
+    """Return the coupon redeemed on this invoice, if any."""
+    candidates = [
+        doc.get("custom_coupon_code"),
+        doc.get("coupon_code"),
+    ]
+    if doc.name:
+        candidates.append(frappe.db.get_value("Sales Invoice", doc.name, "custom_coupon_code"))
+
+    seen = set()
+    for candidate in candidates:
+        coupon_name = normalize_coupon_name(candidate)
+        if coupon_name and coupon_name not in seen:
+            return coupon_name
+        if candidate:
+            seen.add(candidate)
+
+    return ""
+
+
+def is_generated_coupon_on_invoice(doc, coupon_doc) -> bool:
+    """Return True when this coupon was generated from the same invoice."""
     generated_coupon = (doc.get("custom_generated_coupon_code") or "").strip()
     if generated_coupon and generated_coupon == coupon_doc.name:
         return True
     return coupon_doc.custom_generated_on_order == doc.name
+
+
+def should_skip_redemption_validation(doc, coupon_doc) -> bool:
+    """Skip redemption rules when the invoice generated this coupon, not redeemed it."""
+    applied_coupon = resolve_applied_coupon_code(doc)
+    if applied_coupon and applied_coupon != coupon_doc.name:
+        return False
+    return is_generated_coupon_on_invoice(doc, coupon_doc)
 
 
 def validate_coupon_redemption(doc, coupon_doc):
@@ -561,13 +601,13 @@ def _coupon_discount_was_applied(doc) -> bool:
 
 def apply_sales_invoice_coupon_discount(doc, method=None):
     """Apply coupon discount on Sales Invoice from pricing rule or coupon fields."""
-    coupon_code = (doc.get("custom_coupon_code") or "").strip()
+    coupon_code = resolve_applied_coupon_code(doc)
     if not coupon_code:
         return
     if doc.flags.get("coupon_discount_applied_for") == coupon_code:
         return
-    if not frappe.db.exists("Coupon Code", coupon_code):
-        return
+
+    doc.custom_coupon_code = coupon_code
 
     coupon_doc = frappe.get_doc("Coupon Code", coupon_code)
     if should_skip_redemption_validation(doc, coupon_doc):
@@ -614,12 +654,9 @@ def apply_sales_invoice_coupon_discount(doc, method=None):
 
 def validate_sales_invoice_coupon(doc, method=None):
     """Validate coupon redemption rules on Sales Invoice."""
-    coupon_code = (doc.get("custom_coupon_code") or "").strip()
+    coupon_code = resolve_applied_coupon_code(doc)
     if not coupon_code:
         return
-
-    if not frappe.db.exists("Coupon Code", coupon_code):
-        frappe.throw(_("Coupon {0} does not exist.").format(coupon_code))
 
     coupon_doc = frappe.get_doc("Coupon Code", coupon_code)
     if should_skip_redemption_validation(doc, coupon_doc):
@@ -630,6 +667,10 @@ def validate_sales_invoice_coupon(doc, method=None):
 
 def before_submit_sales_invoice_coupon(doc, method=None):
     """Generate and attach a coupon before submit when enabled."""
+    coupon_code = resolve_applied_coupon_code(doc)
+    if coupon_code:
+        doc.custom_coupon_code = coupon_code
+
     settings = get_coupon_settings()
     if not settings:
         return
@@ -670,16 +711,26 @@ def increment_coupon_usage(coupon_name: str, sales_invoice_name: str):
 
     coupon.used = flt(coupon.used) + 1
     coupon.custom_redeemed_on_order = sales_invoice_name
-    coupon.custom_status = refresh_coupon_status(coupon, save=False)
-    coupon.save(ignore_permissions=True)
+    status = refresh_coupon_status(coupon, save=False)
+
+    frappe.db.set_value(
+        "Coupon Code",
+        coupon_name,
+        {
+            "used": coupon.used,
+            "custom_redeemed_on_order": sales_invoice_name,
+            "custom_status": status,
+        },
+        update_modified=True,
+    )
 
 
 def on_submit_sales_invoice_coupon(doc, method=None):
     """Finalize generated coupon links and redeem applied coupons on submit."""
     finalize_auto_generated_coupon(doc)
 
-    coupon_code = (doc.get("custom_coupon_code") or "").strip()
-    if not coupon_code or not frappe.db.exists("Coupon Code", coupon_code):
+    coupon_code = resolve_applied_coupon_code(doc)
+    if not coupon_code:
         return
 
     coupon_doc = frappe.get_doc("Coupon Code", coupon_code)
@@ -688,3 +739,12 @@ def on_submit_sales_invoice_coupon(doc, method=None):
 
     validate_coupon_redemption(doc, coupon_doc)
     increment_coupon_usage(coupon_doc.name, doc.name)
+
+    if not doc.get("custom_coupon_code"):
+        frappe.db.set_value(
+            "Sales Invoice",
+            doc.name,
+            "custom_coupon_code",
+            coupon_code,
+            update_modified=False,
+        )
