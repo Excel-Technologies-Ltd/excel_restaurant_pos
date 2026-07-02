@@ -157,12 +157,15 @@ def calculate_validity_dates(expire_after_days: Any) -> tuple[str, str | None]:
     return valid_from, valid_upto
 
 
-def get_coupon_linked_email(doc, overrides=None) -> str:
+def get_coupon_linked_email(doc=None, overrides=None) -> str:
     """Resolve the coupon's linked email using the requested priority."""
     overrides = overrides or {}
     override_email = (overrides.get("linked_email") or "").strip()
     if override_email:
         return override_email
+
+    if not doc:
+        return ""
 
     invoice_coupon_for = (doc.get("custom_coupon_for") or "").strip()
     if invoice_coupon_for:
@@ -360,7 +363,7 @@ def create_coupon_doc(doc, settings, overrides=None, defer_invoice_link=False):
     }
 
     # Defer invoice link during one-step submit to avoid LinkValidationError.
-    if not defer_invoice_link and doc.name:
+    if not defer_invoice_link and doc and doc.get("name"):
         coupon_fields["custom_generated_on_order"] = doc.name
 
     coupon_doc = frappe.get_doc(coupon_fields)
@@ -406,10 +409,8 @@ def finalize_auto_generated_coupon(doc):
     persist_coupon_links_to_invoice(doc.name, coupon_code)
 
 
-def generate_coupon_for_sales_invoice(docname: str, overrides=None) -> str:
-    """Manually generate a coupon for a saved invoice."""
-    doc = frappe.get_doc("Sales Invoice", docname)
-    settings = get_coupon_settings()
+def validate_manual_coupon_generation(settings, overrides=None):
+    """Validate ArcPOS settings required for manual coupon generation."""
     validate_coupon_generation_settings(settings, overrides)
 
     if cint(settings.allow_auto_generate_cc):
@@ -418,14 +419,36 @@ def generate_coupon_for_sales_invoice(docname: str, overrides=None) -> str:
     if not cint(settings.allow_manual_generate_cc):
         frappe.throw(_("Manual coupon generation is disabled in ArcPOS Settings."))
 
-    existing_coupon = get_existing_generated_coupon(doc)
-    if existing_coupon:
-        persist_coupon_links_to_invoice(doc.name, existing_coupon.name)
-        return existing_coupon.name
 
-    coupon = create_coupon_doc(doc, settings, overrides=overrides, defer_invoice_link=False)
-    persist_coupon_links_to_invoice(doc.name, coupon.name)
+def generate_manual_coupon(overrides=None, sales_invoice: str | None = None) -> str:
+    """Manually generate a coupon, optionally linked to a Sales Invoice."""
+    settings = get_coupon_settings()
+    validate_manual_coupon_generation(settings, overrides)
+
+    if sales_invoice:
+        if not frappe.db.exists("Sales Invoice", sales_invoice):
+            frappe.throw(
+                _("Sales Invoice {0} does not exist.").format(sales_invoice),
+                frappe.DoesNotExistError,
+            )
+
+        doc = frappe.get_doc("Sales Invoice", sales_invoice)
+        existing_coupon = get_existing_generated_coupon(doc)
+        if existing_coupon:
+            persist_coupon_links_to_invoice(doc.name, existing_coupon.name)
+            return existing_coupon.name
+
+        coupon = create_coupon_doc(doc, settings, overrides=overrides, defer_invoice_link=False)
+        persist_coupon_links_to_invoice(doc.name, coupon.name)
+        return coupon.name
+
+    coupon = create_coupon_doc(frappe._dict(), settings, overrides=overrides, defer_invoice_link=False)
     return coupon.name
+
+
+def generate_coupon_for_sales_invoice(docname: str, overrides=None) -> str:
+    """Manually generate a coupon for a saved invoice."""
+    return generate_manual_coupon(overrides=overrides, sales_invoice=docname)
 
 
 def normalize_coupon_name(value) -> str:

@@ -38,7 +38,7 @@ def get_request_data() -> dict:
     return dict(frappe.form_dict)
 
 
-def get_sales_invoice_name(data: dict | None = None) -> str:
+def get_sales_invoice_name(data: dict | None = None, required: bool = True) -> str | None:
     """Resolve the Sales Invoice name from request data."""
     payload = data or get_request_data()
     sales_invoice = (
@@ -52,7 +52,9 @@ def get_sales_invoice_name(data: dict | None = None) -> str:
         or frappe.request.args.get("invoice_name")
     )
     if not sales_invoice:
-        frappe.throw("sales_invoice is required", frappe.MandatoryError)
+        if required:
+            frappe.throw("sales_invoice is required", frappe.MandatoryError)
+        return None
 
     if not frappe.db.exists("Sales Invoice", sales_invoice):
         frappe.throw(f"Sales Invoice {sales_invoice} does not exist", frappe.DoesNotExistError)

@@ -3,7 +3,7 @@
 import frappe
 
 from excel_restaurant_pos.shared.coupon.services import (
-    generate_coupon_for_sales_invoice,
+    generate_manual_coupon,
     get_existing_generated_coupon,
 )
 
@@ -18,11 +18,11 @@ from .helpers import (
 @frappe.whitelist(methods=["POST"])
 def generate_coupon():
     """
-    Manually generate a coupon for a Sales Invoice.
+    Manually generate a coupon, with or without a Sales Invoice.
 
     Request
     -------
-    sales_invoice (required): Sales Invoice name
+    sales_invoice (optional): Sales Invoice name to link the coupon to
     data (optional): JSON string/object with generation overrides
 
     Optional overrides
@@ -35,20 +35,21 @@ def generate_coupon():
     Rules
     -----
     - Manual generation is allowed only when auto-generate is disabled.
-    - One generated coupon per invoice.
-    - Idempotent: returns the existing coupon if already generated.
+    - When sales_invoice is provided: one generated coupon per invoice (idempotent).
+    - When sales_invoice is omitted: creates a standalone coupon.
     - Unspecified fields fall back to ArcPOS Settings defaults.
     """
     data = get_request_data()
-    sales_invoice = get_sales_invoice_name(data)
+    sales_invoice = get_sales_invoice_name(data, required=False)
     overrides = parse_coupon_overrides(data)
 
-    doc = frappe.get_doc("Sales Invoice", sales_invoice)
-    existing_coupon = get_existing_generated_coupon(doc)
-    if existing_coupon:
-        frappe.db.commit()
-        return format_coupon_response(existing_coupon.name, generated=False)
+    if sales_invoice:
+        doc = frappe.get_doc("Sales Invoice", sales_invoice)
+        existing_coupon = get_existing_generated_coupon(doc)
+        if existing_coupon:
+            frappe.db.commit()
+            return format_coupon_response(existing_coupon.name, generated=False)
 
-    coupon_code = generate_coupon_for_sales_invoice(sales_invoice, overrides=overrides)
+    coupon_code = generate_manual_coupon(overrides=overrides, sales_invoice=sales_invoice)
     frappe.db.commit()
     return format_coupon_response(coupon_code, generated=True)
