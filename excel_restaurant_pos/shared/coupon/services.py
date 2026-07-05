@@ -464,23 +464,19 @@ def normalize_coupon_name(value) -> str:
 
 
 def resolve_applied_coupon_code(doc) -> str:
-    """Return the coupon redeemed on this invoice, if any."""
-    candidates = [
-        doc.get("custom_coupon_code"),
-        doc.get("coupon_code"),
-    ]
-    if doc.name:
-        candidates.append(frappe.db.get_value("Sales Invoice", doc.name, "custom_coupon_code"))
-
-    seen = set()
-    for candidate in candidates:
-        coupon_name = normalize_coupon_name(candidate)
-        if coupon_name and coupon_name not in seen:
+    """Return the coupon redeemed on this invoice from the in-memory document only."""
+    for fieldname in ("custom_coupon_code", "coupon_code"):
+        coupon_name = normalize_coupon_name(doc.get(fieldname))
+        if coupon_name:
             return coupon_name
-        if candidate:
-            seen.add(candidate)
-
     return ""
+
+
+def _coupon_was_removed_from_invoice(doc) -> bool:
+    """Return True when a previously saved coupon was cleared on the invoice."""
+    if resolve_applied_coupon_code(doc):
+        return False
+    return bool(_get_stored_applied_coupon(doc))
 
 
 def is_generated_coupon_on_invoice(doc, coupon_doc) -> bool:
@@ -632,8 +628,7 @@ def _get_stored_applied_coupon(doc) -> str:
 def _reset_coupon_discount_state(doc):
     """Remove coupon fields and discount amounts applied through a coupon."""
     doc.custom_coupon_code = None
-    if doc.meta.get_field("coupon_code"):
-        doc.coupon_code = None
+    doc.coupon_code = None
 
     doc.discount_amount = 0
     doc.additional_discount_percentage = 0
@@ -811,8 +806,9 @@ def discard_coupon_from_sales_invoice(docname: str) -> dict:
     doc = frappe.get_doc("Sales Invoice", docname)
     ensure_draft_sales_invoice(doc)
 
-    previous_coupon = resolve_applied_coupon_code(doc)
+    previous_coupon = resolve_applied_coupon_code(doc) or _get_stored_applied_coupon(doc)
     _reset_coupon_discount_state(doc)
+    doc.calculate_taxes_and_totals()
     doc.save(ignore_permissions=True)
 
     return {
@@ -820,6 +816,8 @@ def discard_coupon_from_sales_invoice(docname: str) -> dict:
         "discarded": True,
         "sales_invoice": doc.name,
         "previous_coupon_code": previous_coupon or None,
+        "discount_amount": flt(doc.discount_amount),
+        "grand_total": flt(doc.grand_total),
     }
 
 
@@ -827,6 +825,9 @@ def apply_sales_invoice_coupon_discount(doc, method=None, force=False):
     """Apply coupon discount on Sales Invoice from pricing rule or coupon fields."""
     coupon_code = resolve_applied_coupon_code(doc)
     if not coupon_code:
+        if _coupon_was_removed_from_invoice(doc):
+            _reset_coupon_discount_state(doc)
+            doc.calculate_taxes_and_totals()
         return
 
     stored_coupon = _get_stored_applied_coupon(doc)
