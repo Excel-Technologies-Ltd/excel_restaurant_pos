@@ -38,6 +38,21 @@ def get_request_data() -> dict:
     return dict(frappe.form_dict)
 
 
+def get_coupon_code_from_request(data: dict | None = None) -> str:
+    """Resolve coupon code from request data."""
+    payload = data or get_request_data()
+    coupon_code = (
+        payload.get("coupon_code")
+        or payload.get("custom_coupon_code")
+        or frappe.form_dict.get("coupon_code")
+        or frappe.form_dict.get("custom_coupon_code")
+        or frappe.request.args.get("coupon_code")
+    )
+    if not coupon_code:
+        frappe.throw("coupon_code is required", frappe.MandatoryError)
+    return coupon_code.strip()
+
+
 def get_sales_invoice_name(data: dict | None = None, required: bool = True) -> str | None:
     """Resolve the Sales Invoice name from request data."""
     payload = data or get_request_data()

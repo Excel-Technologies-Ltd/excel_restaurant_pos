@@ -622,13 +622,221 @@ def _coupon_discount_was_applied(doc) -> bool:
     return any(flt(item.get("discount_amount")) or flt(item.get("discount_percentage")) for item in doc.items)
 
 
-def apply_sales_invoice_coupon_discount(doc, method=None):
+def _get_stored_applied_coupon(doc) -> str:
+    """Return the coupon code last saved on the invoice."""
+    if not doc.name:
+        return ""
+    return normalize_coupon_name(frappe.db.get_value("Sales Invoice", doc.name, "custom_coupon_code"))
+
+
+def _reset_coupon_discount_state(doc):
+    """Remove coupon fields and discount amounts applied through a coupon."""
+    doc.custom_coupon_code = None
+    if doc.meta.get_field("coupon_code"):
+        doc.coupon_code = None
+
+    doc.discount_amount = 0
+    doc.additional_discount_percentage = 0
+
+    for item in doc.get("items") or []:
+        item.pricing_rules = ""
+        item.discount_percentage = 0
+        item.discount_amount = 0
+        if flt(item.get("price_list_rate")):
+            item.rate = flt(item.price_list_rate)
+
+    doc.flags.coupon_discount_applied_for = None
+
+
+def preview_coupon_discount(doc, coupon_doc) -> dict:
+    """Return the discount type and estimated value for a coupon on an invoice."""
+    discount_type = (coupon_doc.custom_discount_type or "").strip().lower()
+    discount_amount = flt(coupon_doc.custom_discount_amount)
+    subtotal = calculate_invoice_subtotal(doc)
+
+    if discount_type in ("percentage", "percent"):
+        return {
+            "discount_type": "percentage",
+            "discount_amount": discount_amount,
+            "discount_value": flt(subtotal * discount_amount / 100) if discount_amount else 0,
+        }
+
+    return {
+        "discount_type": "flat",
+        "discount_amount": discount_amount,
+        "discount_value": discount_amount,
+    }
+
+
+def ensure_draft_sales_invoice(doc):
+    """Allow coupon changes only while the invoice is still a draft."""
+    if cint(doc.docstatus) != 0:
+        frappe.throw(_("Coupon changes are only allowed on draft Sales Invoices."))
+
+
+def _normalize_discount_type(discount_type: str | None) -> str:
+    value = (discount_type or "").strip().lower()
+    if value == "flat amount":
+        return "flat"
+    if value in ("percentage", "percent"):
+        return "percentage"
+    return value
+
+
+def assert_coupon_globally_valid(coupon_doc):
+    """Validate coupon status, validity dates, and usage without invoice context."""
+    status = refresh_coupon_status(coupon_doc, save=True)
+    if status != COUPON_STATUS_ACTIVE:
+        frappe.throw(_("Coupon {0} is {1}.").format(coupon_doc.name, status.lower()))
+
+    today = getdate(nowdate())
+    if coupon_doc.valid_from and today < getdate(coupon_doc.valid_from):
+        frappe.throw(_("Coupon {0} is not yet valid.").format(coupon_doc.name))
+
+    if coupon_doc.valid_upto and today > getdate(coupon_doc.valid_upto):
+        coupon_doc.custom_status = COUPON_STATUS_EXPIRED
+        coupon_doc.save(ignore_permissions=True)
+        frappe.throw(_("Coupon {0} has expired.").format(coupon_doc.name))
+
+    maximum_use = flt(coupon_doc.maximum_use) if coupon_doc.maximum_use is not None else None
+    if maximum_use not in (None, 0) and flt(coupon_doc.used) >= maximum_use:
+        coupon_doc.custom_status = COUPON_STATUS_USED
+        coupon_doc.save(ignore_permissions=True)
+        frappe.throw(_("Coupon {0} has already reached its usage limit.").format(coupon_doc.name))
+
+
+def validate_coupon_globally(coupon_code: str) -> dict:
+    """Validate a coupon without Sales Invoice context."""
+    coupon_name = normalize_coupon_name(coupon_code)
+    if not coupon_name:
+        frappe.throw(_("Coupon {0} does not exist.").format(coupon_code), frappe.DoesNotExistError)
+
+    coupon_doc = frappe.get_doc("Coupon Code", coupon_name)
+    assert_coupon_globally_valid(coupon_doc)
+
+    return {
+        "status": "success",
+        "valid": True,
+        "coupon_code": coupon_doc.coupon_code,
+        "coupon_name": coupon_doc.name,
+        "coupon_status": coupon_doc.custom_status,
+        "discount_type": _normalize_discount_type(coupon_doc.custom_discount_type),
+        "discount_amount": coupon_doc.custom_discount_amount,
+        "valid_from": coupon_doc.valid_from,
+        "valid_upto": coupon_doc.valid_upto,
+        "maximum_use": coupon_doc.maximum_use,
+        "used": coupon_doc.used,
+        "minimum_subtotal": coupon_doc.custom_minimum_subtotal,
+        "redemption_allow_on": coupon_doc.custom_redeemption_allow_on,
+    }
+
+
+def verify_coupon_for_sales_invoice(docname: str, coupon_code: str) -> dict:
+    """Validate a coupon for an invoice without applying it."""
+    doc = frappe.get_doc("Sales Invoice", docname)
+    ensure_draft_sales_invoice(doc)
+
+    coupon_name = normalize_coupon_name(coupon_code)
+    if not coupon_name:
+        frappe.throw(_("Coupon {0} does not exist.").format(coupon_code))
+
+    coupon_doc = frappe.get_doc("Coupon Code", coupon_name)
+    if should_skip_redemption_validation(doc, coupon_doc):
+        frappe.throw(_("This coupon cannot be redeemed on the invoice that generated it."))
+
+    validate_coupon_redemption(doc, coupon_doc)
+    preview = preview_coupon_discount(doc, coupon_doc)
+
+    return {
+        "status": "success",
+        "valid": True,
+        "sales_invoice": doc.name,
+        "coupon_code": coupon_doc.coupon_code,
+        "coupon_name": coupon_doc.name,
+        "coupon_status": coupon_doc.custom_status,
+        "discount_type": preview["discount_type"],
+        "discount_amount": preview["discount_amount"],
+        "discount_value": preview["discount_value"],
+        "valid_from": coupon_doc.valid_from,
+        "valid_upto": coupon_doc.valid_upto,
+        "maximum_use": coupon_doc.maximum_use,
+        "used": coupon_doc.used,
+        "minimum_subtotal": coupon_doc.custom_minimum_subtotal,
+        "redemption_allow_on": coupon_doc.custom_redeemption_allow_on,
+    }
+
+
+def apply_coupon_to_sales_invoice(docname: str, coupon_code: str) -> dict:
+    """Validate and apply a coupon to a draft Sales Invoice."""
+    doc = frappe.get_doc("Sales Invoice", docname)
+    ensure_draft_sales_invoice(doc)
+
+    coupon_name = normalize_coupon_name(coupon_code)
+    if not coupon_name:
+        frappe.throw(_("Coupon {0} does not exist.").format(coupon_code))
+
+    coupon_doc = frappe.get_doc("Coupon Code", coupon_name)
+    if should_skip_redemption_validation(doc, coupon_doc):
+        frappe.throw(_("This coupon cannot be redeemed on the invoice that generated it."))
+
+    validate_coupon_redemption(doc, coupon_doc)
+
+    stored_coupon = _get_stored_applied_coupon(doc)
+    if stored_coupon and stored_coupon != coupon_name:
+        _reset_coupon_discount_state(doc)
+
+    doc.custom_coupon_code = coupon_name
+    doc.flags.coupon_discount_applied_for = None
+    apply_sales_invoice_coupon_discount(doc, force=True)
+    doc.save(ignore_permissions=True)
+
+    preview = preview_coupon_discount(doc, coupon_doc)
+    return {
+        "status": "success",
+        "applied": True,
+        "sales_invoice": doc.name,
+        "coupon_code": coupon_doc.coupon_code,
+        "coupon_name": coupon_doc.name,
+        "discount_type": preview["discount_type"],
+        "discount_amount": preview["discount_amount"],
+        "discount_value": preview["discount_value"],
+        "invoice_discount_amount": flt(doc.discount_amount),
+        "invoice_additional_discount_percentage": flt(doc.additional_discount_percentage),
+        "grand_total": flt(doc.grand_total),
+    }
+
+
+def discard_coupon_from_sales_invoice(docname: str) -> dict:
+    """Remove an applied coupon and its discount from a draft Sales Invoice."""
+    doc = frappe.get_doc("Sales Invoice", docname)
+    ensure_draft_sales_invoice(doc)
+
+    previous_coupon = resolve_applied_coupon_code(doc)
+    _reset_coupon_discount_state(doc)
+    doc.save(ignore_permissions=True)
+
+    return {
+        "status": "success",
+        "discarded": True,
+        "sales_invoice": doc.name,
+        "previous_coupon_code": previous_coupon or None,
+    }
+
+
+def apply_sales_invoice_coupon_discount(doc, method=None, force=False):
     """Apply coupon discount on Sales Invoice from pricing rule or coupon fields."""
     coupon_code = resolve_applied_coupon_code(doc)
     if not coupon_code:
         return
-    if doc.flags.get("coupon_discount_applied_for") == coupon_code:
+
+    stored_coupon = _get_stored_applied_coupon(doc)
+    coupon_changed = bool(stored_coupon and stored_coupon != coupon_code)
+
+    if not force and doc.flags.get("coupon_discount_applied_for") == coupon_code:
         return
+
+    if force or coupon_changed:
+        _reset_coupon_discount_state(doc)
 
     doc.custom_coupon_code = coupon_code
 
