@@ -413,9 +413,6 @@ def validate_manual_coupon_generation(settings, overrides=None):
     """Validate ArcPOS settings required for manual coupon generation."""
     validate_coupon_generation_settings(settings, overrides)
 
-    if cint(settings.allow_auto_generate_cc):
-        frappe.throw(_("Manual coupon generation is only available when auto generate is disabled."))
-
     if not cint(settings.allow_manual_generate_cc):
         frappe.throw(_("Manual coupon generation is disabled in ArcPOS Settings."))
 

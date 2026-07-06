@@ -34,7 +34,7 @@ def generate_coupon():
 
     Rules
     -----
-    - Manual generation is allowed only when auto-generate is disabled.
+    - Manual generation requires Allow Manual Generate in ArcPOS Settings.
     - When sales_invoice is provided: one generated coupon per invoice (idempotent).
     - When sales_invoice is omitted: creates a standalone coupon.
     - Unspecified fields fall back to ArcPOS Settings defaults.

@@ -156,9 +156,6 @@ function should_show_generate_coupon_button(frm, settings) {
     if (frm.is_new()) {
         return false;
     }
-    if (cint(settings.allow_auto_generate_cc)) {
-        return false;
-    }
     if (!cint(settings.allow_manual_generate_cc)) {
         return false;
     }
