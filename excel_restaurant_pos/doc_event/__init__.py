@@ -20,6 +20,7 @@ custom_doc_events = {
         "validate": [
             "excel_restaurant_pos.shared.coupon.services.apply_sales_invoice_coupon_discount",
             "excel_restaurant_pos.shared.coupon.services.validate_sales_invoice_coupon",
+            "excel_restaurant_pos.doc_event.sales_invoice.sync_item_status_with_order_status",
         ],
         "before_submit": "excel_restaurant_pos.shared.coupon.services.before_submit_sales_invoice_coupon",
         "on_submit": [

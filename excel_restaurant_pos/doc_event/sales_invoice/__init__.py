@@ -8,6 +8,7 @@ from .validate_item_group_visibility import (
     validate_sales_invoice_item_group_visibility_on_insert,
     validate_sales_invoice_item_group_visibility_on_update,
 )
+from .sync_item_status import sync_item_status_with_order_status
 
 
 __all__ = [
@@ -19,4 +20,5 @@ __all__ = [
     "on_update_sales_invoice",
     "validate_sales_invoice_item_group_visibility_on_insert",
     "validate_sales_invoice_item_group_visibility_on_update",
+    "sync_item_status_with_order_status",
 ]
