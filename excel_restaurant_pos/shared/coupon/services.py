@@ -286,11 +286,7 @@ def is_generation_allowed(doc, settings) -> bool:
     ):
         return False
     minimum_subtotal = flt(settings.minimum_subtotal_generate)
-    if (
-        minimum_subtotal
-        and is_online_order(doc)
-        and calculate_invoice_subtotal(doc) < minimum_subtotal
-    ):
+    if minimum_subtotal and calculate_invoice_subtotal(doc) < minimum_subtotal:
         return False
     return not bool(get_existing_generated_coupon(doc))
 

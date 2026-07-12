@@ -57,3 +57,47 @@ class TestCouponServices(FrappeTestCase):
         valid_from, valid_upto = resolve_validity_dates(Settings(), {"expire_after_days": 30})
         self.assertIsNotNone(valid_from)
         self.assertIsNotNone(valid_upto)
+
+    def test_is_generation_allowed_subtotal_check(self):
+        from unittest.mock import patch
+
+        class Settings:
+            allow_auto_generate_cc = 1
+            auto_generate_on = "All"
+            minimum_subtotal_generate = 50.0
+
+        class Doc:
+            def __init__(self, order_from, service_type, subtotal):
+                self._data = {
+                    "custom_order_from": order_from,
+                    "custom_service_type": service_type,
+                    "total": subtotal,
+                    "name": "test-sales-invoice",
+                }
+
+            def get(self, key, default=None):
+                return self._data.get(key, default)
+
+        settings = Settings()
+
+        # Test online order below minimum subtotal (should not be allowed)
+        doc_online_below = Doc("Website", "Pickup", 30.0)
+        # Test online order above/equal minimum subtotal (should be allowed)
+        doc_online_above = Doc("Website", "Pickup", 60.0)
+
+        # Test POS order below minimum subtotal (should not be allowed)
+        doc_pos_below = Doc("In Store", "Pickup", 30.0)
+        # Test POS order above/equal minimum subtotal (should be allowed)
+        doc_pos_above = Doc("In Store", "Pickup", 60.0)
+
+        with patch("excel_restaurant_pos.shared.coupon.services.get_existing_generated_coupon", return_value=None):
+            from excel_restaurant_pos.shared.coupon.services import is_generation_allowed
+
+            # Online orders
+            self.assertFalse(is_generation_allowed(doc_online_below, settings))
+            self.assertTrue(is_generation_allowed(doc_online_above, settings))
+
+            # POS/offline orders
+            self.assertFalse(is_generation_allowed(doc_pos_below, settings))
+            self.assertTrue(is_generation_allowed(doc_pos_above, settings))
+
