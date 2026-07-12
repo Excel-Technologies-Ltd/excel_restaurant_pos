@@ -19,7 +19,7 @@ def get_next_available_offers():
     - Amount above the last band's ``to_amount``: only the last band.
     Multiple offers sharing the same range are all included when that band matches.
 
-    Request: ``amount`` (required). ``item_section`` (optional): when provided, only offers for that ArcPOS Item Section are returned.
+    Request: ``amount`` (required). ``item_section`` (optional): when provided, only offers for that ArcPOS Item Section are returned. ``offer_applied_on`` (optional): when provided, only offers with matching service type (Delivery, Pickup) or "Both" are returned.
     """
     raw = frappe.form_dict.get("amount")
     if raw is None or raw == "":
@@ -32,6 +32,12 @@ def get_next_available_offers():
         if not frappe.db.exists("ArcPOS Item Section", item_section):
             frappe.throw(frappe._("Invalid item_section"))
         filters["item_section"] = item_section
+
+    offer_applied_on = (frappe.form_dict.get("offer_applied_on") or "").strip()
+    if offer_applied_on:
+        if offer_applied_on not in ["Both", "Delivery", "Pickup"]:
+            frappe.throw(frappe._("Invalid offer_applied_on"))
+        filters["offer_applied_on"] = ["in", ["Both", offer_applied_on]]
 
     offers = frappe.get_all(
         "ArcPOS Offers",
@@ -47,6 +53,7 @@ def get_next_available_offers():
             "status",
             "item_section",
             "item_type",
+            "offer_applied_on",
         ],
         order_by="from_amount asc",
         ignore_permissions=True,
