@@ -30,6 +30,7 @@ custom_doc_events = {
         "on_trash": "excel_restaurant_pos.doc_event.sales_invoice.on_trash_sales_invoice",
         "on_change": "excel_restaurant_pos.doc_event.sales_invoice.change_sales_invoice",
         "on_update": "excel_restaurant_pos.doc_event.sales_invoice.on_update_sales_invoice",
+        "before_update_after_submit": "excel_restaurant_pos.doc_event.sales_invoice.sync_item_status_with_order_status",
         "on_update_after_submit": "excel_restaurant_pos.doc_event.sales_invoice.on_update_sales_invoice",
         "after_insert": "excel_restaurant_pos.doc_event.sales_invoice.after_save_sales_invoice",
         "before_insert": [
