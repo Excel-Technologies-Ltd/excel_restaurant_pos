@@ -281,12 +281,10 @@ def is_generation_allowed(doc, settings) -> bool:
     """Check whether the invoice is eligible for coupon generation."""
     if not settings or not cint(settings.allow_auto_generate_cc):
         return False
-    if not is_channel_allowed(
-        doc.get("custom_order_from"), doc.get("custom_service_type"), settings.auto_generate_on
-    ):
-        return False
+    # Auto-generation applies to all invoices regardless of channel (online/POS);
+    # eligibility is driven only by the minimum net total below.
     minimum_subtotal = flt(settings.minimum_subtotal_generate)
-    if minimum_subtotal and calculate_invoice_subtotal(doc) < minimum_subtotal:
+    if minimum_subtotal and flt(doc.get("net_total")) < minimum_subtotal:
         return False
     return not bool(get_existing_generated_coupon(doc))
 

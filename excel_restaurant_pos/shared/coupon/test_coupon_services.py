@@ -71,7 +71,7 @@ class TestCouponServices(FrappeTestCase):
                 self._data = {
                     "custom_order_from": order_from,
                     "custom_service_type": service_type,
-                    "total": subtotal,
+                    "net_total": subtotal,
                     "name": "test-sales-invoice",
                 }
 
@@ -93,9 +93,14 @@ class TestCouponServices(FrappeTestCase):
         with patch("excel_restaurant_pos.shared.coupon.services.get_existing_generated_coupon", return_value=None):
             from excel_restaurant_pos.shared.coupon.services import is_generation_allowed
 
+            # Channel does not matter — the minimum net total is the only gate.
             # Online orders
             self.assertFalse(is_generation_allowed(doc_online_below, settings))
             self.assertTrue(is_generation_allowed(doc_online_above, settings))
+
+            # POS orders
+            self.assertFalse(is_generation_allowed(doc_pos_below, settings))
+            self.assertTrue(is_generation_allowed(doc_pos_above, settings))
 
             # POS/offline orders
             self.assertFalse(is_generation_allowed(doc_pos_below, settings))
