@@ -32,7 +32,10 @@ custom_doc_events = {
         "on_update": "excel_restaurant_pos.doc_event.sales_invoice.on_update_sales_invoice",
         "before_update_after_submit": "excel_restaurant_pos.doc_event.sales_invoice.sync_item_status_with_order_status",
         "on_update_after_submit": "excel_restaurant_pos.doc_event.sales_invoice.on_update_sales_invoice",
-        "after_insert": "excel_restaurant_pos.doc_event.sales_invoice.after_save_sales_invoice",
+        "after_insert": [
+            "excel_restaurant_pos.doc_event.sales_invoice.after_save_sales_invoice",
+            "excel_restaurant_pos.shared.client_contact.create_client_contact_from_invoice",
+        ],
         "before_insert": [
             "excel_restaurant_pos.doc_event.sales_invoice.before_insert_sales_invoice",
             "excel_restaurant_pos.doc_event.sales_invoice.validate_item_group_visibility.validate_sales_invoice_item_group_visibility_on_insert",
@@ -43,9 +46,18 @@ custom_doc_events = {
         "on_update": "excel_restaurant_pos.doc_event.on_doctype_update",
     },
     "Coupon Code": {
+        "after_insert": "excel_restaurant_pos.shared.client_contact.create_client_contact_from_coupon",
         # on_update fires on insert as well, so it covers both create and update.
         # Registering after_insert too would generate the QR twice per insert.
         "on_update": "excel_restaurant_pos.shared.coupon.ensure_coupon_qr_code",
+    },
+    "Customer": {
+        "after_insert": "excel_restaurant_pos.shared.client_contact.create_client_contact_from_customer",
+    },
+    "Contact": {
+        # on_update covers insert too. create_customer attaches the Contact after
+        # the Customer exists, so this is where the email/phone actually arrives.
+        "on_update": "excel_restaurant_pos.shared.client_contact.sync_client_contact_from_contact",
     },
     "Item Group": {
         "after_insert": "excel_restaurant_pos.doc_event.item_group.clear_visibility_cache.clear_item_group_visibility_cache",

@@ -361,6 +361,12 @@ def create_coupon_doc(doc, settings, overrides=None, defer_invoice_link=False):
         coupon_fields["custom_generated_on_order"] = doc.name
 
     coupon_doc = frappe.get_doc(coupon_fields)
+
+    # custom_generated_on_order is deferred to on_submit above, so flag the
+    # association for hooks that must know this coupon belongs to an invoice.
+    if doc and doc.get("name"):
+        coupon_doc.flags.generated_for_invoice = doc.name
+
     coupon_doc.insert(ignore_permissions=True)
     return coupon_doc
 
