@@ -78,8 +78,8 @@ def get_customer_contact_details(customer: str) -> tuple[str, str]:
 def sync_customer_client_contact(customer: str):
     """Create or complete the client contact belonging to a customer.
 
-    Called both when the customer is created (usually before any Contact exists,
-    so only the name is known) and when its Contact lands with the email/phone.
+    Called both when the customer is created (usually before any Contact exists)
+    and when its Contact lands with the email/phone.
     """
     customer_name = frappe.db.get_value("Customer", customer, "customer_name")
     if not customer_name:
@@ -89,6 +89,12 @@ def sync_customer_client_contact(customer: str):
     existing = frappe.db.get_value(DOCTYPE, {"customer": customer}, "name")
 
     if not existing:
+        # Wait until the customer is reachable. Nothing is lost by skipping here:
+        # the Contact carrying the email/phone is linked after the customer is
+        # inserted, and that fires this same sync to create the record.
+        if not (email or phone):
+            return None
+
         return create_client_contact(
             client_name=customer_name, email=email, phone=phone, customer=customer
         )
@@ -112,7 +118,11 @@ def sync_customer_client_contact(customer: str):
 
 
 def create_client_contact_from_customer(doc, method=None):
-    """Customer after_insert: register the new customer as a client contact."""
+    """Customer after_insert: register the customer if it is already reachable.
+
+    Customers created with a Contact already linked are registered here; the
+    common case (Contact attached afterwards) is registered by the Contact hook.
+    """
     try:
         sync_customer_client_contact(doc.name)
     except Exception:
