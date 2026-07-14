@@ -116,6 +116,7 @@ def format_coupon_response(coupon_name: str, generated: bool = False) -> dict:
         "used": coupon.used,
         "minimum_subtotal": coupon.custom_minimum_subtotal,
         "redemption_allow_on": coupon.custom_redeemption_allow_on,
+        "qr_code": coupon.custom_qr_code,
     }
 
 

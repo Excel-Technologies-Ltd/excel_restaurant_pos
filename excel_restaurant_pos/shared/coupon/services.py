@@ -714,6 +714,7 @@ def validate_coupon_globally(coupon_code: str) -> dict:
         "used": coupon_doc.used,
         "minimum_subtotal": coupon_doc.custom_minimum_subtotal,
         "redemption_allow_on": coupon_doc.custom_redeemption_allow_on,
+        "qr_code": coupon_doc.custom_qr_code,
     }
 
 
@@ -749,6 +750,7 @@ def verify_coupon_for_sales_invoice(docname: str, coupon_code: str) -> dict:
         "used": coupon_doc.used,
         "minimum_subtotal": coupon_doc.custom_minimum_subtotal,
         "redemption_allow_on": coupon_doc.custom_redeemption_allow_on,
+        "qr_code": coupon_doc.custom_qr_code,
     }
 
 

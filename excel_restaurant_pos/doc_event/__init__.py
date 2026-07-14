@@ -42,6 +42,11 @@ custom_doc_events = {
     "Sales Taxes and Charges Template": {
         "on_update": "excel_restaurant_pos.doc_event.on_doctype_update",
     },
+    "Coupon Code": {
+        # on_update fires on insert as well, so it covers both create and update.
+        # Registering after_insert too would generate the QR twice per insert.
+        "on_update": "excel_restaurant_pos.shared.coupon.ensure_coupon_qr_code",
+    },
     "Item Group": {
         "after_insert": "excel_restaurant_pos.doc_event.item_group.clear_visibility_cache.clear_item_group_visibility_cache",
         "on_update": "excel_restaurant_pos.doc_event.item_group.clear_visibility_cache.clear_item_group_visibility_cache",

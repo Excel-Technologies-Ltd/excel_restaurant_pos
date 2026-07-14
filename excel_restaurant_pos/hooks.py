@@ -169,6 +169,12 @@ doc_events = {
     **custom_doc_events,
 }
 
+# Migration Hooks
+# ---------------
+# Runs after fixtures sync, so the QR custom field exists before backfilling.
+
+after_migrate = ["excel_restaurant_pos.shared.coupon.qr.backfill_coupon_qr_codes"]
+
 # Scheduled Tasks
 # ---------------
 
