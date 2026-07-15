@@ -26,23 +26,46 @@ def change_sales_invoice(doc, method: str):
     is_deleted = doc.get("custom_is_deleted", False)
 
     # payment change logic
+    # enqueue_after_commit: these handlers re-read the invoice on a separate
+    # connection. Enqueued before the commit they can observe the pre-commit row,
+    # see a status that is not yet Paid, and silently give up.
     if doc.has_value_changed("status") and doc_status == "paid":
         frappe.log_error("Status changed", f"Status changed to {doc_status}")
-        frappe.enqueue(create_promotion_journal, queue="short", invoice_name=doc.name)
-        frappe.enqueue(payment_change_handler, queue="default", invoice_name=doc.name)
+        frappe.enqueue(
+            create_promotion_journal,
+            queue="short",
+            enqueue_after_commit=True,
+            invoice_name=doc.name,
+        )
+        frappe.enqueue(
+            payment_change_handler,
+            queue="default",
+            enqueue_after_commit=True,
+            invoice_name=doc.name,
+        )
 
     # cancelled status logic
     if doc.has_value_changed("status") and doc_status == "cancelled":
         msg = f"Status changed to {doc_status}"
         frappe.log_error("Status changed", msg)
-        frappe.enqueue(order_cancel_handler, queue="default", invoice_name=doc.name)
+        frappe.enqueue(
+            order_cancel_handler,
+            queue="default",
+            enqueue_after_commit=True,
+            invoice_name=doc.name,
+        )
 
     # order status change logic
     is_close_or_rejected = order_status in ["closed", "rejected"]
     if doc.has_value_changed("custom_order_status") and is_close_or_rejected:
         msg = f"Order status changed to {order_status}"
         frappe.log_error("Order status changed", msg)
-        frappe.enqueue(order_change_handler, queue="default", invoice_name=doc.name)
+        frappe.enqueue(
+            order_change_handler,
+            queue="default",
+            enqueue_after_commit=True,
+            invoice_name=doc.name,
+        )
 
     # scheduled order status change logic
     if doc.has_value_changed("custom_order_status") and order_status == "scheduled":

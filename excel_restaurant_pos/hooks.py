@@ -184,9 +184,12 @@ scheduler_events = {
         "excel_restaurant_pos.utils.scheduled_tasks.expire_coupon_codes",
     ],
     "cron": {
-        # Sync Clover payments daily at 12:05 AM
+        # Every 5 minutes: sync Clover payments, and send 30-min order notifications.
+        # These must share one key -- a duplicate cron key is not a merge, the last
+        # one silently wins and everything above it never gets scheduled.
         "*/5 * * * *": [
             "excel_restaurant_pos.api.clover.clover_sync.sync_clover_payments",
+            "excel_restaurant_pos.utils.scheduled_tasks.check_scheduled_order_notifications",
         ],
         # Delete marked-as-deleted draft invoices and complete past reservations at 1 AM daily
         "0 1 * * *": [
@@ -197,9 +200,10 @@ scheduler_events = {
         "*/20 * * * *": [
             "excel_restaurant_pos.utils.scheduled_tasks.delete_stale_website_orders"
         ],
-        # Check scheduled orders and send 30-min notifications every 5 minutes
-        "*/5 * * * *": [
-            "excel_restaurant_pos.utils.scheduled_tasks.check_scheduled_order_notifications"
+        # Backstop: close paid dine-in/takeout orders the event path missed,
+        # so a paid table cannot stay marked busy.
+        "*/15 * * * *": [
+            "excel_restaurant_pos.utils.scheduled_tasks.close_paid_dine_in_orders"
         ],
         # Send pending delivery/pickup notifications at exact scheduled time every minute
         "* * * * *": [

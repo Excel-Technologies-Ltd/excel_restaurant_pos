@@ -45,6 +45,11 @@ custom_doc_events = {
     "Sales Taxes and Charges Template": {
         "on_update": "excel_restaurant_pos.doc_event.on_doctype_update",
     },
+    "Payment Entry": {
+        # ERPNext sets Sales Invoice.status to Paid with db_set, which fires no
+        # doc events, so the invoice itself cannot tell us a payment landed.
+        "on_submit": "excel_restaurant_pos.doc_event.payment_entry.settle_order_status_on_payment",
+    },
     "Coupon Code": {
         "after_insert": "excel_restaurant_pos.shared.client_contact.create_client_contact_from_coupon",
         # on_update fires on insert as well, so it covers both create and update.

@@ -5,6 +5,9 @@ from datetime import timedelta
 from excel_restaurant_pos.doc_event.sales_invoice.handlers.create_payment_entry import (
     create_payment_entry,
 )
+from excel_restaurant_pos.doc_event.sales_invoice.handlers.payment_change_handler import (
+    payment_change_handler,
+)
 
 
 def expire_coupon_codes():
@@ -816,3 +819,66 @@ def check_pending_delivery_notifications():
                 message=f"Error processing pending delivery notification for {invoice_name}: {str(e)}",
                 title="Delivery Notification Scheduler Error",
             )
+
+
+# An order paid this recently may still be moving through the kitchen workflow,
+# so leave it alone rather than yank it to Closed underneath the staff.
+CLOSE_PAID_ORDERS_GRACE_MINUTES = 15
+
+
+def close_paid_dine_in_orders():
+    """Close paid Dine-in/Takeout orders whose status never reached Closed.
+
+    A safety net, not the primary path. Payment normally closes the order from
+    the Payment Entry hook, but status can also reach Paid through routes that
+    fire no doc events (ERPNext writes it with db_set, and integrations may set
+    it directly), which leaves the table showing as busy forever.
+
+    Scoped deliberately:
+    - Dine-in / Takeout only. Pickup and Delivery have their own terminal
+      statuses (Picked Up / Delivered) and force-closing those would be wrong.
+    - Only orders untouched for CLOSE_PAID_ORDERS_GRACE_MINUTES, so it cannot
+      fight a waiter who is actively updating the order right now.
+    """
+    cutoff = add_to_date(now_datetime(), minutes=-CLOSE_PAID_ORDERS_GRACE_MINUTES)
+
+    invoices = frappe.get_all(
+        "Sales Invoice",
+        filters=[
+            ["docstatus", "=", 1],
+            ["status", "=", "Paid"],
+            ["custom_service_type", "in", ["Dine-in", "Takeout"]],
+            ["modified", "<", cutoff],
+        ],
+        # "!=" on its own would silently drop rows where the status is NULL,
+        # because a SQL comparison against NULL is never true.
+        or_filters=[
+            ["custom_order_status", "!=", "Closed"],
+            ["custom_order_status", "is", "not set"],
+        ],
+        pluck="name",
+    )
+
+    if not invoices:
+        return 0
+
+    closed = 0
+    for name in invoices:
+        try:
+            # Reuse the payment handler so "closing a dine-in order" has exactly
+            # one definition; for these service types it sets Closed + items Served.
+            payment_change_handler(name)
+            frappe.db.commit()
+            if frappe.db.get_value("Sales Invoice", name, "custom_order_status") == "Closed":
+                closed += 1
+        except Exception:
+            frappe.db.rollback()
+            frappe.log_error(
+                title="Close Paid Order Failed",
+                message=f"Sales Invoice: {name}\n{frappe.get_traceback()}",
+            )
+
+    if closed:
+        frappe.logger().info(f"close_paid_dine_in_orders closed {closed} order(s)")
+
+    return closed
