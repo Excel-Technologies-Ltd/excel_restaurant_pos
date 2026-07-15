@@ -202,7 +202,7 @@ scheduler_events = {
         ],
         # Backstop: close paid dine-in/takeout orders the event path missed,
         # so a paid table cannot stay marked busy.
-        "*/15 * * * *": [
+        "*/10 * * * *": [
             "excel_restaurant_pos.utils.scheduled_tasks.close_paid_dine_in_orders"
         ],
         # Send pending delivery/pickup notifications at exact scheduled time every minute
