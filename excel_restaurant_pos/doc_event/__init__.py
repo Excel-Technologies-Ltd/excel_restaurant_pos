@@ -48,8 +48,8 @@ custom_doc_events = {
     "Coupon Code": {
         "after_insert": "excel_restaurant_pos.shared.client_contact.create_client_contact_from_coupon",
         # on_update fires on insert as well, so it covers both create and update.
-        # Registering after_insert too would generate the QR twice per insert.
-        "on_update": "excel_restaurant_pos.shared.coupon.ensure_coupon_qr_code",
+        # Registering after_insert too would generate the codes twice per insert.
+        "on_update": "excel_restaurant_pos.shared.coupon.ensure_coupon_codes",
     },
     "Customer": {
         "after_insert": "excel_restaurant_pos.shared.client_contact.create_client_contact_from_customer",
