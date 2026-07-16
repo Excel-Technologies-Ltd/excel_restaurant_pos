@@ -46,7 +46,8 @@ fixtures = [
                     "ArcPOS Pickup User",
                     "ArcPOS Delivery User",
                     "ArcPOS Channel User",
-                    "ArcPOS Reservation User"
+                    "ArcPOS Reservation User",
+                    "ArcPOS Coupon Manager"
                 ],
             ]
         ],
