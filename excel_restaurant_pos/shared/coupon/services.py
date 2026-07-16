@@ -278,14 +278,25 @@ def get_existing_generated_coupon(doc):
 
 
 def is_generation_allowed(doc, settings) -> bool:
-    """Check whether the invoice is eligible for coupon generation."""
+    """Check whether the invoice is eligible for coupon generation.
+
+    Every condition configured in ArcPOS Settings has to hold: generation must be
+    enabled, the order's channel must match auto_generate_on, and the invoice must
+    reach minimum_subtotal_generate. The minimum applies to every allowed channel
+    -- it is the channel filter, not the minimum, that is channel specific.
+    """
     if not settings or not cint(settings.allow_auto_generate_cc):
         return False
-    # Auto-generation applies to all invoices regardless of channel (online/POS);
-    # eligibility is driven only by the minimum net total below.
+
+    if not is_channel_allowed(
+        doc.get("custom_order_from"), doc.get("custom_service_type"), settings.auto_generate_on
+    ):
+        return False
+
     minimum_subtotal = flt(settings.minimum_subtotal_generate)
     if minimum_subtotal and flt(doc.get("net_total")) < minimum_subtotal:
         return False
+
     return not bool(get_existing_generated_coupon(doc))
 
 

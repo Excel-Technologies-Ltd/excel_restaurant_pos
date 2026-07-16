@@ -93,16 +93,55 @@ class TestCouponServices(FrappeTestCase):
         with patch("excel_restaurant_pos.shared.coupon.services.get_existing_generated_coupon", return_value=None):
             from excel_restaurant_pos.shared.coupon.services import is_generation_allowed
 
-            # Channel does not matter — the minimum net total is the only gate.
-            # Online orders
+            # auto_generate_on is "All" here, so the minimum net total is what decides.
+            # It applies to every allowed channel, online and POS alike.
             self.assertFalse(is_generation_allowed(doc_online_below, settings))
             self.assertTrue(is_generation_allowed(doc_online_above, settings))
-
-            # POS orders
             self.assertFalse(is_generation_allowed(doc_pos_below, settings))
             self.assertTrue(is_generation_allowed(doc_pos_above, settings))
 
-            # POS/offline orders
-            self.assertFalse(is_generation_allowed(doc_pos_below, settings))
-            self.assertTrue(is_generation_allowed(doc_pos_above, settings))
+    def test_is_generation_allowed_honours_auto_generate_on(self):
+        """auto_generate_on must gate the channel even when everything else passes."""
+        from unittest.mock import patch
+
+        class Settings:
+            allow_auto_generate_cc = 1
+            minimum_subtotal_generate = 50.0
+
+            def __init__(self, auto_generate_on):
+                self.auto_generate_on = auto_generate_on
+
+        class Doc:
+            def __init__(self, order_from, service_type):
+                self._data = {
+                    "custom_order_from": order_from,
+                    "custom_service_type": service_type,
+                    "net_total": 100.0,  # comfortably over the minimum
+                    "name": "test-sales-invoice",
+                }
+
+            def get(self, key, default=None):
+                return self._data.get(key, default)
+
+        online = Doc("Website", "Pickup")
+        pos = Doc("In Store", "Pickup")
+
+        with patch("excel_restaurant_pos.shared.coupon.services.get_existing_generated_coupon", return_value=None):
+            from excel_restaurant_pos.shared.coupon.services import is_generation_allowed
+
+            # Only Online: POS orders must not generate, however large.
+            self.assertTrue(is_generation_allowed(online, Settings("Only Online")))
+            self.assertFalse(is_generation_allowed(pos, Settings("Only Online")))
+
+            # POS: online orders must not generate.
+            self.assertFalse(is_generation_allowed(online, Settings("POS")))
+            self.assertTrue(is_generation_allowed(pos, Settings("POS")))
+
+            # All: both generate.
+            self.assertTrue(is_generation_allowed(online, Settings("All")))
+            self.assertTrue(is_generation_allowed(pos, Settings("All")))
+
+            # Unset: nothing generates.
+            self.assertFalse(is_generation_allowed(online, Settings("")))
+            self.assertFalse(is_generation_allowed(pos, Settings("")))
 
