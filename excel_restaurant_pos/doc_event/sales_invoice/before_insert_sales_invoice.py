@@ -11,16 +11,10 @@ def before_insert_sales_invoice(doc, method: str):
         method: The method being called.
     """
     # A generated coupon is an output of processing THIS invoice, so a brand new
-    # invoice must never arrive already carrying one. Amend keeps no_copy fields
-    # (and a plain copy_doc / stray payload can too), so an old order's coupon
-    # would otherwise ride along and get re-bound to this new order -- linking a
-    # day-old coupon to a minutes-old invoice. Clear it; before_submit regenerates
+    # invoice must never arrive already carrying one.
     # it fresh when generation is actually allowed.
     doc.custom_generated_coupon_code = None
 
-    # Bypass modified check for POS invoices created+submitted in one flow
-    # (Frappe's internal logic can update the doc between insert and submit, causing conflict)
-    # Also bypass for any POS invoice (is_pos=1) to prevent version conflicts during creation
     if doc.get("is_pos") == 1:
         doc.flags.ignore_version = True
 
