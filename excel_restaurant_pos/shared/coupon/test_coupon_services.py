@@ -1,6 +1,7 @@
 # Copyright (c) 2026, Excel and Contributors
 # See license.txt
 
+import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from excel_restaurant_pos.shared.coupon.services import (
@@ -144,4 +145,107 @@ class TestCouponServices(FrappeTestCase):
             # Unset: nothing generates.
             self.assertFalse(is_generation_allowed(online, Settings("")))
             self.assertFalse(is_generation_allowed(pos, Settings("")))
+
+    def test_cap_flat_discount_floors_invoice_at_zero(self):
+        """A flat discount is capped to its base so the invoice never goes negative."""
+        from excel_restaurant_pos.shared.coupon.services import _cap_flat_discount
+
+        class Doc:
+            def __init__(self, **kw):
+                self._d = kw
+
+            def get(self, k, default=None):
+                return self._d.get(k, default)
+
+        net = Doc(apply_discount_on="Net Total", net_total=10)
+        # Over-total flat discount is capped to the net total (invoice -> 0).
+        self.assertEqual(_cap_flat_discount(net, 15), 10)
+        # Within-total flat discount is untouched.
+        self.assertEqual(_cap_flat_discount(net, 7), 7)
+        # Exact-total flat discount is untouched.
+        self.assertEqual(_cap_flat_discount(net, 10), 10)
+
+    def _fake_doc(self, **kw):
+        import frappe
+
+        class FakeDoc(dict):
+            def __init__(self, **fields):
+                super().__init__(**fields)
+                self.flags = frappe._dict()
+
+            def __getattr__(self, k):
+                try:
+                    return self[k]
+                except KeyError:
+                    raise AttributeError(k)
+
+            def __setattr__(self, k, v):
+                if k == "flags":
+                    super().__setattr__(k, v)
+                else:
+                    self[k] = v
+
+        return FakeDoc(**kw)
+
+    def test_reset_preserves_manual_discount_in_other_field(self):
+        """Removing a flat coupon must not wipe a manual percentage discount."""
+        from unittest.mock import patch
+
+        from excel_restaurant_pos.shared.coupon import services
+
+        doc = self._fake_doc(
+            custom_coupon_code="OLD",
+            coupon_code="OLD",
+            discount_amount=0,          # flat coupon's field, but currently empty
+            additional_discount_percentage=20,  # user's manual discount
+            items=[],
+        )
+        flat_coupon = frappe._dict(custom_discount_type="Flat Amount", custom_discount_amount=10)
+        with patch.object(services, "_load_coupon", return_value=flat_coupon):
+            services._reset_coupon_discount_state(doc, removed_coupon="OLD")
+        self.assertEqual(doc.additional_discount_percentage, 20)
+        self.assertIsNone(doc.custom_coupon_code)
+
+    def test_reset_clears_only_matching_coupon_discount(self):
+        """The coupon's own discount clears; a changed (manual) value is kept."""
+        from unittest.mock import patch
+
+        from excel_restaurant_pos.shared.coupon import services
+
+        flat_coupon = frappe._dict(custom_discount_type="Flat Amount", custom_discount_amount=10)
+
+        # Value still equals the coupon's -> it is the coupon's discount -> cleared.
+        matching = self._fake_doc(
+            custom_coupon_code="OLD", coupon_code="OLD",
+            discount_amount=10, additional_discount_percentage=0,
+            apply_discount_on="Net Total", net_total=100, items=[],
+        )
+        with patch.object(services, "_load_coupon", return_value=flat_coupon):
+            services._reset_coupon_discount_state(matching, removed_coupon="OLD")
+        self.assertEqual(matching.discount_amount, 0)
+
+        # Value was changed by the user -> it is a manual discount -> preserved.
+        manual = self._fake_doc(
+            custom_coupon_code="OLD", coupon_code="OLD",
+            discount_amount=7, additional_discount_percentage=0,
+            apply_discount_on="Net Total", net_total=100, items=[],
+        )
+        with patch.object(services, "_load_coupon", return_value=flat_coupon):
+            services._reset_coupon_discount_state(manual, removed_coupon="OLD")
+        self.assertEqual(manual.discount_amount, 7)
+
+    def test_reset_unresolvable_coupon_full_reset(self):
+        """An unresolvable coupon falls back to a full reset so nothing lingers."""
+        from unittest.mock import patch
+
+        from excel_restaurant_pos.shared.coupon import services
+
+        doc = self._fake_doc(
+            custom_coupon_code="OLD", coupon_code="OLD",
+            discount_amount=10, additional_discount_percentage=5, items=[],
+        )
+        with patch.object(services, "_load_coupon", return_value=None):
+            services._reset_coupon_discount_state(doc, removed_coupon="OLD")
+        self.assertEqual(doc.discount_amount, 0)
+        self.assertEqual(doc.additional_discount_percentage, 0)
 

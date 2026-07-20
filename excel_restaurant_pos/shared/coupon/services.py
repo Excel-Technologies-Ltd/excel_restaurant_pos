@@ -480,13 +480,6 @@ def resolve_applied_coupon_code(doc) -> str:
     return ""
 
 
-def _coupon_was_removed_from_invoice(doc) -> bool:
-    """Return True when a previously saved coupon was cleared on the invoice."""
-    if resolve_applied_coupon_code(doc):
-        return False
-    return bool(_get_stored_applied_coupon(doc))
-
-
 def is_generated_coupon_on_invoice(doc, coupon_doc) -> bool:
     """Return True when this coupon was generated from the same invoice."""
     generated_coupon = (doc.get("custom_generated_coupon_code") or "").strip()
@@ -541,68 +534,6 @@ def validate_coupon_redemption(doc, coupon_doc):
             )
 
 
-def _build_apply_pricing_rule_args(doc, coupon_code: str):
-    """Build args for ERPNext apply_pricing_rule from a Sales Invoice."""
-    items = []
-    for item in doc.get("items") or []:
-        if not item.get("item_code"):
-            continue
-        items.append(
-            {
-                "doctype": item.doctype,
-                "name": item.name,
-                "child_docname": item.name,
-                "item_code": item.item_code,
-                "item_group": item.get("item_group"),
-                "brand": item.get("brand"),
-                "qty": item.qty,
-                "stock_qty": item.get("stock_qty"),
-                "uom": item.get("uom"),
-                "stock_uom": item.get("stock_uom"),
-                "parenttype": doc.doctype,
-                "parent": doc.name,
-                "pricing_rules": item.get("pricing_rules"),
-                "is_free_item": item.get("is_free_item"),
-                "warehouse": item.get("warehouse"),
-                "price_list_rate": item.get("price_list_rate"),
-                "conversion_factor": item.get("conversion_factor") or 1,
-            }
-        )
-
-    customer_group = territory = None
-    if doc.get("customer"):
-        customer_values = frappe.get_cached_value(
-            "Customer", doc.customer, ["customer_group", "territory"]
-        )
-        if customer_values:
-            customer_group, territory = customer_values
-
-    return frappe._dict(
-        {
-            "items": items,
-            "customer": doc.get("customer"),
-            "customer_group": customer_group,
-            "territory": territory,
-            "currency": doc.get("currency"),
-            "conversion_rate": doc.get("conversion_rate"),
-            "price_list": doc.get("selling_price_list"),
-            "price_list_currency": doc.get("price_list_currency"),
-            "plc_conversion_rate": doc.get("plc_conversion_rate"),
-            "company": doc.get("company"),
-            "transaction_date": doc.get("posting_date"),
-            "campaign": doc.get("campaign"),
-            "sales_partner": doc.get("sales_partner"),
-            "ignore_pricing_rule": doc.get("ignore_pricing_rule") or 0,
-            "doctype": doc.doctype,
-            "name": doc.name,
-            "is_return": cint(doc.get("is_return")),
-            "update_stock": cint(doc.get("update_stock")),
-            "pos_profile": doc.get("pos_profile") or "",
-            "coupon_code": coupon_code,
-        }
-    )
-
-
 def _apply_coupon_custom_discount(doc, coupon_doc):
     """Apply coupon discount from custom fields when pricing rule is not used."""
     discount_type = (coupon_doc.custom_discount_type or "").strip().lower()
@@ -615,15 +546,12 @@ def _apply_coupon_custom_discount(doc, coupon_doc):
         doc.additional_discount_percentage = discount_value
         doc.discount_amount = 0
     else:
-        doc.discount_amount = discount_value
+        # A flat discount can never exceed what it is applied on -- otherwise the
+        # total would go negative (or ERPNext would reject it). Cap it so the
+        # invoice simply floors at zero.
+        doc.discount_amount = _cap_flat_discount(doc, discount_value)
         doc.additional_discount_percentage = 0
     return True
-
-
-def _coupon_discount_was_applied(doc) -> bool:
-    if flt(doc.get("discount_amount")) or flt(doc.get("additional_discount_percentage")):
-        return True
-    return any(flt(item.get("discount_amount")) or flt(item.get("discount_percentage")) for item in doc.items)
 
 
 def _get_stored_applied_coupon(doc) -> str:
@@ -633,15 +561,81 @@ def _get_stored_applied_coupon(doc) -> str:
     return normalize_coupon_name(frappe.db.get_value("Sales Invoice", doc.name, "custom_coupon_code"))
 
 
-def _reset_coupon_discount_state(doc):
-    """Remove coupon fields and discount amounts applied through a coupon."""
+def _load_coupon(coupon):
+    """Return a Coupon Code doc from a name or doc, or None when unresolvable."""
+    if not coupon:
+        return None
+    if isinstance(coupon, str):
+        if not frappe.db.exists("Coupon Code", coupon):
+            return None
+        return frappe.get_doc("Coupon Code", coupon)
+    return coupon
+
+
+def _discount_base(doc) -> float:
+    """The amount a transaction-level discount is applied on, per apply_discount_on."""
+    if (doc.get("apply_discount_on") or "Grand Total") == "Grand Total":
+        base = doc.get("grand_total") or doc.get("total")
+    else:
+        base = doc.get("net_total") or doc.get("total")
+    return flt(base)
+
+
+def _cap_flat_discount(doc, discount_value: float) -> float:
+    """Never let a flat discount exceed the amount it applies on, so the invoice
+    floors at zero instead of going negative or erroring."""
+    discount_value = flt(discount_value)
+    base = _discount_base(doc)
+    if base and discount_value > base:
+        return base
+    return discount_value
+
+
+def _clear_coupon_transaction_discount(doc, removed_coupon):
+    """Clear only the transaction-level discount THIS coupon set, and only while
+    it still holds that coupon's value.
+
+    `additional_discount_percentage` / `discount_amount` are shared with manual
+    discounts. A percentage coupon lives in the first field, a flat coupon in the
+    second. We clear a field only when its current value matches what the coupon
+    applied -- so a manual discount the user typed (a different value, or the other
+    field) is never destroyed when the coupon is removed. When the coupon cannot be
+    resolved we fall back to the full reset so a coupon discount cannot linger.
+    """
+    coupon = _load_coupon(removed_coupon)
+    if not coupon:
+        doc.discount_amount = 0
+        doc.additional_discount_percentage = 0
+        return
+
+    discount_value = flt(coupon.custom_discount_amount)
+    if not discount_value:
+        return
+
+    if _normalize_discount_type(coupon.custom_discount_type) == "percentage":
+        if flt(doc.additional_discount_percentage) == discount_value:
+            doc.additional_discount_percentage = 0
+    elif flt(doc.discount_amount) in (discount_value, _cap_flat_discount(doc, discount_value)):
+        doc.discount_amount = 0
+
+
+def _reset_coupon_discount_state(doc, removed_coupon=None):
+    """Undo a coupon's discount on the invoice.
+
+    The coupon link is always cleared. The shared transaction-level discount is
+    only cleared when it still holds the removed coupon's value, so a manual
+    discount is never destroyed. Item rows are reset only when they carry a
+    coupon-attached pricing rule, leaving manually-priced items alone. Pass
+    `removed_coupon` (name or doc) so the value check can run.
+    """
     doc.custom_coupon_code = None
     doc.coupon_code = None
 
-    doc.discount_amount = 0
-    doc.additional_discount_percentage = 0
+    _clear_coupon_transaction_discount(doc, removed_coupon)
 
     for item in doc.get("items") or []:
+        if not item.get("pricing_rules"):
+            continue
         item.pricing_rules = ""
         item.discount_percentage = 0
         item.discount_amount = 0
@@ -790,7 +784,7 @@ def apply_coupon_to_sales_invoice(docname: str, coupon_code: str) -> dict:
 
     stored_coupon = _get_stored_applied_coupon(doc)
     if stored_coupon and stored_coupon != coupon_name:
-        _reset_coupon_discount_state(doc)
+        _reset_coupon_discount_state(doc, removed_coupon=stored_coupon)
 
     doc.custom_coupon_code = coupon_name
     doc.flags.coupon_discount_applied_for = None
@@ -819,7 +813,7 @@ def discard_coupon_from_sales_invoice(docname: str) -> dict:
     ensure_draft_sales_invoice(doc)
 
     previous_coupon = resolve_applied_coupon_code(doc) or _get_stored_applied_coupon(doc)
-    _reset_coupon_discount_state(doc)
+    _reset_coupon_discount_state(doc, removed_coupon=previous_coupon)
     doc.calculate_taxes_and_totals()
     doc.save(ignore_permissions=True)
 
@@ -834,11 +828,17 @@ def discard_coupon_from_sales_invoice(docname: str) -> dict:
 
 
 def apply_sales_invoice_coupon_discount(doc, method=None, force=False):
-    """Apply coupon discount on Sales Invoice from pricing rule or coupon fields."""
+    """Apply the coupon's flat/percentage discount to a Sales Invoice.
+
+    Coupons carry a Pricing Rule only to satisfy a required field; it never drives
+    the discount. The discount always comes from the coupon's own
+    custom_discount_type / custom_discount_amount.
+    """
     coupon_code = resolve_applied_coupon_code(doc)
     if not coupon_code:
-        if _coupon_was_removed_from_invoice(doc):
-            _reset_coupon_discount_state(doc)
+        stored_coupon = _get_stored_applied_coupon(doc)
+        if stored_coupon:
+            _reset_coupon_discount_state(doc, removed_coupon=stored_coupon)
             doc.calculate_taxes_and_totals()
         return
 
@@ -849,7 +849,7 @@ def apply_sales_invoice_coupon_discount(doc, method=None, force=False):
         return
 
     if force or coupon_changed:
-        _reset_coupon_discount_state(doc)
+        _reset_coupon_discount_state(doc, removed_coupon=stored_coupon)
 
     doc.custom_coupon_code = coupon_code
 
@@ -860,37 +860,7 @@ def apply_sales_invoice_coupon_discount(doc, method=None, force=False):
     # ERPNext pricing helpers read `coupon_code`, not `custom_coupon_code`.
     doc.coupon_code = coupon_code
 
-    applied = False
-    pricing_rule_name = (coupon_doc.pricing_rule or "").strip()
-    if pricing_rule_name and frappe.db.exists("Pricing Rule", pricing_rule_name):
-        pricing_rule = frappe.get_cached_doc("Pricing Rule", pricing_rule_name)
-        try:
-            if pricing_rule.apply_on == "Transaction":
-                from erpnext.accounts.doctype.pricing_rule.utils import apply_pricing_rule_on_transaction
-
-                apply_pricing_rule_on_transaction(doc)
-            else:
-                from erpnext.accounts.doctype.pricing_rule.pricing_rule import apply_pricing_rule
-
-                args = _build_apply_pricing_rule_args(doc, coupon_code)
-                if args.items:
-                    results = apply_pricing_rule(args, doc=doc) or []
-                    item_map = {item.name: item for item in doc.get("items") or []}
-                    for result in results:
-                        item = item_map.get(result.get("child_docname"))
-                        if item and result.get("pricing_rules"):
-                            doc.apply_pricing_rule_on_items(item, result)
-            applied = _coupon_discount_was_applied(doc)
-        except Exception:
-            frappe.log_error(
-                title="Coupon Pricing Rule Application Failed",
-                message=frappe.get_traceback(),
-            )
-
-    if not applied:
-        applied = _apply_coupon_custom_discount(doc, coupon_doc)
-
-    if applied:
+    if _apply_coupon_custom_discount(doc, coupon_doc):
         doc.calculate_taxes_and_totals()
 
     doc.flags.coupon_discount_applied_for = coupon_code
