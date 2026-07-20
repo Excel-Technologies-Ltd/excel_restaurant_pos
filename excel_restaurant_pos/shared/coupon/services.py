@@ -845,20 +845,25 @@ def apply_sales_invoice_coupon_discount(doc, method=None, force=False):
     stored_coupon = _get_stored_applied_coupon(doc)
     coupon_changed = bool(stored_coupon and stored_coupon != coupon_code)
 
-    if not force and doc.flags.get("coupon_discount_applied_for") == coupon_code:
-        return
-
-    if force or coupon_changed:
-        _reset_coupon_discount_state(doc, removed_coupon=stored_coupon)
-
     doc.custom_coupon_code = coupon_code
+    # ERPNext pricing helpers read `coupon_code`, not `custom_coupon_code`.
+    doc.coupon_code = coupon_code
 
     coupon_doc = frappe.get_doc("Coupon Code", coupon_code)
     if should_skip_redemption_validation(doc, coupon_doc):
         return
 
-    # ERPNext pricing helpers read `coupon_code`, not `custom_coupon_code`.
-    doc.coupon_code = coupon_code
+    # Apply the discount only when the coupon is first added, switched, or an
+    # explicit re-apply is requested (force=True, the apply endpoint). On an
+    # ordinary re-save of an unchanged coupon we leave the discount fields alone,
+    # so a manual discount the user typed is never overwritten by the coupon
+    # re-applying itself on every save.
+    newly_applied = force or coupon_changed or not stored_coupon
+    if not newly_applied:
+        return
+
+    if coupon_changed:
+        _reset_coupon_discount_state(doc, removed_coupon=stored_coupon)
 
     if _apply_coupon_custom_discount(doc, coupon_doc):
         doc.calculate_taxes_and_totals()

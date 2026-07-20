@@ -249,3 +249,35 @@ class TestCouponServices(FrappeTestCase):
         self.assertEqual(doc.discount_amount, 0)
         self.assertEqual(doc.additional_discount_percentage, 0)
 
+    def _apply_hook_calls(self, stored, current, force):
+        """Run apply_sales_invoice_coupon_discount with the DB/coupon layers mocked,
+        and report whether the discount applier was invoked."""
+        from unittest.mock import MagicMock, patch
+
+        from excel_restaurant_pos.shared.coupon import services
+
+        doc = self._fake_doc(custom_coupon_code=current, coupon_code=current, items=[])
+        with patch.object(services, "resolve_applied_coupon_code", return_value=current), \
+             patch.object(services, "_get_stored_applied_coupon", return_value=stored), \
+             patch.object(services, "should_skip_redemption_validation", return_value=False), \
+             patch.object(services, "_reset_coupon_discount_state"), \
+             patch("frappe.get_doc", return_value=MagicMock()), \
+             patch.object(services, "_apply_coupon_custom_discount", return_value=False) as apply_mock:
+            services.apply_sales_invoice_coupon_discount(doc, force=force)
+            return apply_mock.called
+
+    def test_unchanged_coupon_not_reapplied_on_resave(self):
+        """The reported bug: an unchanged coupon must NOT re-apply on an ordinary
+        re-save, or it overwrites a manual discount the user typed."""
+        # Same coupon already stored, plain save -> do not re-apply.
+        self.assertFalse(self._apply_hook_calls(stored="SAVE10", current="SAVE10", force=False))
+
+    def test_coupon_applies_when_new_changed_or_forced(self):
+        """First add, a switch, or an explicit re-apply must apply the discount."""
+        # Newly added (nothing stored yet).
+        self.assertTrue(self._apply_hook_calls(stored="", current="SAVE10", force=False))
+        # Switched to a different coupon.
+        self.assertTrue(self._apply_hook_calls(stored="OLD", current="SAVE10", force=False))
+        # Explicit re-apply (apply endpoint) on the same coupon.
+        self.assertTrue(self._apply_hook_calls(stored="SAVE10", current="SAVE10", force=True))
+
