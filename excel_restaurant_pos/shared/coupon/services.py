@@ -601,6 +601,12 @@ def _clear_coupon_transaction_discount(doc, removed_coupon):
     applied -- so a manual discount the user typed (a different value, or the other
     field) is never destroyed when the coupon is removed. When the coupon cannot be
     resolved we fall back to the full reset so a coupon discount cannot linger.
+
+    Percentage coupons are special: ERPNext's `set_discount_amount` derives
+    `discount_amount` from `additional_discount_percentage`, but only while the
+    percentage is truthy. Clearing the percentage alone therefore leaves an
+    orphaned amount (percentage=0, amount still correct). Always clear both when
+    removing a matching percentage coupon.
     """
     coupon = _load_coupon(removed_coupon)
     if not coupon:
@@ -615,6 +621,9 @@ def _clear_coupon_transaction_discount(doc, removed_coupon):
     if _normalize_discount_type(coupon.custom_discount_type) == "percentage":
         if flt(doc.additional_discount_percentage) == discount_value:
             doc.additional_discount_percentage = 0
+            # Amount was derived from the coupon % by ERPNext; clear both so we
+            # never leave percentage=0 with a leftover discount_amount.
+            doc.discount_amount = 0
     elif flt(doc.discount_amount) in (discount_value, _cap_flat_discount(doc, discount_value)):
         doc.discount_amount = 0
 

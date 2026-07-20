@@ -234,6 +234,48 @@ class TestCouponServices(FrappeTestCase):
             services._reset_coupon_discount_state(manual, removed_coupon="OLD")
         self.assertEqual(manual.discount_amount, 7)
 
+    def test_reset_percentage_coupon_clears_derived_amount(self):
+        """Removing a percentage coupon must clear both % and derived amount.
+
+        ERPNext fills discount_amount from additional_discount_percentage. If we
+        only zero the percentage, the orphaned amount remains and the invoice
+        looks like a manual flat discount with percentage stuck at 0.
+        """
+        from unittest.mock import patch
+
+        from excel_restaurant_pos.shared.coupon import services
+
+        pct_coupon = frappe._dict(custom_discount_type="Percentage", custom_discount_amount=10)
+        matching = self._fake_doc(
+            custom_coupon_code="OLD",
+            coupon_code="OLD",
+            additional_discount_percentage=10,
+            discount_amount=25,  # derived by calculate_taxes_and_totals
+            apply_discount_on="Net Total",
+            net_total=250,
+            items=[],
+        )
+        with patch.object(services, "_load_coupon", return_value=pct_coupon):
+            services._reset_coupon_discount_state(matching, removed_coupon="OLD")
+        self.assertEqual(matching.additional_discount_percentage, 0)
+        self.assertEqual(matching.discount_amount, 0)
+
+        # Manual percentage different from the coupon rate must be preserved,
+        # including whatever amount currently sits alongside it.
+        manual = self._fake_doc(
+            custom_coupon_code="OLD",
+            coupon_code="OLD",
+            additional_discount_percentage=20,
+            discount_amount=50,
+            apply_discount_on="Net Total",
+            net_total=250,
+            items=[],
+        )
+        with patch.object(services, "_load_coupon", return_value=pct_coupon):
+            services._reset_coupon_discount_state(manual, removed_coupon="OLD")
+        self.assertEqual(manual.additional_discount_percentage, 20)
+        self.assertEqual(manual.discount_amount, 50)
+
     def test_reset_unresolvable_coupon_full_reset(self):
         """An unresolvable coupon falls back to a full reset so nothing lingers."""
         from unittest.mock import patch
