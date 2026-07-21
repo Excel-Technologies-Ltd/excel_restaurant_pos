@@ -10,7 +10,9 @@
   "client_name",
   "email",
   "phone",
-  "customer"
+  "column_break_tzg46",
+  "customer",
+  "order_qty"
  ],
  "fields": [
   {
@@ -40,11 +42,22 @@
    "no_copy": 1,
    "options": "Customer",
    "read_only": 1
+  },
+  {
+   "fieldname": "column_break_tzg46",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "order_qty",
+   "fieldtype": "Float",
+   "label": "Order Qty",
+   "precision": "0",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-07-14 16:23:16.651747",
+ "modified": "2026-07-21 05:16:41.650449",
  "modified_by": "Administrator",
  "module": "Excel Restaurant Pos",
  "name": "ArcPOS Client Contact",

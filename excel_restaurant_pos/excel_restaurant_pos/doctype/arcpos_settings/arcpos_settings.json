@@ -66,6 +66,7 @@
   "default_pricing_rule",
   "discount_type",
   "discount_rate",
+  "disc_upto_amount",
   "column_break_mykd9",
   "coupon_code_prefix",
   "expire_after_days",
@@ -1053,7 +1054,7 @@
    "fieldtype": "Select",
    "label": "Auto Generate On",
    "mandatory_depends_on": "eval:doc.allow_auto_generate_cc",
-   "options": "\nPOS\nOnline Pickup\nOnline Delivery\nOnly Online\nAll"
+   "options": "\nDine-in\nIn Store Pickup\nPOS\nOnline Pickup\nOnline Delivery\nOnly Online\nAll"
   },
   {
    "default": "0",
@@ -1089,6 +1090,7 @@
    "label": "Coupon Code Prefix"
   },
   {
+   "description": "Only applied for Online Orders!",
    "fieldname": "minimum_subtotal_redeem",
    "fieldtype": "Currency",
    "label": "Minimum Subtotal (Redeem)"
@@ -1097,14 +1099,20 @@
    "fieldname": "cc_allow_on_redeem",
    "fieldtype": "Select",
    "label": "Allow On (Redeem)",
-   "options": "All\nPOS\nOnline Pickup\nOnline Delivery\nOnly Online"
+   "options": "All\nDine-in\nIn Store Pickup\nPOS\nOnline Pickup\nOnline Delivery\nOnly Online"
+  },
+  {
+   "depends_on": "eval:doc.discount_type == \"Percentage\"",
+   "fieldname": "disc_upto_amount",
+   "fieldtype": "Currency",
+   "label": "Disc. Upto (Amount)"
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
  "make_attachments_public": 1,
- "modified": "2026-06-28 02:57:01.279987",
+ "modified": "2026-07-21 05:22:23.045082",
  "modified_by": "Administrator",
  "module": "Excel Restaurant Pos",
  "name": "ArcPOS Settings",
