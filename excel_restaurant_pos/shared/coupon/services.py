@@ -573,11 +573,15 @@ def _load_coupon(coupon):
 
 
 def _discount_base(doc) -> float:
-    """The amount a transaction-level discount is applied on, per apply_discount_on."""
-    if (doc.get("apply_discount_on") or "Grand Total") == "Grand Total":
-        base = doc.get("grand_total") or doc.get("total")
-    else:
-        base = doc.get("net_total") or doc.get("total")
+    """The pre-discount amount the flat cap measures against.
+
+    Use `total` -- the item subtotal before any transaction-level discount --
+    which ERPNext never reduces. `net_total` / `grand_total` are ALREADY reduced by
+    the discount once it is applied, so reading them back when the discount is
+    re-applied would cap a flat discount down to (subtotal - discount), quietly
+    turning a $15 coupon on a $17.99 order into a $2.99 discount.
+    """
+    base = doc.get("total") or doc.get("net_total") or doc.get("grand_total")
     return flt(base)
 
 
@@ -862,6 +866,14 @@ def apply_sales_invoice_coupon_discount(doc, method=None, force=False):
     if should_skip_redemption_validation(doc, coupon_doc):
         return
 
+    # Already applied to this in-memory document: the apply endpoint applies with
+    # force=True, then its doc.save() re-runs validation on the SAME object. Applying
+    # again would re-cap a flat discount against the now-discounted total, shrinking
+    # a $15 coupon on a $17.99 order to $2.99. The flag lives only on this object
+    # (never persisted), so it suppresses only that redundant second pass.
+    if not force and doc.flags.get("coupon_discount_applied_for") == coupon_code:
+        return
+
     # Apply the discount only when the coupon is first added, switched, or an
     # explicit re-apply is requested (force=True, the apply endpoint). On an
     # ordinary re-save of an unchanged coupon we leave the discount fields alone,
@@ -876,6 +888,8 @@ def apply_sales_invoice_coupon_discount(doc, method=None, force=False):
 
     if _apply_coupon_custom_discount(doc, coupon_doc):
         doc.calculate_taxes_and_totals()
+
+    doc.flags.coupon_discount_applied_for = coupon_code
 
     doc.flags.coupon_discount_applied_for = coupon_code
 

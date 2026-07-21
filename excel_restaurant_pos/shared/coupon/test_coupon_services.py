@@ -157,13 +157,32 @@ class TestCouponServices(FrappeTestCase):
             def get(self, k, default=None):
                 return self._d.get(k, default)
 
-        net = Doc(apply_discount_on="Net Total", net_total=10)
-        # Over-total flat discount is capped to the net total (invoice -> 0).
+        net = Doc(apply_discount_on="Net Total", total=10)
+        # Over-total flat discount is capped to the subtotal (invoice -> 0).
         self.assertEqual(_cap_flat_discount(net, 15), 10)
         # Within-total flat discount is untouched.
         self.assertEqual(_cap_flat_discount(net, 7), 7)
         # Exact-total flat discount is untouched.
         self.assertEqual(_cap_flat_discount(net, 10), 10)
+
+    def test_cap_measures_pre_discount_total_not_net_total(self):
+        """Regression: the cap must measure against the pre-discount subtotal
+        (`total`), not the already-discounted `net_total`. ERPNext reduces
+        net_total once the discount is applied, so re-applying while reading
+        net_total back would shrink a $15 coupon on a $17.99 order to $2.99."""
+        from excel_restaurant_pos.shared.coupon.services import _cap_flat_discount
+
+        class Doc:
+            def __init__(self, **kw):
+                self._d = kw
+
+            def get(self, k, default=None):
+                return self._d.get(k, default)
+
+        # total stays 17.99; net_total has already been dropped to 2.99 by a
+        # prior application. The $15 flat discount must survive in full.
+        doc = Doc(apply_discount_on="Net Total", total=17.99, net_total=2.99)
+        self.assertEqual(_cap_flat_discount(doc, 15), 15)
 
     def _fake_doc(self, **kw):
         import frappe
