@@ -21,6 +21,8 @@ custom_doc_events = {
             "excel_restaurant_pos.shared.coupon.services.apply_sales_invoice_coupon_discount",
             "excel_restaurant_pos.shared.coupon.services.validate_sales_invoice_coupon",
             "excel_restaurant_pos.doc_event.sales_invoice.sync_item_status_with_order_status",
+            # Runs last: the coupon discount and grand total are settled by now.
+            "excel_restaurant_pos.doc_event.sales_invoice.validate_non_zero_grand_total",
         ],
         "before_submit": "excel_restaurant_pos.shared.coupon.services.before_submit_sales_invoice_coupon",
         "on_submit": [
