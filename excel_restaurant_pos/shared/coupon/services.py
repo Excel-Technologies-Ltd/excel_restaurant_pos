@@ -17,6 +17,7 @@ from excel_restaurant_pos.shared.contacts.get_customer_emails import get_custome
 COUPON_STATUS_ACTIVE = "Active"
 COUPON_STATUS_EXPIRED = "Expired"
 COUPON_STATUS_USED = "Used"
+COUPON_STATUS_REJECTED = "Rejected"
 COUPON_GENERATION_RETRY_LIMIT = 50
 COUPON_RANDOM_CHARS = string.ascii_uppercase + string.digits
 
@@ -224,6 +225,13 @@ def refresh_coupon_status(coupon_doc_or_name, save: bool = True) -> str:
         if isinstance(coupon_doc_or_name, str)
         else coupon_doc_or_name
     )
+
+    # Rejected is a manual, terminal decision (an admin blocked the coupon). It is
+    # not derivable from validity or usage, so never recompute it back to
+    # Active/Expired/Used -- otherwise a rejected coupon would silently become
+    # redeemable again on the next validation or scheduler pass.
+    if coupon.custom_status == COUPON_STATUS_REJECTED:
+        return COUPON_STATUS_REJECTED
 
     today = getdate(nowdate())
     valid_upto = getdate(coupon.valid_upto) if coupon.valid_upto else None

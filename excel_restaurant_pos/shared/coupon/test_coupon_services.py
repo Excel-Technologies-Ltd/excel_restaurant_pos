@@ -51,6 +51,34 @@ class TestCouponServices(FrappeTestCase):
         self.assertFalse(is_channel_allowed("Table", "Dine-in", ""))
         self.assertFalse(is_channel_allowed("Table", "Dine-in", "Unknown Option"))
 
+    def test_rejected_status_is_sticky(self):
+        """A Rejected coupon is a terminal manual state -- refresh must never
+        recompute it back to Active/Expired/Used, or it would become redeemable."""
+        from excel_restaurant_pos.shared.coupon.services import (
+            COUPON_STATUS_REJECTED,
+            refresh_coupon_status,
+        )
+
+        class Coupon:
+            def __init__(self, status):
+                self.custom_status = status
+                self.valid_upto = None   # would otherwise compute "Active"
+                self.maximum_use = 0
+                self.used = 0
+                self.saved = False
+
+            def save(self, **kwargs):
+                self.saved = True
+
+        rejected = Coupon(COUPON_STATUS_REJECTED)
+        self.assertEqual(refresh_coupon_status(rejected, save=True), COUPON_STATUS_REJECTED)
+        self.assertEqual(rejected.custom_status, COUPON_STATUS_REJECTED)
+        self.assertFalse(rejected.saved)  # left untouched
+
+        # A normal coupon still recomputes as before (regression).
+        active = Coupon("Active")
+        self.assertEqual(refresh_coupon_status(active, save=False), "Active")
+
     def test_is_online_order_requires_website_pickup_or_delivery(self):
         class Doc:
             def __init__(self, order_from, service_type):
