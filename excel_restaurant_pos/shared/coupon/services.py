@@ -333,6 +333,11 @@ def build_coupon_values(doc, settings, overrides=None) -> dict:
     if discount_amount in (None, ""):
         discount_amount = settings.discount_rate
 
+    disc_upto_amount = overrides.get("disc_upto_amount")
+    if disc_upto_amount in (None, ""):
+        disc_upto_amount = getattr(settings, "disc_upto_amount", None)
+    custom_disc_upto_amount = flt(disc_upto_amount) if disc_upto_amount not in (None, "") else None
+
     redemption_allow_on = overrides.get("redemption_allow_on") or settings.cc_allow_on_redeem
 
     return {
@@ -344,6 +349,7 @@ def build_coupon_values(doc, settings, overrides=None) -> dict:
         "maximum_use": maximum_use,
         "custom_discount_type": discount_type,
         "custom_discount_amount": flt(discount_amount) if discount_amount not in (None, "") else None,
+        "custom_disc_upto_amount": custom_disc_upto_amount,
         "custom_minimum_subtotal": custom_minimum_subtotal,
         "custom_redeemption_allow_on": redemption_allow_on,
         "custom_linked_email": get_coupon_linked_email(doc, overrides),
@@ -371,6 +377,7 @@ def create_coupon_doc(doc, settings, overrides=None, defer_invoice_link=False):
         "used": 0,
         "custom_discount_type": coupon_values["custom_discount_type"],
         "custom_discount_amount": coupon_values["custom_discount_amount"],
+        "custom_disc_upto_amount": coupon_values["custom_disc_upto_amount"],
         "custom_created_on": getdate(now_datetime()),
         "custom_linked_email": coupon_values["custom_linked_email"],
         "custom_status": COUPON_STATUS_ACTIVE,
@@ -546,22 +553,63 @@ def validate_coupon_redemption(doc, coupon_doc):
             )
 
 
-def _apply_coupon_custom_discount(doc, coupon_doc):
-    """Apply coupon discount from custom fields when pricing rule is not used."""
-    discount_type = (coupon_doc.custom_discount_type or "").strip().lower()
-    discount_value = flt(coupon_doc.custom_discount_amount)
+def _coupon_discount_cap(coupon) -> float:
+    """The coupon's maximum discount (disc_upto_amount), or 0 when there is no cap."""
+    if not coupon:
+        return 0.0
+    return flt(coupon.get("custom_disc_upto_amount"))
+
+
+def _coupon_effective_discount(doc, coupon):
+    """Resolve how a coupon's discount lands on the invoice, honouring its cap.
+
+    Returns ("percentage", pct) or ("flat", amount), or (None, 0) when the coupon
+    carries no discount. `disc_upto_amount` is the maximum the coupon may ever give:
+
+    - A percentage coupon with NO cap stays a live percentage so ERPNext keeps the
+      discount in step with item changes.
+    - A percentage coupon WITH a cap is realised as a concrete flat amount
+      (subtotal * pct / 100, then capped). ERPNext cannot hold a maximum on a
+      percentage -- it always recomputes discount_amount from the percentage -- so
+      freezing the amount is the only way to guarantee the ceiling.
+    - A flat coupon is capped at `disc_upto_amount` when one is set.
+
+    Every amount is finally capped at the invoice subtotal so the total floors at
+    zero. A cap of 0/None means no maximum.
+    """
+    discount_value = flt(coupon.custom_discount_amount)
     if not discount_value:
+        return None, 0.0
+
+    cap = _coupon_discount_cap(coupon)
+    is_percentage = _normalize_discount_type(coupon.custom_discount_type) == "percentage"
+
+    if is_percentage and not cap:
+        return "percentage", discount_value
+
+    if is_percentage:
+        amount = flt(_discount_base(doc) * discount_value / 100)
+    else:
+        amount = discount_value
+
+    if cap and amount > cap:
+        amount = cap
+
+    return "flat", _cap_flat_discount(doc, amount)
+
+
+def _apply_coupon_custom_discount(doc, coupon_doc):
+    """Apply the coupon's discount to the invoice, capped at disc_upto_amount."""
+    kind, value = _coupon_effective_discount(doc, coupon_doc)
+    if not kind:
         return False
 
     doc.apply_discount_on = doc.apply_discount_on or "Net Total"
-    if discount_type in ("percentage", "percent"):
-        doc.additional_discount_percentage = discount_value
+    if kind == "percentage":
+        doc.additional_discount_percentage = value
         doc.discount_amount = 0
     else:
-        # A flat discount can never exceed what it is applied on -- otherwise the
-        # total would go negative (or ERPNext would reject it). Cap it so the
-        # invoice simply floors at zero.
-        doc.discount_amount = _cap_flat_discount(doc, discount_value)
+        doc.discount_amount = value
         doc.additional_discount_percentage = 0
     return True
 
@@ -630,17 +678,18 @@ def _clear_coupon_transaction_discount(doc, removed_coupon):
         doc.additional_discount_percentage = 0
         return
 
-    discount_value = flt(coupon.custom_discount_amount)
-    if not discount_value:
+    kind, value = _coupon_effective_discount(doc, coupon)
+    if not kind:
         return
 
-    if _normalize_discount_type(coupon.custom_discount_type) == "percentage":
-        if flt(doc.additional_discount_percentage) == discount_value:
+    if kind == "percentage":
+        if flt(doc.additional_discount_percentage) == value:
             doc.additional_discount_percentage = 0
             # Amount was derived from the coupon % by ERPNext; clear both so we
             # never leave percentage=0 with a leftover discount_amount.
             doc.discount_amount = 0
-    elif flt(doc.discount_amount) in (discount_value, _cap_flat_discount(doc, discount_value)):
+    elif flt(doc.discount_amount) == value:
+        # Includes percentage-with-cap coupons, which are realised as a flat amount.
         doc.discount_amount = 0
 
 
@@ -671,22 +720,26 @@ def _reset_coupon_discount_state(doc, removed_coupon=None):
 
 
 def preview_coupon_discount(doc, coupon_doc) -> dict:
-    """Return the discount type and estimated value for a coupon on an invoice."""
-    discount_type = (coupon_doc.custom_discount_type or "").strip().lower()
+    """Return the discount type and estimated (capped) value for a coupon."""
+    is_percentage = _normalize_discount_type(coupon_doc.custom_discount_type) == "percentage"
     discount_amount = flt(coupon_doc.custom_discount_amount)
+    cap = _coupon_discount_cap(coupon_doc)
     subtotal = calculate_invoice_subtotal(doc)
 
-    if discount_type in ("percentage", "percent"):
-        return {
-            "discount_type": "percentage",
-            "discount_amount": discount_amount,
-            "discount_value": flt(subtotal * discount_amount / 100) if discount_amount else 0,
-        }
+    if is_percentage:
+        discount_value = flt(subtotal * discount_amount / 100) if discount_amount else 0
+    else:
+        discount_value = discount_amount
+
+    # Never estimate a discount above the coupon's maximum.
+    if cap and discount_value > cap:
+        discount_value = cap
 
     return {
-        "discount_type": "flat",
+        "discount_type": "percentage" if is_percentage else "flat",
         "discount_amount": discount_amount,
-        "discount_value": discount_amount,
+        "disc_upto_amount": cap or None,
+        "discount_value": flt(discount_value),
     }
 
 
@@ -744,6 +797,7 @@ def validate_coupon_globally(coupon_code: str) -> dict:
         "coupon_status": coupon_doc.custom_status,
         "discount_type": _normalize_discount_type(coupon_doc.custom_discount_type),
         "discount_amount": coupon_doc.custom_discount_amount,
+        "disc_upto_amount": coupon_doc.custom_disc_upto_amount,
         "valid_from": coupon_doc.valid_from,
         "valid_upto": coupon_doc.valid_upto,
         "maximum_use": coupon_doc.maximum_use,
@@ -780,6 +834,7 @@ def verify_coupon_for_sales_invoice(docname: str, coupon_code: str) -> dict:
         "coupon_status": coupon_doc.custom_status,
         "discount_type": preview["discount_type"],
         "discount_amount": preview["discount_amount"],
+        "disc_upto_amount": preview["disc_upto_amount"],
         "discount_value": preview["discount_value"],
         "valid_from": coupon_doc.valid_from,
         "valid_upto": coupon_doc.valid_upto,
@@ -825,6 +880,7 @@ def apply_coupon_to_sales_invoice(docname: str, coupon_code: str) -> dict:
         "coupon_name": coupon_doc.name,
         "discount_type": preview["discount_type"],
         "discount_amount": preview["discount_amount"],
+        "disc_upto_amount": preview["disc_upto_amount"],
         "discount_value": preview["discount_value"],
         "invoice_discount_amount": flt(doc.discount_amount),
         "invoice_additional_discount_percentage": flt(doc.additional_discount_percentage),

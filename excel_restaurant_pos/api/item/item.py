@@ -578,6 +578,7 @@ def check_coupon_code(data):
             "status": "success",
             "discount_type": discount_type,
             "amount": coupon.custom_discount_amount,
+            "disc_upto_amount": coupon.custom_disc_upto_amount,
         }
 
     except Exception as e:

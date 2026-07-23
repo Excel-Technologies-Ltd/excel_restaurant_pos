@@ -210,6 +210,77 @@ class TestCouponServices(FrappeTestCase):
         doc = Doc(apply_discount_on="Net Total", total=17.99, net_total=2.99)
         self.assertEqual(_cap_flat_discount(doc, 15), 15)
 
+    def test_disc_upto_amount_caps_the_discount(self):
+        """disc_upto_amount is the maximum discount for percentage and flat coupons."""
+        from excel_restaurant_pos.shared.coupon.services import _coupon_effective_discount
+
+        class Doc:
+            def __init__(self, total):
+                self._d = {"total": total, "apply_discount_on": "Net Total"}
+
+            def get(self, k, default=None):
+                return self._d.get(k, default)
+
+        # Percentage 20%, cap $10.
+        pct = frappe._dict(
+            custom_discount_type="Percentage", custom_discount_amount=20, custom_disc_upto_amount=10
+        )
+        # below the cap: 20% of 30 = 6
+        self.assertEqual(_coupon_effective_discount(Doc(30), pct), ("flat", 6.0))
+        # equal to the cap: 20% of 50 = 10
+        self.assertEqual(_coupon_effective_discount(Doc(50), pct), ("flat", 10.0))
+        # above the cap: 20% of 100 = 20 -> capped to 10
+        self.assertEqual(_coupon_effective_discount(Doc(100), pct), ("flat", 10.0))
+
+        # Percentage with no cap stays a live percentage (scales with items).
+        pct_nocap = frappe._dict(
+            custom_discount_type="Percentage", custom_discount_amount=20, custom_disc_upto_amount=0
+        )
+        self.assertEqual(_coupon_effective_discount(Doc(100), pct_nocap), ("percentage", 20.0))
+
+        # Flat coupon capped below its own amount.
+        flat = frappe._dict(
+            custom_discount_type="Flat Amount", custom_discount_amount=15, custom_disc_upto_amount=10
+        )
+        self.assertEqual(_coupon_effective_discount(Doc(100), flat), ("flat", 10.0))
+
+        # Flat coupon, no cap -> full amount; still floored at the subtotal.
+        flat_nocap = frappe._dict(
+            custom_discount_type="Flat Amount", custom_discount_amount=15, custom_disc_upto_amount=0
+        )
+        self.assertEqual(_coupon_effective_discount(Doc(100), flat_nocap), ("flat", 15.0))
+        self.assertEqual(_coupon_effective_discount(Doc(10), flat_nocap), ("flat", 10.0))
+
+        # No discount value at all.
+        empty = frappe._dict(
+            custom_discount_type="Flat Amount", custom_discount_amount=0, custom_disc_upto_amount=10
+        )
+        self.assertEqual(_coupon_effective_discount(Doc(100), empty), (None, 0.0))
+
+    def test_preview_caps_estimated_discount(self):
+        """The preview estimate never reports a discount above the cap."""
+        from excel_restaurant_pos.shared.coupon.services import preview_coupon_discount
+
+        class Doc:
+            def __init__(self, total):
+                self._d = {"total": total, "net_total": total}
+
+            def get(self, k, default=None):
+                if k == "items":
+                    return []
+                return self._d.get(k, default)
+
+        pct = frappe._dict(
+            custom_discount_type="Percentage", custom_discount_amount=20, custom_disc_upto_amount=10
+        )
+        # 20% of 100 = 20, capped to 10.
+        above = preview_coupon_discount(Doc(100), pct)
+        self.assertEqual(above["discount_value"], 10.0)
+        self.assertEqual(above["disc_upto_amount"], 10.0)
+        # 20% of 30 = 6, below cap -> not capped.
+        below = preview_coupon_discount(Doc(30), pct)
+        self.assertEqual(below["discount_value"], 6.0)
+
     def _fake_doc(self, **kw):
         import frappe
 

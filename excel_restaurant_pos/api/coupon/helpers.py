@@ -14,6 +14,7 @@ COUPON_OVERRIDE_ALIASES = {
     "minimum_subtotal": ("minimum_subtotal", "custom_minimum_subtotal"),
     "discount_type": ("discount_type", "custom_discount_type"),
     "discount_amount": ("discount_amount", "discount_rate", "custom_discount_amount"),
+    "disc_upto_amount": ("disc_upto_amount", "custom_disc_upto_amount"),
     "redemption_allow_on": (
         "redemption_allow_on",
         "custom_redeemption_allow_on",
@@ -107,6 +108,7 @@ def format_coupon_response(coupon_name: str, generated: bool = False) -> dict:
         "coupon_status": coupon.custom_status,
         "discount_type": coupon.custom_discount_type,
         "discount_amount": coupon.custom_discount_amount,
+        "disc_upto_amount": coupon.custom_disc_upto_amount,
         "valid_from": coupon.valid_from,
         "valid_upto": coupon.valid_upto,
         "linked_email": coupon.custom_linked_email,

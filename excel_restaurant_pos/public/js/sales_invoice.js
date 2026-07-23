@@ -59,6 +59,14 @@ function open_generate_coupon_dialog(frm) {
                     depends_on: "eval:doc.discount_type",
                 },
                 {
+                    fieldname: "disc_upto_amount",
+                    fieldtype: "Currency",
+                    label: __("Disc. Upto (Amount)"),
+                    default: flt(settings.disc_upto_amount),
+                    description: __("Maximum discount cap. 0 means no limit."),
+                    depends_on: "eval:doc.discount_type",
+                },
+                {
                     fieldtype: "Column Break",
                 },
                 {
@@ -106,6 +114,7 @@ function open_generate_coupon_dialog(frm) {
                     minimum_subtotal: values.minimum_subtotal,
                     discount_type: values.discount_type,
                     discount_amount: values.discount_amount,
+                    disc_upto_amount: values.disc_upto_amount,
                     redemption_allow_on: values.redemption_allow_on,
                     linked_email: values.linked_email,
                     description: values.description,
