@@ -65,7 +65,7 @@ function open_generate_coupon_dialog(frm) {
                     fieldname: "redemption_allow_on",
                     fieldtype: "Select",
                     label: __("Redemption Allow On"),
-                    options: "\nAll\nPOS\nOnline Pickup\nOnline Delivery\nOnly Online",
+                    options: "\nAll\nDine-in\nIn Store Pickup\nPOS\nOnline Pickup\nOnline Delivery\nOnly Online",
                     default: settings.cc_allow_on_redeem || "",
                 },
                 {

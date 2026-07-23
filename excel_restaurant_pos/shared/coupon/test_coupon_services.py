@@ -25,6 +25,32 @@ class TestCouponServices(FrappeTestCase):
         self.assertTrue(is_channel_allowed("Website", "Delivery", "Only Online"))
         self.assertFalse(is_channel_allowed("Table", "Takeout", "Only Online"))
 
+    def test_dine_in_redemption_channel(self):
+        """'Dine-in' allows only Table / Dine-in orders."""
+        self.assertTrue(is_channel_allowed("Table", "Dine-in", "Dine-in"))
+        self.assertFalse(is_channel_allowed("Table", "Takeout", "Dine-in"))
+        self.assertFalse(is_channel_allowed("In Store", "Pickup", "Dine-in"))
+        self.assertFalse(is_channel_allowed("Website", "Pickup", "Dine-in"))
+
+    def test_in_store_pickup_redemption_channel(self):
+        """'In Store Pickup' allows only In Store / Pickup orders."""
+        self.assertTrue(is_channel_allowed("In Store", "Pickup", "In Store Pickup"))
+        self.assertFalse(is_channel_allowed("In Store", "Delivery", "In Store Pickup"))
+        self.assertFalse(is_channel_allowed("Table", "Dine-in", "In Store Pickup"))
+        self.assertFalse(is_channel_allowed("Website", "Pickup", "In Store Pickup"))
+
+    def test_existing_redemption_channels_unchanged(self):
+        """Regression: the pre-existing options keep their exact behaviour."""
+        # POS covers every in-restaurant channel, no online.
+        self.assertTrue(is_channel_allowed("Table", "Dine-in", "POS"))
+        self.assertTrue(is_channel_allowed("In Store", "Pickup", "POS"))
+        self.assertFalse(is_channel_allowed("Website", "Pickup", "POS"))
+        # All covers everything; unknown/blank cover nothing.
+        self.assertTrue(is_channel_allowed("Table", "Dine-in", "All"))
+        self.assertTrue(is_channel_allowed("Website", "Delivery", "All"))
+        self.assertFalse(is_channel_allowed("Table", "Dine-in", ""))
+        self.assertFalse(is_channel_allowed("Table", "Dine-in", "Unknown Option"))
+
     def test_is_online_order_requires_website_pickup_or_delivery(self):
         class Doc:
             def __init__(self, order_from, service_type):

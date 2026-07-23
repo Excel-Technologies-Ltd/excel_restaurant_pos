@@ -91,33 +91,45 @@ def normalize_channel(order_from: str | None, service_type: str | None) -> tuple
 
 
 def is_channel_allowed(order_from: str | None, service_type: str | None, allowed_on: str | None) -> bool:
-    """Check whether an order channel matches the configured coupon channel."""
-    order_from_value, service_type_value = normalize_channel(order_from, service_type)
-    allowed_on_value = (allowed_on or "").strip()
+    """Check whether an order channel matches the configured coupon channel.
 
-    pos_pairs = {
-        ("table", "dine-in"),
-        ("table", "takeout"),
-        ("in store", "pickup"),
-        ("in store", "delivery"),
-    }
+    An order's channel is the (order_from, service_type) pair. Each "Allow On"
+    option maps to the set of channels it permits:
+
+    - POS               -> any in-restaurant channel (dine-in, takeout, in-store
+                           pickup, in-store delivery)
+    - Dine-in           -> only Table / Dine-in
+    - In Store Pickup   -> only In Store / Pickup
+    - Online Pickup     -> only Website / Pickup
+    - Online Delivery   -> only Website / Delivery
+    - Only Online       -> either online channel
+    - All               -> every channel
+    """
+    dine_in_pair = ("table", "dine-in")
+    takeout_pair = ("table", "takeout")
+    in_store_pickup_pair = ("in store", "pickup")
+    in_store_delivery_pair = ("in store", "delivery")
     online_pickup_pair = ("website", "pickup")
     online_delivery_pair = ("website", "delivery")
-    all_pairs = pos_pairs | {online_pickup_pair, online_delivery_pair}
-    current_pair = (order_from_value, service_type_value)
 
-    if allowed_on_value == "POS":
-        return current_pair in pos_pairs
-    if allowed_on_value == "Online Pickup":
-        return current_pair == online_pickup_pair
-    if allowed_on_value == "Online Delivery":
-        return current_pair == online_delivery_pair
-    if allowed_on_value == "Only Online":
-        return current_pair in {online_pickup_pair, online_delivery_pair}
-    if allowed_on_value == "All":
-        return current_pair in all_pairs
+    pos_pairs = {dine_in_pair, takeout_pair, in_store_pickup_pair, in_store_delivery_pair}
+    online_pairs = {online_pickup_pair, online_delivery_pair}
 
-    return False
+    allowed_pairs_by_option = {
+        "All": pos_pairs | online_pairs,
+        "POS": pos_pairs,
+        "Dine-in": {dine_in_pair},
+        "In Store Pickup": {in_store_pickup_pair},
+        "Online Pickup": {online_pickup_pair},
+        "Online Delivery": {online_delivery_pair},
+        "Only Online": online_pairs,
+    }
+
+    allowed_pairs = allowed_pairs_by_option.get((allowed_on or "").strip())
+    if not allowed_pairs:
+        return False
+
+    return normalize_channel(order_from, service_type) in allowed_pairs
 
 
 def resolve_validity_dates(settings, overrides=None) -> tuple[Any, Any]:
