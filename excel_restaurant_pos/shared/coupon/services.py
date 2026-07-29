@@ -99,7 +99,7 @@ def is_channel_allowed(order_from: str | None, service_type: str | None, allowed
 
     - POS               -> any in-restaurant channel (dine-in, takeout, in-store
                            pickup, in-store delivery)
-    - Dine-in           -> only Table / Dine-in
+    - Dine-in           -> any Table order (Dine-in or Takeout)
     - In Store Pickup   -> only In Store / Pickup
     - Online Pickup     -> only Website / Pickup
     - Online Delivery   -> only Website / Delivery
@@ -119,7 +119,7 @@ def is_channel_allowed(order_from: str | None, service_type: str | None, allowed
     allowed_pairs_by_option = {
         "All": pos_pairs | online_pairs,
         "POS": pos_pairs,
-        "Dine-in": {dine_in_pair},
+        "Dine-in": {dine_in_pair, takeout_pair},
         "In Store Pickup": {in_store_pickup_pair},
         "Online Pickup": {online_pickup_pair},
         "Online Delivery": {online_delivery_pair},
@@ -345,6 +345,8 @@ def build_coupon_values(doc, settings, overrides=None) -> dict:
     if disc_upto_amount in (None, ""):
         disc_upto_amount = getattr(settings, "disc_upto_amount", None)
     custom_disc_upto_amount = flt(disc_upto_amount) if disc_upto_amount not in (None, "") else None
+    if _normalize_discount_type(discount_type) != "percentage":
+        custom_disc_upto_amount = None
 
     redemption_allow_on = overrides.get("redemption_allow_on") or settings.cc_allow_on_redeem
 
@@ -565,6 +567,8 @@ def _coupon_discount_cap(coupon) -> float:
     """The coupon's maximum discount (disc_upto_amount), or 0 when there is no cap."""
     if not coupon:
         return 0.0
+    if _normalize_discount_type(coupon.get("custom_discount_type")) != "percentage":
+        return 0.0
     return flt(coupon.get("custom_disc_upto_amount"))
 
 
@@ -580,7 +584,7 @@ def _coupon_effective_discount(doc, coupon):
       (subtotal * pct / 100, then capped). ERPNext cannot hold a maximum on a
       percentage -- it always recomputes discount_amount from the percentage -- so
       freezing the amount is the only way to guarantee the ceiling.
-    - A flat coupon is capped at `disc_upto_amount` when one is set.
+    - A flat coupon always uses its full flat amount.
 
     Every amount is finally capped at the invoice subtotal so the total floors at
     zero. A cap of 0/None means no maximum.
@@ -607,7 +611,7 @@ def _coupon_effective_discount(doc, coupon):
 
 
 def _apply_coupon_custom_discount(doc, coupon_doc):
-    """Apply the coupon's discount to the invoice, capped at disc_upto_amount."""
+    """Apply the coupon's discount to the invoice, honoring percentage caps only."""
     kind, value = _coupon_effective_discount(doc, coupon_doc)
     if not kind:
         return False
@@ -728,7 +732,7 @@ def _reset_coupon_discount_state(doc, removed_coupon=None):
 
 
 def preview_coupon_discount(doc, coupon_doc) -> dict:
-    """Return the discount type and estimated (capped) value for a coupon."""
+    """Return the discount type and estimated value for a coupon."""
     is_percentage = _normalize_discount_type(coupon_doc.custom_discount_type) == "percentage"
     discount_amount = flt(coupon_doc.custom_discount_amount)
     cap = _coupon_discount_cap(coupon_doc)
@@ -739,7 +743,7 @@ def preview_coupon_discount(doc, coupon_doc) -> dict:
     else:
         discount_value = discount_amount
 
-    # Never estimate a discount above the coupon's maximum.
+    # Never estimate a percentage discount above the coupon's maximum.
     if cap and discount_value > cap:
         discount_value = cap
 

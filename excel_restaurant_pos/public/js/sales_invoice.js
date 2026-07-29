@@ -50,6 +50,17 @@ function open_generate_coupon_dialog(frm) {
                     label: __("Discount Type"),
                     options: "\nPercentage\nFlat Amount",
                     default: settings.discount_type || "",
+                    onchange() {
+                        const is_percentage = dialog.get_value("discount_type") === "Percentage";
+                        dialog.set_df_property(
+                            "disc_upto_amount",
+                            "hidden",
+                            !is_percentage
+                        );
+                        if (!is_percentage) {
+                            dialog.set_value("disc_upto_amount", 0);
+                        }
+                    },
                 },
                 {
                     fieldname: "discount_amount",
@@ -64,7 +75,7 @@ function open_generate_coupon_dialog(frm) {
                     label: __("Disc. Upto (Amount)"),
                     default: flt(settings.disc_upto_amount),
                     description: __("Maximum discount cap. 0 means no limit."),
-                    depends_on: "eval:doc.discount_type",
+                    depends_on: "eval:doc.discount_type==='Percentage'",
                 },
                 {
                     fieldtype: "Column Break",
@@ -114,7 +125,8 @@ function open_generate_coupon_dialog(frm) {
                     minimum_subtotal: values.minimum_subtotal,
                     discount_type: values.discount_type,
                     discount_amount: values.discount_amount,
-                    disc_upto_amount: values.disc_upto_amount,
+                    disc_upto_amount:
+                        values.discount_type === "Percentage" ? values.disc_upto_amount : undefined,
                     redemption_allow_on: values.redemption_allow_on,
                     linked_email: values.linked_email,
                     description: values.description,
@@ -158,6 +170,7 @@ function open_generate_coupon_dialog(frm) {
         });
 
         dialog.show();
+        dialog.fields_dict.discount_type.df.onchange();
     });
 }
 
