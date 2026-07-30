@@ -65,12 +65,23 @@ def validate_coupon_generation_settings(settings, overrides=None):
 
 
 def calculate_invoice_subtotal(doc) -> float:
-    """Return the invoice subtotal before tax and discounts."""
+    """Return the invoice subtotal before tax and discounts.
+
+    Uses the billed line amount (`amount`, or `rate * qty`) so custom rates and
+    packed choose-qty lines are counted correctly. Do not prefer
+    `price_list_rate` — that is the catalog unit price and understates lines
+    where the client sends a higher `rate` (e.g. custom_choose_qty > 1).
+    """
     subtotal = 0.0
     for item in doc.get("items") or []:
-        price_list_rate = flt(item.get("price_list_rate"))
+        amount = flt(item.get("amount"))
+        if amount:
+            subtotal += amount
+            continue
+        rate = flt(item.get("rate"))
         qty = flt(item.get("qty"))
-        subtotal += price_list_rate * qty if price_list_rate else flt(item.get("amount"))
+        if rate:
+            subtotal += rate * qty
 
     if subtotal:
         return subtotal

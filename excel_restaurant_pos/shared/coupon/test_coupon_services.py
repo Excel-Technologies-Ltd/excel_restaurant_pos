@@ -6,6 +6,7 @@ from frappe.tests.utils import FrappeTestCase
 
 from excel_restaurant_pos.shared.coupon.services import (
     build_coupon_code,
+    calculate_invoice_subtotal,
     calculate_validity_dates,
     is_channel_allowed,
     is_online_order,
@@ -95,6 +96,45 @@ class TestCouponServices(FrappeTestCase):
         self.assertFalse(is_online_order(Doc("Website", "Dine-in")))
         self.assertFalse(is_online_order(Doc("Table", "Takeout")))
         self.assertFalse(is_online_order(Doc("In Store", "Pickup")))
+
+    def test_invoice_subtotal_uses_billed_rate_not_price_list_rate(self):
+        """Min-subtotal / coupon math must use what the customer pays.
+
+        Website lines often send rate = unit_price * custom_choose_qty with
+        qty=1, while ERPNext still fills price_list_rate with the catalog unit
+        price. Preferring price_list_rate would understate the cart (e.g. 10.99
+        vs 32.97) and falsely fail a minimum-subtotal check.
+        """
+
+        class Item:
+            def __init__(self, **kw):
+                self._d = kw
+
+            def get(self, key, default=None):
+                return self._d.get(key, default)
+
+        class Doc:
+            def __init__(self, items, **kw):
+                self._d = {"items": items, **kw}
+
+            def get(self, key, default=None):
+                return self._d.get(key, default)
+
+        # amount already set by ERPNext
+        with_amount = Doc(
+            [Item(price_list_rate=10.99, qty=1, rate=32.97, amount=32.97)]
+        )
+        self.assertEqual(calculate_invoice_subtotal(with_amount), 32.97)
+
+        # amount missing: fall back to rate * qty, ignore cheaper price list
+        with_rate = Doc(
+            [Item(price_list_rate=10.99, qty=1, rate=32.97, amount=0)]
+        )
+        self.assertEqual(calculate_invoice_subtotal(with_rate), 32.97)
+
+        # no line figures: fall back to invoice total
+        empty_lines = Doc([], total=25.0)
+        self.assertEqual(calculate_invoice_subtotal(empty_lines), 25.0)
 
     def test_coupon_code_template_removes_separators(self):
         coupon_code = build_coupon_code("SAVE26-####")
