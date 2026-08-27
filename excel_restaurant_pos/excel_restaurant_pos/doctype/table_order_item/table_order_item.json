@@ -16,6 +16,10 @@
   "is_accepted",
   "is_create_recipe",
   "remarks",
+  "custom_is_gift_card_item",
+  "custom_gift_card_type",
+  "custom_gift_card_code",
+  "custom_gift_amount",
   "order_placed_time",
   "order_accepted_time",
   "order_ready_time",
@@ -99,12 +103,39 @@
    "fieldname": "is_recipe_item",
    "fieldtype": "Check",
    "label": "Is Recipe Item"
+  },
+  {
+   "default": "0",
+   "fetch_from": "item.custom_is_gift_card_item",
+   "fieldname": "custom_is_gift_card_item",
+   "fieldtype": "Check",
+   "label": "Is Gift Card Item"
+  },
+  {
+   "depends_on": "eval:doc.custom_is_gift_card_item",
+   "fieldname": "custom_gift_card_type",
+   "fieldtype": "Select",
+   "label": "Gift Card Type",
+   "options": "\nNew\nExisting"
+  },
+  {
+   "depends_on": "eval:doc.custom_gift_card_type==\"Existing\"",
+   "fieldname": "custom_gift_card_code",
+   "fieldtype": "Link",
+   "label": "Gift Card Code",
+   "options": "Coupon Code"
+  },
+  {
+   "depends_on": "eval:doc.custom_is_gift_card_item",
+   "fieldname": "custom_gift_amount",
+   "fieldtype": "Data",
+   "label": "Gift Amount"
   }
  ],
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-09-25 12:22:36.946286",
+ "modified": "2026-08-27 12:50:00.000000",
  "modified_by": "Administrator",
  "module": "Excel Restaurant Pos",
  "name": "Table Order Item",

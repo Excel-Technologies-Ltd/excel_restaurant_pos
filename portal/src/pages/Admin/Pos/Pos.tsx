@@ -67,6 +67,8 @@ const Pos = () => {
   const [customerId, setCustomerId] = useState<string>("");
   const [customerIdError, setCustomerIdError] = useState<string>("");
   const [searchText, setSearchText] = useState<string>("");
+  const [giftCardsFor, setGiftCardsFor] = useState<string>("");
+  const [generatedGiftCards, setGeneratedGiftCards] = useState<string>("");
   const debouncedSearch = useDebounce(searchText, 400);
 
   const { data: settings, error: settingsError } = useFrappeGetDoc(
@@ -468,8 +470,17 @@ const Pos = () => {
       rate: item?.isComplimentary ? 0 : item?.price,
       amount: item?.isComplimentary ? 0 : item?.price * item?.quantity,
       is_parcel: tableId ? (item?.isParcel ? 1 : 0) : 1,
+      ...(item?.custom_is_gift_card_item
+        ? {
+            custom_is_gift_card_item: 1,
+            custom_gift_card_type: item.custom_gift_card_type || "New",
+            custom_gift_card_code: item.custom_gift_card_code || "",
+            custom_gift_amount: item.custom_gift_amount || item.price || 0,
+          }
+        : {}),
     }));
 
+    const hasGift = formatedCartItems?.some((i: any) => i.custom_is_gift_card_item);
     const payload = {
       item_list: formatedCartItems,
       table: tableId ? tableId : "",
@@ -484,6 +495,9 @@ const Pos = () => {
       amount: subtotal,
       status: "Work in progress",
       is_paid: directCheckout ? 1 : 0,
+      ...(hasGift && giftCardsFor
+        ? { custom_gift_cards_for: giftCardsFor.trim() }
+        : {}),
     };
     try {
       startLoading();
@@ -498,6 +512,8 @@ const Pos = () => {
         setDiscountType("percentage");
         setDiscount("");
         setNotes("");
+        setGiftCardsFor("");
+        setGeneratedGiftCards("");
         updateCartCount();
         setIsParcel(false);
         setTableId("");
@@ -704,6 +720,8 @@ const Pos = () => {
               setCoupon={setCoupon}
               getDiscountPlaceholder={getDiscountPlaceholder}
               handleComplimentaryChange={handleComplimentaryChange}
+              giftCardsFor={giftCardsFor}
+              setGiftCardsFor={setGiftCardsFor}
             />
           </div>
         )}
@@ -868,6 +886,8 @@ const Pos = () => {
             getDiscountPlaceholder={getDiscountPlaceholder}
             handleComplimentaryChange={handleComplimentaryChange}
             handleCreditCheckout={handleCreditCheckout}
+            giftCardsFor={giftCardsFor}
+            setGiftCardsFor={setGiftCardsFor}
           />
         </Modal>
         // <AllCarts
@@ -883,6 +903,7 @@ const Pos = () => {
             setShowPopup(false);
             setShowCart(false);
           }}
+          generatedGiftCards={generatedGiftCards}
         />
       )}
     </div>
@@ -952,6 +973,8 @@ type CartModalProps = {
     e: React.ChangeEvent<HTMLInputElement>,
     itemCode: string
   ) => void;
+  giftCardsFor?: string;
+  setGiftCardsFor?: (email: string) => void;
 };
 
 const CartModal = ({
@@ -981,8 +1004,11 @@ const CartModal = ({
   getDiscountPlaceholder,
   handleCreditCheckout,
   handleComplimentaryChange,
+  giftCardsFor,
+  setGiftCardsFor,
 }: CartModalProps) => {
   // handle credit sales
+  const hasGiftItem = cartItems?.some((item: any) => item?.custom_is_gift_card_item);
 
   return (
     <div className="bg-white p-2 pb-3 rounded-md shadow ">
@@ -990,7 +1016,7 @@ const CartModal = ({
       {cartItems?.length > 0 ? (
         <div className="text-xs">
           {cartItems?.map((item: any) => (
-            <div className="accordion mb-1">
+            <div className="accordion mb-1" key={item?.item_code}>
               <div className="border rounded-md p-2">
                 <div className="flex justify-between items-center transition font-medium">
                   <div className="block w-1/3">
@@ -1002,6 +1028,14 @@ const CartModal = ({
                       {(item?.item_name ?? "").length > textDot ? "..." : ""}
                     </p>
                     <p className="font-semibold mt-1">৳{item?.price}</p>
+                    {item?.custom_is_gift_card_item ? (
+                      <p className="text-[10px] text-gray-500 mt-0.5">
+                        Gift {item.custom_gift_card_type || "New"}
+                        {item.custom_gift_card_code
+                          ? `: ${item.custom_gift_card_code}`
+                          : ""}
+                      </p>
+                    ) : null}
                     <div className="flex items-center me-2">
                       <label className="flex items-center text-xs mt-1">
                         <input
@@ -1077,6 +1111,21 @@ const CartModal = ({
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
       />
+
+      {hasGiftItem && setGiftCardsFor ? (
+        <div className="mt-2">
+          <label className="text-xs font-semibold text-gray-700">
+            Gift card email
+          </label>
+          <input
+            type="email"
+            className="w-full border rounded-md p-1.5 text-sm mt-1"
+            placeholder="recipient@example.com"
+            value={giftCardsFor || ""}
+            onChange={(e) => setGiftCardsFor(e.target.value)}
+          />
+        </div>
+      ) : null}
 
       <div className="py-4 flex flex-col items-start">
         <h3 className="font-semibold text-sm mb-1">Discount</h3>

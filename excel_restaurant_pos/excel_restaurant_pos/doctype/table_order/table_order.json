@@ -26,6 +26,7 @@
   "discount_type",
   "is_paid",
   "sales_invoice",
+  "custom_gift_cards_for",
   "credit_sales",
   "payment_methods"
  ],
@@ -149,6 +150,11 @@
    "fieldtype": "Link",
    "label": "Sales Invoice",
    "options": "Sales Invoice"
+  },
+  {
+   "fieldname": "custom_gift_cards_for",
+   "fieldtype": "Data",
+   "label": "Gift Cards For (Email)"
   },
   {
    "default": "0",

@@ -49,6 +49,11 @@ def update_sales_invoice(invoice_name, items):
                 "custom_variant_child_items": item_data.get(
                     "custom_variant_child_items"
                 ),
+                "custom_is_gift_card_item": item_data.get("custom_is_gift_card_item"),
+                "custom_gift_card_type": item_data.get("custom_gift_card_type"),
+                "custom_gift_card_code": item_data.get("custom_gift_card_code"),
+                "custom_coupon_value": item_data.get("custom_coupon_value"),
+                "custom_gift_amount": item_data.get("custom_gift_amount"),
             },
         )
     sales_invoice.save(ignore_permissions=True)

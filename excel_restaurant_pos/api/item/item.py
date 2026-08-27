@@ -42,6 +42,8 @@ def get_food_item_list(category=None):
             "image",
             "has_variants",
             "description",
+            "custom_is_gift_card_item",
+            "custom_gift_card_value",
         ],
         order_by="creation",
         limit_page_length=100,  # Adjust this to limit the number of items fetched
@@ -123,6 +125,8 @@ def get_single_food_item_details(item_code):
         "price": price,
         "add_ons_item_list": add_ons_item_list,
         "description": item_details.description,
+        "custom_is_gift_card_item": int(item_details.get("custom_is_gift_card_item") or 0),
+        "custom_gift_card_value": float(item_details.get("custom_gift_card_value") or 0),
     }
     if has_variants:
         response["variant_item_list"] = variant_item_list
@@ -304,6 +308,8 @@ def create_order(data):
                 else "Order Placed"
             )  # Update order status to work in progress
             order_doc.remarks = order_data.get("remarks")
+            if order_data.get("custom_gift_cards_for"):
+                order_doc.custom_gift_cards_for = order_data.get("custom_gift_cards_for")
 
             # Save and commit the changes to the existing order
             order_doc.save(ignore_permissions=True)
@@ -346,6 +352,7 @@ def create_order(data):
                 "status": order_data.get("status", "Order Placed"),
                 "docstatus": 1 if order_data.get("status") == "Completed" else 0,
                 "is_paid": 1 if order_data.get("is_paid") else 0,
+                "custom_gift_cards_for": order_data.get("custom_gift_cards_for") or "",
                 # Default to "Order Placed"
             }
         )
@@ -529,6 +536,10 @@ def get_order_item_list(order_id):
             "is_accepted",
             "is_create_recipe",
             "is_recipe_item",
+            "custom_is_gift_card_item",
+            "custom_gift_card_type",
+            "custom_gift_card_code",
+            "custom_gift_amount",
         ],
         order_by="creation desc",
     )

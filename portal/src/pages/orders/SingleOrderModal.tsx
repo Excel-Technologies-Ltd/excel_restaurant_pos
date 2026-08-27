@@ -15,6 +15,7 @@ import { CgSpinner } from "react-icons/cg";
 import { LuMinus } from "react-icons/lu";
 import { RxCross2 } from "react-icons/rx";
 import { useLoading } from "../../context/loadingContext";
+import GiftCardRedeemPanel from "../../components/GiftCard/GiftCardRedeemPanel";
 interface OrderItem {
   name?: string;
   qty?: number;
@@ -76,6 +77,9 @@ const SingleOrderModal = ({
   );
   const { call: checkCoupon } = useFrappePostCall(
     "excel_restaurant_pos.api.item.check_coupon_code"
+  );
+  const { call: getInvoiceGiftCodes } = useFrappePostCall(
+    "frappe.client.get_value"
   );
   const taxRate = parseInt(settings?.tax_rate || "0") / 100;
 
@@ -318,10 +322,22 @@ const SingleOrderModal = ({
           mutate()
           console.log("res", res);
           if (res?.name) {
-            // get sales invoice
+            // get sales invoice + any generated gift codes
             mutateSalesInvoice().then((data) => {
               if (data?.sales_invoice) {
                 handleSalesInvoicePrint(data?.sales_invoice);
+                getInvoiceGiftCodes({
+                  doctype: "Sales Invoice",
+                  filters: { name: data.sales_invoice },
+                  fieldname: "custom_generated_gift_cards",
+                })
+                  .then((r: any) => {
+                    const codes = r?.message?.custom_generated_gift_cards;
+                    if (codes) {
+                      toast.success(`Gift cards: ${codes}`, { duration: 8000 });
+                    }
+                  })
+                  .catch(() => undefined);
               }
             });
           }
@@ -573,6 +589,17 @@ const SingleOrderModal = ({
               </button>
             )}
           </div>
+          <GiftCardRedeemPanel
+            salesInvoice={order?.sales_invoice}
+            promoCouponActive={discountType === "coupon" && Boolean(coupon)}
+            onAppliedChange={(_rows, discountTotal) => {
+              if (discountTotal > 0) {
+                setDiscountType("flat");
+                setDiscount(String(discountTotal));
+                setCoupon("");
+              }
+            }}
+          />
         </div>
 
         {/* Checkout details */}

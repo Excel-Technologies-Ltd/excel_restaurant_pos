@@ -1,0 +1,3 @@
+from .create_sales_invoice_from_table_order import create_sales_invoice_from_table_order
+
+__all__ = ["create_sales_invoice_from_table_order"]

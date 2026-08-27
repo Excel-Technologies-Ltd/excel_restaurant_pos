@@ -842,6 +842,14 @@ def verify_coupon_for_sales_invoice(docname: str, coupon_code: str) -> dict:
         frappe.throw(_("Coupon {0} does not exist.").format(coupon_code))
 
     coupon_doc = frappe.get_doc("Coupon Code", coupon_name)
+
+    if (coupon_doc.coupon_type or "").strip() == "Gift Card":
+        frappe.throw(_("Use gift card APIs to verify Gift Card {0}.").format(coupon_doc.name))
+
+    from excel_restaurant_pos.shared.gift_card.redemption import assert_no_gift_cards
+
+    assert_no_gift_cards(doc)
+
     if should_skip_redemption_validation(doc, coupon_doc):
         frappe.throw(_("This coupon cannot be redeemed on the invoice that generated it."))
 
@@ -880,6 +888,15 @@ def apply_coupon_to_sales_invoice(docname: str, coupon_code: str) -> dict:
         frappe.throw(_("Coupon {0} does not exist.").format(coupon_code))
 
     coupon_doc = frappe.get_doc("Coupon Code", coupon_name)
+
+    # Gift cards use dedicated APIs / applied child table.
+    if (coupon_doc.coupon_type or "").strip() == "Gift Card":
+        frappe.throw(_("Use gift card APIs to redeem Gift Card {0}.").format(coupon_doc.name))
+
+    from excel_restaurant_pos.shared.gift_card.redemption import assert_no_gift_cards
+
+    assert_no_gift_cards(doc)
+
     if should_skip_redemption_validation(doc, coupon_doc):
         frappe.throw(_("This coupon cannot be redeemed on the invoice that generated it."))
 
@@ -938,6 +955,10 @@ def apply_sales_invoice_coupon_discount(doc, method=None, force=False):
     the discount. The discount always comes from the coupon's own
     custom_discount_type / custom_discount_amount.
     """
+    # Gift card discounts own discount_amount via custom_applied_gift_cards.
+    if doc.get("custom_applied_gift_cards"):
+        return
+
     coupon_code = resolve_applied_coupon_code(doc)
     if not coupon_code:
         stored_coupon = _get_stored_applied_coupon(doc)
@@ -987,11 +1008,17 @@ def apply_sales_invoice_coupon_discount(doc, method=None, force=False):
 
 def validate_sales_invoice_coupon(doc, method=None):
     """Validate coupon redemption rules on Sales Invoice."""
+    if doc.get("custom_applied_gift_cards"):
+        return
+
     coupon_code = resolve_applied_coupon_code(doc)
     if not coupon_code:
         return
 
     coupon_doc = frappe.get_doc("Coupon Code", coupon_code)
+    if (coupon_doc.coupon_type or "").strip() == "Gift Card":
+        frappe.throw(_("Use gift card redemption for Gift Card {0}.").format(coupon_doc.name))
+
     if should_skip_redemption_validation(doc, coupon_doc):
         return
 

@@ -82,12 +82,15 @@ class TableOrder(Document):
                     "amount": item.get("amount", 0),
                     "is_ready": item.get("is_ready", 0),
                     "is_accepted": item.get("is_accepted", 0),
-                    "is_parcel": item.get("is_parcel", 0),
                     "is_create_recipe": item.get("is_create_recipe", 0),
                     "order_placed_time": item.get("order_placed_time", 0),
                     "order_accepted_time": item.get("order_accepted_time", 0),
                     "order_ready_time": item.get("order_ready_time", 0),
                     "order_confirm_time": item.get("order_confirm_time", 0),
+                    "custom_is_gift_card_item": item.get("custom_is_gift_card_item", 0),
+                    "custom_gift_card_type": item.get("custom_gift_card_type"),
+                    "custom_gift_card_code": item.get("custom_gift_card_code"),
+                    "custom_gift_amount": item.get("custom_gift_amount"),
                 }
         
         # Update the document's item_list with the grouped items

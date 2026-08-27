@@ -103,6 +103,8 @@ def _set_optional_fields(sales_invoice, data):
         "custom_order_schedule_type",
         "custom_coupon_code",
         "coupon_code",
+        "custom_gift_cards_for",
+        "custom_generated_gift_cards",
         "docstatus",
     ]
 
@@ -142,6 +144,11 @@ def _add_items(sales_invoice, items):
                 "custom_variant_child_items": item_data.get(
                     "custom_variant_child_items"
                 ),
+                "custom_is_gift_card_item": item_data.get("custom_is_gift_card_item"),
+                "custom_gift_card_type": item_data.get("custom_gift_card_type"),
+                "custom_gift_card_code": item_data.get("custom_gift_card_code"),
+                "custom_coupon_value": item_data.get("custom_coupon_value"),
+                "custom_gift_amount": item_data.get("custom_gift_amount"),
             },
         )
 

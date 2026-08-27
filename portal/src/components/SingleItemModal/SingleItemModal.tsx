@@ -4,6 +4,9 @@ import { FiMinus, FiPlus } from "react-icons/fi";
 import { RxCross2 } from "react-icons/rx";
 import { useCartContext } from "../../context/cartContext";
 import { Food } from "../../data/items";
+import GiftCardSellFields, {
+  GiftCardSellState,
+} from "../GiftCard/GiftCardSellFields";
 import AddOnsItemCard from "./components/AddOnsItemCard";
 
 type Props = {
@@ -58,6 +61,11 @@ const SingleItemModal = ({ isOpen, toggleDrawer, selectedItem }: Props) => {
   const [selectedItems, setSelectedItems] = useState<Food[]>([]);
   const [isLargeDevice, setIsLargeDevice] = useState(window.innerWidth > 768);
   const [selectedAddOns, setSelectedAddOns] = useState<Food[]>([]);
+  const [giftCard, setGiftCard] = useState<GiftCardSellState>({
+    custom_is_gift_card_item: 0,
+    custom_gift_card_type: "New",
+    custom_gift_amount: 0,
+  });
   const handleAddOnsChange = (item: Food) => {
     // console.log("item", item);
     setSelectedAddOns(prevAddOns =>
@@ -107,7 +115,31 @@ const decrementAddOns = (item_code: string) => {
 };
 
 const addToCart = () => {
-  const newCartItem = [{ ...selectedVariation, quantity }, ...selectedAddOns]   
+  const isGift = Boolean(itemDetails?.custom_is_gift_card_item);
+  if (isGift && giftCard.custom_gift_card_type === "Existing" && !giftCard.custom_gift_card_code) {
+    alert("Select an Inactive gift card code for Existing type.");
+    return;
+  }
+
+  const giftFields = isGift
+    ? {
+        custom_is_gift_card_item: 1,
+        custom_gift_card_type: giftCard.custom_gift_card_type,
+        custom_gift_card_code: giftCard.custom_gift_card_code,
+        custom_gift_amount:
+          giftCard.custom_gift_amount || itemDetails?.custom_gift_card_value || 0,
+        price:
+          giftCard.custom_gift_amount ||
+          itemDetails?.custom_gift_card_value ||
+          selectedVariation?.price ||
+          itemDetails?.price,
+      }
+    : {};
+
+  const newCartItem = [
+    { ...selectedVariation, quantity, ...giftFields },
+    ...selectedAddOns,
+  ];
       // return;
   // Retrieve the existing cart from local storage
   const existingCart = JSON.parse(localStorage.getItem("cart")) || [];
@@ -115,9 +147,16 @@ const addToCart = () => {
   // Combine existing cart and new cart items
   const combinedCart = [...existingCart, ...newCartItem];
 
-  // Use a Map to remove duplicates by `item_code`
+  // Use a Map to remove duplicates by `item_code` (+ gift code for Existing)
   const uniqueCart = Array.from(
-    new Map(combinedCart.map((item) => [item?.item_code, item])).values()
+    new Map(
+      combinedCart.map((item) => [
+        item?.custom_gift_card_code
+          ? `${item?.item_code}::${item.custom_gift_card_code}`
+          : item?.item_code,
+        item,
+      ])
+    ).values()
   );
 
   // If a new item was added, save to local storage and show success toast
@@ -131,6 +170,11 @@ const addToCart = () => {
   setQuantity(1); // Reset quantity to 1
   setSelectedVariation({}); // Reset selected variation
   setSelectedAddOns([]); // Clear selected add-ons
+  setGiftCard({
+    custom_is_gift_card_item: 0,
+    custom_gift_card_type: "New",
+    custom_gift_amount: 0,
+  });
   toggleDrawer();
 
  
@@ -247,6 +291,13 @@ const getDescription = (description: string) => {
                       ))}
                     </>
                   )}
+
+            <GiftCardSellFields
+              isGiftCardItem={Boolean(itemDetails?.custom_is_gift_card_item)}
+              giftCardValue={Number(itemDetails?.custom_gift_card_value || 0)}
+              value={giftCard}
+              onChange={setGiftCard}
+            />
 
             {/* Other optional sections like Add-ons */}
           </div>

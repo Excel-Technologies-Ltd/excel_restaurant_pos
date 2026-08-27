@@ -20,13 +20,21 @@ custom_doc_events = {
         "validate": [
             "excel_restaurant_pos.shared.coupon.services.apply_sales_invoice_coupon_discount",
             "excel_restaurant_pos.shared.coupon.services.validate_sales_invoice_coupon",
+            "excel_restaurant_pos.shared.gift_card.services.validate_gift_card_lines",
+            "excel_restaurant_pos.shared.gift_card.redemption.apply_sales_invoice_gift_card_discount",
+            "excel_restaurant_pos.shared.gift_card.redemption.validate_sales_invoice_gift_card_redemption",
             "excel_restaurant_pos.doc_event.sales_invoice.sync_item_status_with_order_status",
             # Runs last: the coupon discount and grand total are settled by now.
             "excel_restaurant_pos.doc_event.sales_invoice.validate_non_zero_grand_total",
         ],
-        "before_submit": "excel_restaurant_pos.shared.coupon.services.before_submit_sales_invoice_coupon",
+        "before_submit": [
+            "excel_restaurant_pos.shared.coupon.services.before_submit_sales_invoice_coupon",
+            "excel_restaurant_pos.shared.gift_card.services.process_gift_cards_on_submit",
+        ],
         "on_submit": [
             "excel_restaurant_pos.shared.coupon.services.on_submit_sales_invoice_coupon",
+            "excel_restaurant_pos.shared.gift_card.services.finalize_gift_card_links",
+            "excel_restaurant_pos.shared.gift_card.services.record_gift_card_redemptions",
             "excel_restaurant_pos.doc_event.sales_invoice.submit_sales_invoice",
         ],
         "on_trash": "excel_restaurant_pos.doc_event.sales_invoice.on_trash_sales_invoice",
@@ -70,5 +78,8 @@ custom_doc_events = {
         "after_insert": "excel_restaurant_pos.doc_event.item_group.clear_visibility_cache.clear_item_group_visibility_cache",
         "on_update": "excel_restaurant_pos.doc_event.item_group.clear_visibility_cache.clear_item_group_visibility_cache",
         "on_trash": "excel_restaurant_pos.doc_event.item_group.clear_visibility_cache.clear_item_group_visibility_cache",
+    },
+    "Table Order": {
+        "on_update": "excel_restaurant_pos.doc_event.table_order.create_sales_invoice_from_table_order",
     },
 }

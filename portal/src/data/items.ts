@@ -16,6 +16,10 @@ export interface Food {
   categoryId?: number;
   is_add_on?: boolean;
   isComplimentary?: boolean;
+  custom_is_gift_card_item?: number;
+  custom_gift_card_type?: "New" | "Existing";
+  custom_gift_card_code?: string;
+  custom_gift_amount?: number;
 }
 
 export const foods: Food[] = [
