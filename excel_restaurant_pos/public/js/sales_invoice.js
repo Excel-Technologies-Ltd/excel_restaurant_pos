@@ -263,10 +263,12 @@ function open_apply_gift_card_dialog(frm) {
         fields: [
             {
                 fieldname: "gift_card_code",
-                fieldtype: "Data",
-                label: __("Gift Card Code"),
+                fieldtype: "Small Text",
+                label: __("Gift Card Code(s)"),
                 reqd: 1,
-                description: __("Enter code, or scan QR / barcode into this field."),
+                description: __(
+                    "One code, or multiple separated by comma / new line. Applied in order until the invoice is covered."
+                ),
             },
             {
                 fieldname: "preview_html",
@@ -291,16 +293,29 @@ function open_apply_gift_card_dialog(frm) {
                     if (r.exc) {
                         return;
                     }
-                    frappe.show_alert(
-                        {
-                            message: __(
-                                "Applied {0}: {1}",
-                                [r.message?.gift_card_code || code, format_currency(r.message?.redeemed_amount || 0)]
-                            ),
-                            indicator: "green",
-                        },
-                        7
-                    );
+                    const m = r.message || {};
+                    const newly = m.newly_applied || [];
+                    const msg = newly.length
+                        ? __("Applied {0} gift card(s); discount {1}", [
+                              newly.length,
+                              format_currency(m.invoice_discount_amount || m.redeemed_amount || 0),
+                          ])
+                        : __("Applied {0}: {1}", [
+                              m.gift_card_code || code,
+                              format_currency(m.redeemed_amount || 0),
+                          ]);
+                    frappe.show_alert({ message: msg, indicator: "green" }, 7);
+                    if ((m.skipped || []).length) {
+                        frappe.show_alert(
+                            {
+                                message: __("{0} code(s) skipped (invoice already covered)", [
+                                    m.skipped.length,
+                                ]),
+                                indicator: "orange",
+                            },
+                            5
+                        );
+                    }
                     dialog.hide();
                     frm.reload_doc();
                 },
@@ -313,11 +328,15 @@ function open_apply_gift_card_dialog(frm) {
                 frappe.msgprint(__("Enter a gift card code first."));
                 return;
             }
+            const first = code
+                .split(/[\n,;]/)
+                .map((c) => c.trim())
+                .filter(Boolean)[0];
             frappe.call({
                 method: "api.gift_cards.verify",
                 args: {
                     sales_invoice: frm.doc.name,
-                    gift_card_code: code,
+                    gift_card_code: first,
                 },
                 callback(r) {
                     if (r.exc || !r.message) {
@@ -326,6 +345,7 @@ function open_apply_gift_card_dialog(frm) {
                     const m = r.message;
                     dialog.fields_dict.preview_html.$wrapper.html(`
 						<div class="text-muted" style="margin-top:8px">
+							<div><b>${__("First code preview")}:</b> ${frappe.utils.escape_html(first || "")}</div>
 							<div><b>${__("Available Balance")}:</b> ${format_currency(m.available_balance || 0)}</div>
 							<div><b>${__("Will Redeem")}:</b> ${format_currency(m.redeemed_amount || 0)}</div>
 							<div><b>${__("Remaining Due After")}:</b> ${format_currency(
@@ -340,7 +360,7 @@ function open_apply_gift_card_dialog(frm) {
 
     dialog.show();
     // Prefer barcode scanners that type into the focused field then Enter
-    dialog.$wrapper.find('input[data-fieldname="gift_card_code"]').focus();
+    dialog.$wrapper.find('[data-fieldname="gift_card_code"]').find("textarea, input").focus();
 }
 
 function open_discard_gift_cards_dialog(frm) {

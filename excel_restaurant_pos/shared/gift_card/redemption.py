@@ -182,10 +182,51 @@ def verify_gift_card_for_sales_invoice(docname: str, coupon_code: str) -> dict:
 
 
 def apply_gift_card_to_sales_invoice(docname: str, coupon_code: str) -> dict:
-	"""Append a gift card to the invoice applied list and update discount."""
-	doc = frappe.get_doc("Sales Invoice", docname)
-	ensure_draft_sales_invoice(doc)
+	"""Apply one gift card (backward-compatible wrapper)."""
+	return apply_gift_cards_to_sales_invoice(docname, [coupon_code])
 
+
+def parse_gift_card_codes(*raw_values) -> list[str]:
+	"""Normalize one or many gift card codes into an ordered unique list.
+
+	Accepts:
+	- a single string: ``"A"`` or ``"A,B,C"`` or newline-separated
+	- a list/tuple of strings
+	- nested mixes of the above
+	"""
+	codes: list[str] = []
+	seen: set[str] = set()
+
+	def _add(value):
+		if value is None:
+			return
+		if isinstance(value, (list, tuple)):
+			for item in value:
+				_add(item)
+			return
+		text = str(value).strip()
+		if not text:
+			return
+		# Split on comma / newline / semicolon (scanner or multi-entry UX)
+		parts = []
+		for chunk in text.replace(";", ",").replace("\n", ",").split(","):
+			part = chunk.strip()
+			if part:
+				parts.append(part)
+		for part in parts:
+			key = part.upper()
+			if key in seen:
+				continue
+			seen.add(key)
+			codes.append(part)
+
+	for raw in raw_values:
+		_add(raw)
+	return codes
+
+
+def _append_one_gift_card(doc, coupon_code: str) -> dict:
+	"""Append one gift card row onto ``doc`` (no save). Returns apply detail."""
 	coupon = _load_active_gift_card(coupon_code)
 	preview = preview_gift_card_redemption(doc, coupon)
 
@@ -197,12 +238,58 @@ def apply_gift_card_to_sales_invoice(docname: str, coupon_code: str) -> dict:
 
 	amount = flt(preview["redeemed_amount"])
 	if amount <= 0:
-		frappe.throw(_("Nothing left to redeem on this invoice with gift card {0}.").format(coupon.name))
+		frappe.throw(
+			_("Nothing left to redeem on this invoice with gift card {0}.").format(coupon.name)
+		)
 
 	doc.append(
 		APPLIED_TABLE,
 		{"gift_card_code": coupon.name, "redeemed_amount": amount},
 	)
+	return {
+		"gift_card_code": coupon.name,
+		"coupon_code": coupon.coupon_code,
+		"redeemed_amount": amount,
+		"available_balance": preview["available_balance"],
+	}
+
+
+def apply_gift_cards_to_sales_invoice(docname: str, coupon_codes) -> dict:
+	"""Apply one or more gift cards in order (first → last) until due is covered.
+
+	Later codes are skipped when the invoice is already fully covered.
+	Invalid codes raise (same as single apply) so the cashier can fix input.
+	"""
+	codes = parse_gift_card_codes(coupon_codes)
+	if not codes:
+		frappe.throw(_("At least one gift card code is required."))
+
+	doc = frappe.get_doc("Sales Invoice", docname)
+	ensure_draft_sales_invoice(doc)
+	assert_no_promo_coupon(doc)
+
+	newly_applied: list[dict] = []
+	skipped: list[dict] = []
+
+	for code in codes:
+		remaining = remaining_gift_redeemable(doc)
+		if remaining <= 0:
+			skipped.append(
+				{
+					"gift_card_code": code,
+					"reason": _("Invoice already fully covered by previous gift cards."),
+				}
+			)
+			continue
+		detail = _append_one_gift_card(doc, code)
+		newly_applied.append(detail)
+
+	if not newly_applied:
+		# All skipped because fully covered, or nothing applied
+		if skipped:
+			frappe.throw(_("Invoice is already fully covered; no gift cards were applied."))
+		frappe.throw(_("No gift cards were applied."))
+
 	apply_gift_card_discount_to_doc(doc)
 	doc.save(ignore_permissions=True)
 
@@ -210,10 +297,13 @@ def apply_gift_card_to_sales_invoice(docname: str, coupon_code: str) -> dict:
 		"status": "success",
 		"applied": True,
 		"sales_invoice": doc.name,
-		"gift_card_code": coupon.name,
-		"coupon_code": coupon.coupon_code,
-		"redeemed_amount": amount,
-		"available_balance": preview["available_balance"],
+		# Backward-compatible single-card fields (first newly applied)
+		"gift_card_code": newly_applied[0]["gift_card_code"],
+		"coupon_code": newly_applied[0].get("coupon_code"),
+		"redeemed_amount": sum(flt(r["redeemed_amount"]) for r in newly_applied),
+		"available_balance": newly_applied[0].get("available_balance"),
+		"newly_applied": newly_applied,
+		"skipped": skipped,
 		"applied_gift_cards": [
 			{
 				"gift_card_code": normalize_coupon_name(r.gift_card_code),

@@ -173,6 +173,14 @@ class TestGiftCardRedemptionMath(FrappeTestCase):
 		self.assertEqual(remaining_gift_redeemable(doc), 0)
 		self.assertEqual(remaining_gift_redeemable(doc, exclude_code="GIFT-B"), 500)
 
+	def test_parse_gift_card_codes_multi(self):
+		from excel_restaurant_pos.shared.gift_card.redemption import parse_gift_card_codes
+
+		self.assertEqual(parse_gift_card_codes("A, B\nC"), ["A", "B", "C"])
+		self.assertEqual(parse_gift_card_codes(["A", "B", "A"]), ["A", "B"])
+		self.assertEqual(parse_gift_card_codes("A;B", ["C"]), ["A", "B", "C"])
+		self.assertEqual(parse_gift_card_codes(""), [])
+
 	def test_invoice_has_promo_vs_gift(self):
 		from excel_restaurant_pos.shared.gift_card.redemption import (
 			assert_no_gift_cards,

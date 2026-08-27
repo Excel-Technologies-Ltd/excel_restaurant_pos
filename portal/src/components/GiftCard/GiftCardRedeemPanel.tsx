@@ -16,7 +16,7 @@ type Props = {
 
 /**
  * Multi gift-card redeem panel for checkout.
- * Uses api.gift_cards.verify / apply / discard against a draft Sales Invoice.
+ * Accepts one code or many (comma / newline). Applied first → last until due is covered.
  */
 const GiftCardRedeemPanel = ({
   salesInvoice,
@@ -25,7 +25,7 @@ const GiftCardRedeemPanel = ({
 }: Props) => {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
-  const [preview, setPreview] = useState<string>("");
+  const [preview, setPreview] = useState("");
   const [applied, setApplied] = useState<AppliedGiftCard[]>([]);
 
   const { call: verifyGift } = useFrappePostCall("api.gift_cards.verify");
@@ -53,19 +53,26 @@ const GiftCardRedeemPanel = ({
     onAppliedChange?.(rows, discount);
   };
 
+  const firstCode = () =>
+    code
+      .split(/[\n,;]/)
+      .map((c) => c.trim())
+      .filter(Boolean)[0] || "";
+
   const handleVerify = async () => {
     setError("");
     setPreview("");
-    if (!code.trim()) return;
+    const first = firstCode();
+    if (!first) return;
     try {
       const res = await verifyGift({
         sales_invoice: salesInvoice,
-        gift_card_code: code.trim(),
+        gift_card_code: first,
       });
       const m = res?.message;
       if (m?.valid) {
         setPreview(
-          `Balance ${m.available_balance} → redeem ${m.redeemed_amount}`
+          `First code ${first}: balance ${m.available_balance} → redeem ${m.redeemed_amount}`
         );
       } else {
         setError(m?.message || "Invalid gift card");
@@ -88,6 +95,11 @@ const GiftCardRedeemPanel = ({
         syncApplied(m.applied_gift_cards || [], Number(m.invoice_discount_amount || 0));
         setCode("");
         setPreview("");
+        if (m.skipped?.length) {
+          setPreview(
+            `${m.newly_applied?.length || 0} applied; ${m.skipped.length} skipped (already covered)`
+          );
+        }
       } else {
         setError(m?.message || "Apply failed");
       }
@@ -112,14 +124,14 @@ const GiftCardRedeemPanel = ({
   return (
     <div className="mt-3 border rounded-md p-3 space-y-2">
       <h3 className="text-xs font-semibold">Gift Cards</h3>
-      <div className="flex gap-2">
-        <input
-          className="flex-1 border rounded px-2 py-1.5 text-sm"
-          placeholder="Enter or scan gift card code"
+      <div className="flex gap-2 items-start">
+        <textarea
+          className="flex-1 border rounded px-2 py-1.5 text-sm min-h-[2.5rem]"
+          placeholder="One code, or several (comma / new line)"
           value={code}
           onChange={(e) => setCode(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") {
+            if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
               handleApply();
             }
@@ -127,14 +139,14 @@ const GiftCardRedeemPanel = ({
         />
         <button
           type="button"
-          className="text-xs border px-2 rounded"
+          className="text-xs border px-2 rounded h-8"
           onClick={handleVerify}
         >
           Verify
         </button>
         <button
           type="button"
-          className="text-xs bg-primaryColor text-white px-2 rounded"
+          className="text-xs bg-primaryColor text-white px-2 rounded h-8"
           onClick={handleApply}
         >
           Apply
