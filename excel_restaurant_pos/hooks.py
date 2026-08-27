@@ -178,7 +178,8 @@ after_migrate = ["excel_restaurant_pos.shared.coupon.codes.backfill_coupon_codes
 
 # Runs before DocType/fixture sync so a stuck Currency fieldtype cannot break migrate.
 before_migrate = [
-	"excel_restaurant_pos.patches.v1_6_0.repair_gift_amount_fieldtype.execute"
+	"excel_restaurant_pos.patches.v1_6_0.repair_gift_amount_fieldtype.execute",
+	"excel_restaurant_pos.patches.v1_6_0.repair_coupon_code_numeric_columns.execute",
 ]
 
 # Scheduled Tasks
