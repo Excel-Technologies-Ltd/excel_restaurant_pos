@@ -22,6 +22,7 @@ from .redemption import (
 	parse_gift_card_codes,
 	remaining_gift_redeemable,
 	sum_applied_gift_amounts,
+	validate_gift_card_globally,
 	verify_gift_card_for_sales_invoice,
 )
 
@@ -44,6 +45,7 @@ __all__ = [
 	"remaining_gift_redeemable",
 	"resolve_line_gift_amount",
 	"sum_applied_gift_amounts",
+	"validate_gift_card_globally",
 	"validate_gift_card_lines",
 	"verify_gift_card_for_sales_invoice",
 ]

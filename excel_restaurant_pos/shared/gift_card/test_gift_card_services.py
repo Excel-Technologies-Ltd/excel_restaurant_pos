@@ -13,6 +13,7 @@ from excel_restaurant_pos.shared.gift_card.services import (
 	recompute_available_balance,
 	_resolve_gift_card_customer,
 )
+from excel_restaurant_pos.shared.gift_card.redemption import validate_gift_card_globally
 from excel_restaurant_pos.shared.gift_card.validation import (
 	GIFT_CARD_TYPE_EXISTING,
 	GIFT_CARD_TYPE_NEW,
@@ -243,3 +244,23 @@ class TestGiftCardRedemptionMath(FrappeTestCase):
 		empty = frappe._dict(custom_applied_gift_cards=[], custom_coupon_code=None)
 		assert_no_gift_cards(empty)
 		assert_no_promo_coupon(empty)
+
+
+class TestGiftCardGlobalVerify(FrappeTestCase):
+	@patch("excel_restaurant_pos.shared.gift_card.redemption._assert_gift_card_redeemable_balance", return_value=750.0)
+	@patch("excel_restaurant_pos.shared.gift_card.redemption._load_active_gift_card")
+	def test_validate_gift_card_globally(self, load_card, _balance):
+		load_card.return_value = frappe._dict(
+			name="GIFT-ABC",
+			coupon_code="GIFT-ABC",
+			valid_from="2026-01-01",
+			valid_upto="2027-01-01",
+			custom_status="Active",
+		)
+
+		result = validate_gift_card_globally("GIFT-ABC")
+
+		self.assertTrue(result["valid"])
+		self.assertEqual(result["gift_card_code"], "GIFT-ABC")
+		self.assertEqual(result["available_balance"], 750.0)
+		load_card.assert_called_once_with("GIFT-ABC")

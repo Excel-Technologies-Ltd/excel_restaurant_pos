@@ -94,17 +94,9 @@ def _load_active_gift_card(coupon_code: str):
 	return coupon
 
 
-def validate_gift_card_for_redemption(doc, coupon):
-	"""Shared redemption rules for verify/apply/validate hooks."""
-	if not is_gift_card_redemption_channel_allowed(doc):
-		frappe.throw(_("Gift card redemption is not allowed for this order type."))
-
-	assert_no_promo_coupon(doc)
-
-	if coupon.custom_generated_on_order == doc.name:
-		frappe.throw(_("Cannot redeem gift card {0} on the invoice that sold it.").format(coupon.name))
-
-	posting_date = getdate(doc.get("posting_date") or nowdate())
+def _assert_gift_card_redeemable_balance(coupon, posting_date=None) -> float:
+	"""Check validity dates and available balance (no invoice context)."""
+	posting_date = getdate(posting_date or nowdate())
 	if coupon.valid_from and posting_date < getdate(coupon.valid_from):
 		frappe.throw(_("Gift Card {0} is not yet valid.").format(coupon.name))
 
@@ -118,6 +110,19 @@ def validate_gift_card_for_redemption(doc, coupon):
 		frappe.throw(_("Gift Card {0} has no available balance.").format(coupon.name))
 
 	return balance
+
+
+def validate_gift_card_for_redemption(doc, coupon):
+	"""Shared redemption rules for verify/apply/validate hooks."""
+	if not is_gift_card_redemption_channel_allowed(doc):
+		frappe.throw(_("Gift card redemption is not allowed for this order type."))
+
+	assert_no_promo_coupon(doc)
+
+	if coupon.custom_generated_on_order == doc.name:
+		frappe.throw(_("Cannot redeem gift card {0} on the invoice that sold it.").format(coupon.name))
+
+	return _assert_gift_card_redeemable_balance(coupon, doc.get("posting_date"))
 
 
 def preview_gift_card_redemption(doc, coupon) -> dict:
@@ -156,6 +161,23 @@ def apply_gift_card_discount_to_doc(doc):
 	doc.discount_amount = flt(total)
 	doc.flags.gift_card_discount_applied = True
 	doc.calculate_taxes_and_totals()
+
+
+def validate_gift_card_globally(coupon_code: str) -> dict:
+	"""Validate a gift card without Sales Invoice context."""
+	coupon = _load_active_gift_card(coupon_code)
+	balance = _assert_gift_card_redeemable_balance(coupon)
+
+	return {
+		"status": "success",
+		"valid": True,
+		"gift_card_code": coupon.name,
+		"coupon_code": coupon.coupon_code,
+		"available_balance": balance,
+		"valid_from": coupon.valid_from,
+		"valid_upto": coupon.valid_upto,
+		"custom_status": coupon.custom_status,
+	}
 
 
 def verify_gift_card_for_sales_invoice(docname: str, coupon_code: str) -> dict:
