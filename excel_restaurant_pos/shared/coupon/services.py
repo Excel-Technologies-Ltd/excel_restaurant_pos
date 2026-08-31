@@ -219,7 +219,7 @@ def build_coupon_code(template: str) -> str:
 
 def generate_unique_coupon_code(template: str) -> str:
     """Generate a globally unique coupon code."""
-    for _ in range(COUPON_GENERATION_RETRY_LIMIT):
+    for __ in range(COUPON_GENERATION_RETRY_LIMIT):
         coupon_code = build_coupon_code(template)
         if not frappe.db.exists("Coupon Code", {"name": coupon_code}) and not frappe.db.exists(
             "Coupon Code", {"coupon_code": coupon_code}

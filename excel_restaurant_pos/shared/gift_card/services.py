@@ -124,6 +124,24 @@ def _gift_validity_dates(settings, posting_date=None) -> tuple[Any, Any]:
 	return valid_from, add_days(valid_from, expire_after)
 
 
+def _resolve_gift_card_customer(invoice=None) -> str:
+	"""Resolve Customer link required by ERPNext for Gift Card coupons."""
+	if invoice:
+		customer = (invoice.get("customer") or "").strip()
+		if customer:
+			return customer
+
+	settings = get_gift_card_settings()
+	customer = (getattr(settings, "customer", None) or "").strip() if settings else ""
+	if customer:
+		return customer
+
+	frappe.throw(
+		_("Customer is required to sell gift cards. Set a customer on the invoice or Default Customer in ArcPOS Settings."),
+		frappe.MandatoryError,
+	)
+
+
 def create_gift_card_coupon(invoice, amount: float, settings, defer_invoice_link: bool = True) -> Any:
 	"""Create an Active Gift Card Coupon Code on invoice submit (type=New)."""
 	pricing_rule = _validate_gift_pricing_rule(settings)
@@ -135,6 +153,7 @@ def create_gift_card_coupon(invoice, amount: float, settings, defer_invoice_link
 		frappe.throw(_("Gift Card amount must be greater than zero."))
 
 	fields = {
+		"customer": _resolve_gift_card_customer(invoice),
 		"doctype": "Coupon Code",
 		"name": coupon_code,
 		"coupon_name": coupon_code,
@@ -180,6 +199,7 @@ def activate_existing_gift_card(coupon, invoice, settings) -> Any:
 	coupon.valid_upto = valid_upto
 	coupon.custom_available_balance = face_value
 	coupon.custom_linked_email = get_gift_card_email(invoice) or coupon.custom_linked_email
+	coupon.customer = _resolve_gift_card_customer(invoice)
 	coupon.custom_generated_on_order = invoice.name
 	coupon.custom_discount_type = coupon.custom_discount_type or "Flat Amount"
 	coupon.save(ignore_permissions=True)
@@ -290,7 +310,7 @@ def process_gift_cards_on_submit(doc, method=None):
 
 		if gift_type == GIFT_CARD_TYPE_NEW:
 			amount = resolve_line_gift_amount(line)
-			for _ in range(qty):
+			for __ in range(qty):
 				coupon = create_gift_card_coupon(doc, amount, settings)
 				generated.append(coupon.name)
 			continue

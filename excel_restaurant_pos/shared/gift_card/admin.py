@@ -12,6 +12,7 @@ from frappe.utils import cint, flt, now_datetime
 
 from excel_restaurant_pos.shared.coupon.services import generate_unique_coupon_code
 from excel_restaurant_pos.shared.gift_card.services import (
+	_resolve_gift_card_customer,
 	_validate_gift_pricing_rule,
 	get_gift_card_settings,
 )
@@ -49,6 +50,7 @@ def _create_inactive_gift_card(
 			"name": code,
 			"coupon_name": code,
 			"coupon_code": code,
+			"customer": _resolve_gift_card_customer(),
 			"coupon_type": GIFT_CARD_TYPE,
 			"pricing_rule": pricing_rule,
 			"maximum_use": 0,
@@ -85,7 +87,7 @@ def generate_bulk_inactive_gift_cards(
 	code_prefix = (prefix or getattr(settings, "gift_card_prefix", None) or "GIFT####").strip()
 
 	created: list[str] = []
-	for _ in range(qty):
+	for __ in range(qty):
 		created.append(
 			_create_inactive_gift_card(
 				amount=amount,

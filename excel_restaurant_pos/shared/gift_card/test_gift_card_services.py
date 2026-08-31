@@ -11,6 +11,7 @@ from excel_restaurant_pos.shared.gift_card.services import (
 	is_gift_card_generation_allowed,
 	is_gift_card_redemption_channel_allowed,
 	recompute_available_balance,
+	_resolve_gift_card_customer,
 )
 from excel_restaurant_pos.shared.gift_card.validation import (
 	GIFT_CARD_TYPE_EXISTING,
@@ -38,6 +39,22 @@ def _settings(**flags):
 
 def _invoice(order_from, service_type):
 	return frappe._dict(custom_order_from=order_from, custom_service_type=service_type)
+
+
+class TestGiftCardCustomer(FrappeTestCase):
+	def test_resolve_customer_from_invoice(self):
+		invoice = frappe._dict(customer="CUST-001")
+		self.assertEqual(_resolve_gift_card_customer(invoice), "CUST-001")
+
+	@patch("excel_restaurant_pos.shared.gift_card.services.get_gift_card_settings")
+	def test_resolve_customer_from_settings(self, get_settings):
+		get_settings.return_value = frappe._dict(customer="WALK-IN")
+		self.assertEqual(_resolve_gift_card_customer(), "WALK-IN")
+
+	@patch("excel_restaurant_pos.shared.gift_card.services.get_gift_card_settings", return_value=None)
+	def test_resolve_customer_missing_raises(self, _get_settings):
+		with self.assertRaises(frappe.MandatoryError):
+			_resolve_gift_card_customer()
 
 
 class TestGiftCardChannelGates(FrappeTestCase):
@@ -112,6 +129,33 @@ class TestGiftCardLines(FrappeTestCase):
 			"custom_coupon_value": 0,
 		}
 		self.assertEqual(resolve_line_gift_amount(line), 750)
+
+
+	@patch("excel_restaurant_pos.shared.gift_card.services.create_gift_card_coupon")
+	@patch("excel_restaurant_pos.shared.gift_card.services.get_gift_card_settings")
+	@patch("excel_restaurant_pos.shared.gift_card.services.is_gift_card_generation_allowed", return_value=True)
+	def test_process_gift_cards_on_submit_new_type(self, _allowed, get_settings, create_coupon):
+		from excel_restaurant_pos.shared.gift_card.services import process_gift_cards_on_submit
+
+		get_settings.return_value = frappe._dict()
+		create_coupon.return_value = frappe._dict(name="GIFT-NEW")
+		doc = frappe._dict(
+			customer="CUST-1",
+			items=[
+				frappe._dict(
+					custom_is_gift_card_item=1,
+					custom_gift_card_type=GIFT_CARD_TYPE_NEW,
+					custom_gift_amount=1000,
+					item_code="GIFT",
+					qty=1,
+				)
+			],
+			custom_generated_gift_cards="",
+		)
+
+		process_gift_cards_on_submit(doc)
+		self.assertEqual(doc.custom_generated_gift_cards, "GIFT-NEW")
+		create_coupon.assert_called_once()
 
 
 class TestGiftCardBalance(FrappeTestCase):
