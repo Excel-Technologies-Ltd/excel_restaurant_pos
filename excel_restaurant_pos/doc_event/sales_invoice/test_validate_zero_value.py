@@ -45,6 +45,36 @@ class TestValidateZeroValue(FrappeTestCase):
             # coupon covered a positive subtotal -> allowed
             validate_non_zero_grand_total(_Doc(grand_total=0, total=10, discount_amount=10))
 
+    def test_gift_cards_reducing_positive_subtotal_to_zero_is_allowed(self):
+        with patch(f"{_MODULE}.resolve_applied_coupon_code", return_value=""):
+            with patch(f"{_MODULE}.invoice_has_applied_gift_cards", return_value=True):
+                validate_non_zero_grand_total(
+                    _Doc(
+                        grand_total=0,
+                        total=59.8,
+                        discount_amount=359.8,
+                        custom_applied_gift_cards=[
+                            {"gift_card_code": "GIFTU90E", "redeemed_amount": 300},
+                            {"gift_card_code": "GIFTOTJQ", "redeemed_amount": 59.8},
+                        ],
+                    )
+                )
+
+    def test_gift_cards_present_but_nothing_to_reduce_is_rejected(self):
+        with patch(f"{_MODULE}.resolve_applied_coupon_code", return_value=""):
+            with patch(f"{_MODULE}.invoice_has_applied_gift_cards", return_value=True):
+                with self.assertRaises(frappe.ValidationError):
+                    validate_non_zero_grand_total(
+                        _Doc(
+                            grand_total=0,
+                            total=0,
+                            discount_amount=0,
+                            custom_applied_gift_cards=[
+                                {"gift_card_code": "GIFTU90E", "redeemed_amount": 0},
+                            ],
+                        )
+                    )
+
     def test_coupon_present_but_nothing_to_reduce_is_rejected(self):
         # A coupon is attached but the subtotal was already zero (free items):
         # the coupon did not reduce anything, so it is still rejected.
