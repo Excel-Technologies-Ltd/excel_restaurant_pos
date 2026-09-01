@@ -158,6 +158,27 @@ class TestGiftCardLines(FrappeTestCase):
 		self.assertEqual(doc.custom_generated_gift_cards, "GIFT-NEW")
 		create_coupon.assert_called_once()
 
+	@patch("excel_restaurant_pos.shared.gift_card.services._gift_validity_dates", return_value=("2026-01-01", "2027-01-01"))
+	@patch("excel_restaurant_pos.shared.gift_card.services._resolve_gift_card_customer", return_value="CUST-1")
+	@patch("excel_restaurant_pos.shared.gift_card.services.get_gift_card_email", return_value="buyer@example.com")
+	def test_activate_existing_gift_card_defers_invoice_link(self, _email, _customer, _dates):
+		from excel_restaurant_pos.shared.gift_card.services import activate_existing_gift_card
+
+		coupon = SimpleNamespace(
+			custom_discount_amount=500,
+			custom_linked_email="",
+			custom_discount_type="Flat Amount",
+			flags=SimpleNamespace(),
+			save=MagicMock(),
+		)
+		invoice = frappe._dict(name="ORD-26-02285", posting_date="2026-08-31")
+
+		activate_existing_gift_card(coupon, invoice, frappe._dict())
+
+		self.assertFalse(hasattr(coupon, "custom_generated_on_order"))
+		self.assertEqual(coupon.flags.generated_for_invoice, "ORD-26-02285")
+		coupon.save.assert_called_once_with(ignore_permissions=True)
+
 
 class TestGiftCardBalance(FrappeTestCase):
 	def test_recompute_partial_keeps_active(self):

@@ -200,7 +200,10 @@ def activate_existing_gift_card(coupon, invoice, settings) -> Any:
 	coupon.custom_available_balance = face_value
 	coupon.custom_linked_email = get_gift_card_email(invoice) or coupon.custom_linked_email
 	coupon.customer = _resolve_gift_card_customer(invoice)
-	coupon.custom_generated_on_order = invoice.name
+	# Defer invoice link until on_submit (finalize_gift_card_links) to avoid
+	# LinkValidationError when the Sales Invoice is not yet committed.
+	if invoice and invoice.get("name"):
+		coupon.flags.generated_for_invoice = invoice.name
 	coupon.custom_discount_type = coupon.custom_discount_type or "Flat Amount"
 	coupon.save(ignore_permissions=True)
 	return coupon
