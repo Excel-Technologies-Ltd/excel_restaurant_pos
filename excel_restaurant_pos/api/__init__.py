@@ -22,6 +22,7 @@ from .arcpos_offers import arcpos_offers_api_routes
 from .pnl_entry import pnl_entry_api_routes
 from .coupon import coupon_api_routes
 from .gift_card import gift_card_api_routes
+from .timeclock import timeclock_api_routes
 
 api_routes = {
     **tips_api_routes,
@@ -48,4 +49,5 @@ api_routes = {
     **pnl_entry_api_routes,
     **coupon_api_routes,
     **gift_card_api_routes,
+    **timeclock_api_routes,
 }

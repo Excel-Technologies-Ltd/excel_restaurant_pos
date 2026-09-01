@@ -1,0 +1,193 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "format:ETT-{business_date}-{employee}",
+ "creation": "2026-09-01 10:00:00.000000",
+ "default_view": "List",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "employee",
+  "employee_name",
+  "column_break_main",
+  "business_date",
+  "timeclock_section",
+  "first_check_in",
+  "column_break_clock",
+  "last_check_out",
+  "payment_section",
+  "total_paid_hours",
+  "timeclock_cost",
+  "column_break_payment",
+  "total_payment",
+  "audit_section",
+  "manual_entry",
+  "is_modified",
+  "column_break_audit",
+  "modified_by_manager"
+ ],
+ "fields": [
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Employee",
+   "options": "ArcPOS Employee",
+   "reqd": 1,
+   "set_only_once": 1
+  },
+  {
+   "fetch_from": "employee.employee_name",
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Employee Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_main",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "business_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Business Date",
+   "reqd": 1,
+   "set_only_once": 1
+  },
+  {
+   "fieldname": "timeclock_section",
+   "fieldtype": "Section Break",
+   "label": "Timeclock"
+  },
+  {
+   "fieldname": "first_check_in",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "First Check In"
+  },
+  {
+   "fieldname": "column_break_clock",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "last_check_out",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Last Check Out"
+  },
+  {
+   "fieldname": "payment_section",
+   "fieldtype": "Section Break",
+   "label": "Payment"
+  },
+  {
+   "description": "Hours between first check in and last check out.",
+   "fieldname": "total_paid_hours",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Total Paid Hours",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "description": "Hourly rate fetched from ArcPOS Settings when the entry is created.",
+   "fieldname": "timeclock_cost",
+   "fieldtype": "Currency",
+   "label": "Timeclock Cost (Hourly)"
+  },
+  {
+   "fieldname": "column_break_payment",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_payment",
+   "fieldtype": "Currency",
+   "label": "Total Payment",
+   "read_only": 1
+  },
+  {
+   "fieldname": "audit_section",
+   "fieldtype": "Section Break",
+   "label": "Audit"
+  },
+  {
+   "default": "0",
+   "description": "Set when a manager creates the entry manually.",
+   "fieldname": "manual_entry",
+   "fieldtype": "Check",
+   "label": "Manual Entry",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "description": "Set when a manager edits the check in / check out timestamps.",
+   "fieldname": "is_modified",
+   "fieldtype": "Check",
+   "label": "Is Modified",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_audit",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Manager (ArcPOS Employee) who last edited or created this entry manually.",
+   "fieldname": "modified_by_manager",
+   "fieldtype": "Link",
+   "label": "Modified By (Manager)",
+   "options": "ArcPOS Employee",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-01 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Excel Restaurant Pos",
+ "name": "Employee Timeclock Tracking",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "ArcPOS Manager",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Restaurant Manager",
+   "write": 1
+  }
+ ],
+ "search_fields": "employee_name,business_date",
+ "sort_field": "business_date",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "employee_name",
+ "track_changes": 1
+}

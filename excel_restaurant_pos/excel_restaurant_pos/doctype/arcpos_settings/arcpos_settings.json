@@ -57,6 +57,8 @@
   "allowed_kop",
   "default_kop_format",
   "auto_print_for_online_order",
+  "employee_timeclock_section",
+  "timeclock_cost",
   "coupon_code_list_tab",
   "coupon_section",
   "allow_auto_generate_cc",
@@ -274,6 +276,17 @@
    "fieldtype": "Table",
    "label": "Discount Allocation",
    "options": "Discount Allocation"
+  },
+  {
+   "fieldname": "employee_timeclock_section",
+   "fieldtype": "Section Break",
+   "label": "Employee Timeclock"
+  },
+  {
+   "description": "Hourly rate copied to an Employee Timeclock Tracking entry when it is created.",
+   "fieldname": "timeclock_cost",
+   "fieldtype": "Currency",
+   "label": "Timeclock Cost (Hourly)"
   },
   {
    "fieldname": "coupon_code_list_tab",
@@ -1240,7 +1253,7 @@
  "issingle": 1,
  "links": [],
  "make_attachments_public": 1,
- "modified": "2026-08-19 12:24:59.596536",
+ "modified": "2026-09-01 10:00:00.000000",
  "modified_by": "Administrator",
  "module": "Excel Restaurant Pos",
  "name": "ArcPOS Settings",
