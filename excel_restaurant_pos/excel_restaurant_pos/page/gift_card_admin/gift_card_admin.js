@@ -180,6 +180,14 @@ class GiftCardAdmin {
 					fieldtype: "Data",
 					label: __("Linked Email (optional)"),
 				},
+				{
+					fieldname: "valid_upto",
+					fieldtype: "Date",
+					label: __("Expiry Date (optional)"),
+					description: __(
+						"Kept when the card is sold. Leave blank to expire from ArcPOS Settings on sale."
+					),
+				},
 			],
 			primary_action_label: __("Create"),
 			primary_action: (values) => {
@@ -222,11 +230,11 @@ class GiftCardAdmin {
 					fieldname: "help",
 					fieldtype: "HTML",
 					options: `<p class="text-muted">${__(
-						"Headers: code (optional), amount, email (optional). One row per card."
+						"Headers: code (optional), amount, email (optional), expiry (optional). One row per card."
 					)}</p>
-					<pre>code,amount,email
-GIFT-001,1000,guest@example.com
-,2000,</pre>`,
+					<pre>code,amount,email,expiry
+GIFT-001,1000,guest@example.com,2027-12-31
+,2000,,</pre>`,
 				},
 				{
 					fieldname: "csv_text",
@@ -235,12 +243,18 @@ GIFT-001,1000,guest@example.com
 					reqd: 1,
 					options: "CSV",
 				},
+				{
+					fieldname: "valid_upto",
+					fieldtype: "Date",
+					label: __("Expiry Date (optional)"),
+					description: __("Applied to rows without their own expiry column."),
+				},
 			],
 			primary_action_label: __("Import"),
 			primary_action: (values) => {
 				frappe.call({
 					method: "api.gift_cards.import",
-					args: { csv_text: values.csv_text },
+					args: { csv_text: values.csv_text, valid_upto: values.valid_upto },
 					freeze: true,
 					freeze_message: __("Importing..."),
 					callback: (r) => {

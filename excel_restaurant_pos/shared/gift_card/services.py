@@ -188,7 +188,13 @@ def activate_existing_gift_card(coupon, invoice, settings) -> Any:
 	if isinstance(coupon, str):
 		coupon = frappe.get_doc("Coupon Code", coupon)
 
-	valid_from, valid_upto = _gift_validity_dates(settings, invoice.get("posting_date"))
+	if coupon.valid_upto:
+		# An expiry stamped when the card was generated wins over the settings default.
+		valid_from = getdate(invoice.get("posting_date") or nowdate())
+		valid_upto = getdate(coupon.valid_upto)
+	else:
+		valid_from, valid_upto = _gift_validity_dates(settings, invoice.get("posting_date"))
+
 	face_value = flt(coupon.custom_discount_amount)
 	if face_value <= 0:
 		frappe.throw(_("Gift Card {0} has no face value.").format(coupon.name))

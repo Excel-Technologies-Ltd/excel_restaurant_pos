@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import frappe
 from frappe import _
-from frappe.utils import cint, flt
+from frappe.utils import cint, flt, getdate, nowdate
 
 from excel_restaurant_pos.shared.coupon.services import normalize_coupon_name
 
@@ -12,6 +12,11 @@ GIFT_CARD_TYPE = "Gift Card"
 STATUS_INACTIVE = "Inactive"
 GIFT_CARD_TYPE_NEW = "New"
 GIFT_CARD_TYPE_EXISTING = "Existing"
+
+
+def invalid_gift_card_message() -> str:
+	"""Single wording for a code that is not a usable gift card."""
+	return _("The entered code is not a valid Gift Card. Please enter a valid Gift Card code.")
 
 
 def get_gift_card_lines(doc) -> list:
@@ -47,17 +52,24 @@ def assert_inactive_gift_card(coupon_code: str, *, for_submit: bool = False):
 	"""Ensure the coupon is an Inactive Gift Card eligible for sale."""
 	coupon_name = normalize_coupon_name(coupon_code)
 	if not coupon_name:
-		frappe.throw(_("Gift Card {0} does not exist.").format(coupon_code), frappe.DoesNotExistError)
+		frappe.throw(invalid_gift_card_message(), frappe.DoesNotExistError)
 
 	coupon = frappe.get_doc("Coupon Code", coupon_name)
 	if (coupon.coupon_type or "").strip() != GIFT_CARD_TYPE:
-		frappe.throw(_("Coupon {0} is not a Gift Card.").format(coupon.name))
+		frappe.throw(invalid_gift_card_message())
 
 	status = (coupon.custom_status or "").strip()
 	if status != STATUS_INACTIVE:
 		frappe.throw(
 			_("Gift Card {0} must be Inactive to sell (current status: {1}).").format(
 				coupon.name, status or _("blank")
+			)
+		)
+
+	if coupon.valid_upto and getdate(nowdate()) > getdate(coupon.valid_upto):
+		frappe.throw(
+			_("Gift Card {0} expired on {1} and cannot be sold.").format(
+				coupon.name, coupon.valid_upto
 			)
 		)
 

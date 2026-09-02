@@ -5,9 +5,11 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from excel_restaurant_pos.shared.coupon.services import (
+    assert_promotional_coupon,
     build_coupon_code,
     calculate_invoice_subtotal,
     calculate_validity_dates,
+    invalid_coupon_code_message,
     is_channel_allowed,
     is_online_order,
     resolve_validity_dates,
@@ -514,3 +516,25 @@ class TestCouponServices(FrappeTestCase):
         # Explicit re-apply (apply endpoint) on the same coupon.
         self.assertTrue(self._apply_hook_calls(stored="SAVE10", current="SAVE10", force=True))
 
+
+class TestPromotionalCouponGuard(FrappeTestCase):
+    def test_gift_card_is_rejected_as_a_coupon_code(self):
+        gift_card = frappe._dict(name="GIFT-ABC", coupon_type="Gift Card")
+
+        with self.assertRaises(frappe.ValidationError) as raised:
+            assert_promotional_coupon(gift_card)
+
+        self.assertIn(
+            "not a valid Coupon Code",
+            str(raised.exception),
+        )
+
+    def test_promotional_coupon_passes(self):
+        assert_promotional_coupon(frappe._dict(name="SAVE10", coupon_type="Promotional"))
+        assert_promotional_coupon(frappe._dict(name="SAVE10", coupon_type=None))
+
+    def test_message_wording(self):
+        self.assertEqual(
+            invalid_coupon_code_message(),
+            "The entered code is not a valid Coupon Code. Please enter a valid Coupon Code.",
+        )

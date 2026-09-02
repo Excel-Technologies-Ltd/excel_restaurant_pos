@@ -14,10 +14,13 @@ from excel_restaurant_pos.shared.gift_card.services import (
 	_resolve_gift_card_customer,
 )
 from excel_restaurant_pos.shared.gift_card.redemption import validate_gift_card_globally
+from excel_restaurant_pos.shared.gift_card.admin import parse_expiry_date
+from excel_restaurant_pos.shared.gift_card.services import activate_existing_gift_card
 from excel_restaurant_pos.shared.gift_card.validation import (
 	GIFT_CARD_TYPE_EXISTING,
 	GIFT_CARD_TYPE_NEW,
 	get_gift_card_lines,
+	invalid_gift_card_message,
 	resolve_line_gift_amount,
 )
 
@@ -285,3 +288,77 @@ class TestGiftCardGlobalVerify(FrappeTestCase):
 		self.assertEqual(result["gift_card_code"], "GIFT-ABC")
 		self.assertEqual(result["available_balance"], 750.0)
 		load_card.assert_called_once_with("GIFT-ABC")
+
+
+class TestGiftCardCodeMessage(FrappeTestCase):
+	def test_message_wording(self):
+		self.assertEqual(
+			invalid_gift_card_message(),
+			"The entered code is not a valid Gift Card. Please enter a valid Gift Card code.",
+		)
+
+	@patch("excel_restaurant_pos.shared.gift_card.redemption.normalize_coupon_name", return_value="")
+	def test_unknown_code_is_rejected_with_the_gift_card_message(self, _normalize):
+		from excel_restaurant_pos.shared.gift_card.redemption import _load_active_gift_card
+
+		with self.assertRaises(frappe.DoesNotExistError) as raised:
+			_load_active_gift_card("NOPE")
+
+		self.assertIn("not a valid Gift Card", str(raised.exception))
+
+	@patch("excel_restaurant_pos.shared.gift_card.redemption.frappe.get_doc")
+	@patch("excel_restaurant_pos.shared.gift_card.redemption.normalize_coupon_name", return_value="SAVE10")
+	def test_promotional_coupon_is_rejected_with_the_gift_card_message(self, _normalize, get_doc):
+		from excel_restaurant_pos.shared.gift_card.redemption import _load_active_gift_card
+
+		get_doc.return_value = frappe._dict(name="SAVE10", coupon_type="Promotional")
+
+		with self.assertRaises(frappe.ValidationError) as raised:
+			_load_active_gift_card("SAVE10")
+
+		self.assertIn("not a valid Gift Card", str(raised.exception))
+
+
+class TestGiftCardExpiryAtGeneration(FrappeTestCase):
+	def test_parse_expiry_date(self):
+		self.assertIsNone(parse_expiry_date(None))
+		self.assertIsNone(parse_expiry_date(""))
+		self.assertEqual(str(parse_expiry_date("2099-12-31")), "2099-12-31")
+
+	def test_past_expiry_is_rejected(self):
+		with self.assertRaises(frappe.ValidationError):
+			parse_expiry_date("2000-01-01")
+
+	@patch("excel_restaurant_pos.shared.gift_card.services._resolve_gift_card_customer", return_value="Walk In")
+	@patch("excel_restaurant_pos.shared.gift_card.services.get_gift_card_email", return_value="guest@example.com")
+	@patch("excel_restaurant_pos.shared.gift_card.services._gift_validity_dates")
+	def test_expiry_from_generation_survives_the_sale(self, validity_dates, _email, _customer):
+		coupon = MagicMock()
+		coupon.valid_upto = "2099-12-31"
+		coupon.custom_discount_amount = 1000.0
+		coupon.custom_discount_type = "Flat Amount"
+		invoice = frappe._dict(name="SINV-1", posting_date="2026-09-02", customer="Walk In")
+
+		activate_existing_gift_card(coupon, invoice, _settings())
+
+		validity_dates.assert_not_called()
+		self.assertEqual(str(coupon.valid_upto), "2099-12-31")
+		self.assertEqual(str(coupon.valid_from), "2026-09-02")
+
+	@patch("excel_restaurant_pos.shared.gift_card.services._resolve_gift_card_customer", return_value="Walk In")
+	@patch("excel_restaurant_pos.shared.gift_card.services.get_gift_card_email", return_value="guest@example.com")
+	@patch(
+		"excel_restaurant_pos.shared.gift_card.services._gift_validity_dates",
+		return_value=("2026-09-02", "2027-09-02"),
+	)
+	def test_settings_expiry_is_used_when_none_was_generated(self, validity_dates, _email, _customer):
+		coupon = MagicMock()
+		coupon.valid_upto = None
+		coupon.custom_discount_amount = 1000.0
+		coupon.custom_discount_type = "Flat Amount"
+		invoice = frappe._dict(name="SINV-1", posting_date="2026-09-02", customer="Walk In")
+
+		activate_existing_gift_card(coupon, invoice, _settings())
+
+		validity_dates.assert_called_once()
+		self.assertEqual(coupon.valid_upto, "2027-09-02")

@@ -298,18 +298,22 @@ Desk page: **Gift Card Admin** (`/app/gift-card-admin`). Portal can call the sam
 | Method | Purpose |
 |--------|---------|
 | `api.gift_cards.list` | Paginated list + `status` / `search` |
-| `api.gift_cards.generate_bulk` | `{ qty, amount, prefix?, linked_email? }` → Inactive codes |
-| `api.gift_cards.import` | `{ csv_text }` → Inactive codes |
+| `api.gift_cards.generate_bulk` | `{ qty, amount, prefix?, linked_email?, valid_upto? }` → Inactive codes |
+| `api.gift_cards.import` | `{ csv_text, valid_upto? }` → Inactive codes |
+
+### Expiry at generation
+
+`valid_upto` (alias `expiry_date`) stamps an expiry on the generated cards. It must not be in the past, and it **survives the sale**: activation only falls back to ArcPOS Settings → *Expire After (Days)* for a card that carries no expiry of its own. A card whose expiry has already passed cannot be sold.
 
 ### CSV import format
 
 ```csv
-code,amount,email
-GIFT-001,1000,guest@example.com
-,2000,
+code,amount,email,expiry
+GIFT-001,1000,guest@example.com,2027-12-31
+,2000,,
 ```
 
-Blank `code` → auto-generated from ArcPOS Settings `gift_card_prefix`.
+Blank `code` → auto-generated from ArcPOS Settings `gift_card_prefix`. A row's `expiry` (aliases `expiry_date`, `valid_upto`) overrides the request-level `valid_upto`.
 
 ### List response shape
 
@@ -385,6 +389,9 @@ Common messages:
 
 | Situation | Expected |
 |-----------|----------|
+| Unknown code, or a promo coupon typed into the gift card field | “The entered code is not a valid Gift Card. Please enter a valid Gift Card code.” |
+| Unknown code, or a gift card typed into the coupon field (`api.coupons.validate` / `verify` / `apply`) | “The entered code is not a valid Coupon Code. Please enter a valid Coupon Code.” |
+| Selling an Inactive card whose expiry already passed | “Gift Card {code} expired on {date} and cannot be sold.” |
 | No draft SI | “only allowed on draft Sales Invoices” |
 | Promo + gift | Mutual exclusion error |
 | Inactive / Used / Expired code on redeem | Invalid / not Active |

@@ -8,7 +8,7 @@ from typing import Any
 
 import frappe
 from frappe import _
-from frappe.utils import cint, flt, now_datetime
+from frappe.utils import cint, flt, getdate, now_datetime, nowdate
 
 from excel_restaurant_pos.shared.coupon.services import generate_unique_coupon_code
 from excel_restaurant_pos.shared.gift_card.services import (
@@ -22,6 +22,22 @@ MAX_BULK_QTY = 500
 MAX_IMPORT_ROWS = 2000
 
 
+def parse_expiry_date(value):
+	"""Validate an optional expiry date (valid_upto) for generated gift cards."""
+	if value in (None, ""):
+		return None
+
+	try:
+		expiry = getdate(value)
+	except Exception:
+		frappe.throw(_("{0} is not a valid expiry date.").format(value))
+
+	if expiry < getdate(nowdate()):
+		frappe.throw(_("Expiry date cannot be in the past."))
+
+	return expiry
+
+
 def _create_inactive_gift_card(
 	*,
 	amount: float,
@@ -29,6 +45,7 @@ def _create_inactive_gift_card(
 	prefix: str,
 	linked_email: str | None = None,
 	coupon_code: str | None = None,
+	valid_upto=None,
 ) -> str:
 	"""Insert one Inactive Gift Card Coupon Code; return its name."""
 	amount = flt(amount)
@@ -58,6 +75,7 @@ def _create_inactive_gift_card(
 			"custom_discount_type": "Flat Amount",
 			"custom_discount_amount": amount,
 			"custom_available_balance": amount,
+			"valid_upto": valid_upto,
 			"custom_created_on": now_datetime(),
 			"custom_linked_email": (linked_email or "").strip() or None,
 			"custom_status": STATUS_INACTIVE,
@@ -74,13 +92,20 @@ def generate_bulk_inactive_gift_cards(
 	*,
 	prefix: str | None = None,
 	linked_email: str | None = None,
+	valid_upto=None,
 ) -> dict[str, Any]:
-	"""Create N Inactive gift cards with the same face value."""
+	"""Create N Inactive gift cards with the same face value.
+
+	`valid_upto` sets the expiry on the generated cards. It survives the sale —
+	activation only falls back to the ArcPOS Settings expiry when a card carries none.
+	"""
 	qty = cint(qty)
 	if qty < 1:
 		frappe.throw(_("Quantity must be at least 1."))
 	if qty > MAX_BULK_QTY:
 		frappe.throw(_("Quantity cannot exceed {0}.").format(MAX_BULK_QTY))
+
+	expiry = parse_expiry_date(valid_upto)
 
 	settings = get_gift_card_settings()
 	pricing_rule = _validate_gift_pricing_rule(settings)
@@ -94,6 +119,7 @@ def generate_bulk_inactive_gift_cards(
 				pricing_rule=pricing_rule,
 				prefix=code_prefix,
 				linked_email=linked_email,
+				valid_upto=expiry,
 			)
 		)
 
@@ -102,6 +128,7 @@ def generate_bulk_inactive_gift_cards(
 		"created_count": len(created),
 		"codes": created,
 		"amount": flt(amount),
+		"valid_upto": str(expiry) if expiry else None,
 	}
 
 
@@ -122,7 +149,18 @@ def _parse_import_rows(raw_text: str) -> list[dict]:
 
 	header = [c.strip().lower() for c in rows[0]]
 	has_header = any(
-		h in ("code", "coupon_code", "amount", "face_value", "email", "linked_email")
+		h
+		in (
+			"code",
+			"coupon_code",
+			"amount",
+			"face_value",
+			"email",
+			"linked_email",
+			"expiry",
+			"expiry_date",
+			"valid_upto",
+		)
 		for h in header
 	)
 
@@ -144,6 +182,7 @@ def _parse_import_rows(raw_text: str) -> list[dict]:
 					"code": _cell(row, "code", "coupon_code", "name"),
 					"amount": _cell(row, "amount", "face_value", "value"),
 					"email": _cell(row, "email", "linked_email"),
+					"expiry": _cell(row, "expiry", "expiry_date", "valid_upto"),
 				}
 			)
 	else:
@@ -182,15 +221,17 @@ def _parse_import_rows(raw_text: str) -> list[dict]:
 	return parsed
 
 
-def import_inactive_gift_cards(csv_text: str) -> dict[str, Any]:
+def import_inactive_gift_cards(csv_text: str, valid_upto=None) -> dict[str, Any]:
 	"""Import Inactive gift cards from CSV text.
 
-	Supported headers: code/coupon_code, amount/face_value, email/linked_email
-	Code is optional — auto-generated from ArcPOS Settings prefix when blank.
+	Supported headers: code/coupon_code, amount/face_value, email/linked_email,
+	expiry/expiry_date/valid_upto. Code is optional — auto-generated from ArcPOS
+	Settings prefix when blank. A row expiry overrides the `valid_upto` argument.
 	"""
 	settings = get_gift_card_settings()
 	pricing_rule = _validate_gift_pricing_rule(settings)
 	prefix = (getattr(settings, "gift_card_prefix", None) or "GIFT####").strip()
+	default_expiry = parse_expiry_date(valid_upto)
 
 	rows = _parse_import_rows(csv_text)
 	created: list[str] = []
@@ -207,6 +248,7 @@ def import_inactive_gift_cards(csv_text: str) -> dict[str, Any]:
 				prefix=prefix,
 				linked_email=row.get("email"),
 				coupon_code=row.get("code") or None,
+				valid_upto=parse_expiry_date(row.get("expiry")) or default_expiry,
 			)
 			created.append(name)
 		except Exception as exc:

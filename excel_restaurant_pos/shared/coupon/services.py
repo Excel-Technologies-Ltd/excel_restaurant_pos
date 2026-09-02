@@ -20,6 +20,18 @@ COUPON_STATUS_USED = "Used"
 COUPON_STATUS_REJECTED = "Rejected"
 COUPON_GENERATION_RETRY_LIMIT = 50
 COUPON_RANDOM_CHARS = string.ascii_uppercase + string.digits
+GIFT_CARD_COUPON_TYPE = "Gift Card"
+
+
+def invalid_coupon_code_message() -> str:
+    """Single wording for a code that is not a usable promotional coupon."""
+    return _("The entered code is not a valid Coupon Code. Please enter a valid Coupon Code.")
+
+
+def assert_promotional_coupon(coupon_doc):
+    """Reject gift cards on the promotional coupon endpoints."""
+    if (coupon_doc.coupon_type or "").strip() == GIFT_CARD_COUPON_TYPE:
+        frappe.throw(invalid_coupon_code_message())
 
 
 def get_coupon_settings():
@@ -807,9 +819,10 @@ def validate_coupon_globally(coupon_code: str) -> dict:
     """Validate a coupon without Sales Invoice context."""
     coupon_name = normalize_coupon_name(coupon_code)
     if not coupon_name:
-        frappe.throw(_("Coupon {0} does not exist.").format(coupon_code), frappe.DoesNotExistError)
+        frappe.throw(invalid_coupon_code_message(), frappe.DoesNotExistError)
 
     coupon_doc = frappe.get_doc("Coupon Code", coupon_name)
+    assert_promotional_coupon(coupon_doc)
     assert_coupon_globally_valid(coupon_doc)
 
     return {
@@ -839,12 +852,10 @@ def verify_coupon_for_sales_invoice(docname: str, coupon_code: str) -> dict:
 
     coupon_name = normalize_coupon_name(coupon_code)
     if not coupon_name:
-        frappe.throw(_("Coupon {0} does not exist.").format(coupon_code))
+        frappe.throw(invalid_coupon_code_message(), frappe.DoesNotExistError)
 
     coupon_doc = frappe.get_doc("Coupon Code", coupon_name)
-
-    if (coupon_doc.coupon_type or "").strip() == "Gift Card":
-        frappe.throw(_("Use gift card APIs to verify Gift Card {0}.").format(coupon_doc.name))
+    assert_promotional_coupon(coupon_doc)
 
     from excel_restaurant_pos.shared.gift_card.redemption import assert_no_gift_cards
 
@@ -885,13 +896,12 @@ def apply_coupon_to_sales_invoice(docname: str, coupon_code: str) -> dict:
 
     coupon_name = normalize_coupon_name(coupon_code)
     if not coupon_name:
-        frappe.throw(_("Coupon {0} does not exist.").format(coupon_code))
+        frappe.throw(invalid_coupon_code_message(), frappe.DoesNotExistError)
 
     coupon_doc = frappe.get_doc("Coupon Code", coupon_name)
 
     # Gift cards use dedicated APIs / applied child table.
-    if (coupon_doc.coupon_type or "").strip() == "Gift Card":
-        frappe.throw(_("Use gift card APIs to redeem Gift Card {0}.").format(coupon_doc.name))
+    assert_promotional_coupon(coupon_doc)
 
     from excel_restaurant_pos.shared.gift_card.redemption import assert_no_gift_cards
 

@@ -18,7 +18,7 @@ from excel_restaurant_pos.shared.gift_card.services import (
 	is_gift_card_redemption_channel_allowed,
 	recompute_available_balance,
 )
-from excel_restaurant_pos.shared.gift_card.validation import GIFT_CARD_TYPE
+from excel_restaurant_pos.shared.gift_card.validation import GIFT_CARD_TYPE, invalid_gift_card_message
 
 APPLIED_TABLE = "custom_applied_gift_cards"
 
@@ -81,11 +81,11 @@ def assert_no_gift_cards(doc):
 def _load_active_gift_card(coupon_code: str):
 	coupon_name = normalize_coupon_name(coupon_code)
 	if not coupon_name:
-		frappe.throw(_("Gift Card {0} does not exist.").format(coupon_code), frappe.DoesNotExistError)
+		frappe.throw(invalid_gift_card_message(), frappe.DoesNotExistError)
 
 	coupon = frappe.get_doc("Coupon Code", coupon_name)
 	if (coupon.coupon_type or "").strip() != GIFT_CARD_TYPE:
-		frappe.throw(_("Coupon {0} is not a Gift Card. Use the promo coupon APIs.").format(coupon.name))
+		frappe.throw(invalid_gift_card_message())
 
 	status = (coupon.custom_status or "").strip()
 	if status != COUPON_STATUS_ACTIVE:
