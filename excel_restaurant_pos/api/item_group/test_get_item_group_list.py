@@ -37,9 +37,14 @@ class TestItemGroupListArgs(FrappeTestCase):
         with self.assertRaises(frappe.ValidationError):
             _requested_fields(PERMITTED)
 
-    def test_wildcard_expands_to_known_columns(self):
+    def test_wildcard_is_passed_through(self):
+        """The POS calls this endpoint with fields=["*"]."""
         frappe.local.form_dict = frappe._dict(fields='["*"]')
-        self.assertEqual(_requested_fields(PERMITTED), sorted(PERMITTED))
+        self.assertEqual(_requested_fields(PERMITTED), ["*"])
+
+    def test_bare_wildcard_string_is_passed_through(self):
+        frappe.local.form_dict = frappe._dict(fields="*")
+        self.assertEqual(_requested_fields(PERMITTED), ["*"])
 
     def test_order_by_is_validated(self):
         frappe.local.form_dict = frappe._dict(order_by="item_group_name desc")
@@ -69,6 +74,41 @@ class TestItemGroupListArgs(FrappeTestCase):
     def test_page_args_accept_the_usual_aliases(self):
         frappe.local.form_dict = frappe._dict(start="20", limit="10")
         self.assertEqual(_page_args(), (20, 10))
+
+
+class TestLiveRequestShape(FrappeTestCase):
+    """The argument shape the POS actually sends today."""
+
+    def setUp(self):
+        frappe.local.form_dict = frappe._dict(
+            # ?fields=["*"]&fields=* -- werkzeug keeps the first value
+            fields='["*"]',
+            filters='[["custom_publish_to_website","=","1"]]',
+            item_filters=(
+                '[["custom_is_website_item","=","1"],'
+                '["custom_combined_section","like","%Bancan Kitchen%"]]'
+            ),
+            order_by="custom_priority asc",
+        )
+
+    def test_every_argument_survives(self):
+        permitted = {"name", "custom_publish_to_website", "custom_priority"}
+
+        self.assertEqual(_requested_fields(permitted), ["*"])
+        self.assertEqual(
+            _requested_filters(permitted), [["custom_publish_to_website", "=", "1"]]
+        )
+        self.assertEqual(
+            _requested_order_by(permitted), "`tabItem Group`.`custom_priority` asc"
+        )
+        self.assertEqual(_page_args(), (0, None))
+
+    def test_item_filters_reach_the_item_query(self):
+        item_filters = _build_item_filters(False)
+        self.assertIn(["custom_is_website_item", "=", "1"], item_filters)
+        self.assertIn(
+            ["custom_combined_section", "like", "%Bancan Kitchen%"], item_filters
+        )
 
 
 class TestGiftCardFilter(FrappeTestCase):

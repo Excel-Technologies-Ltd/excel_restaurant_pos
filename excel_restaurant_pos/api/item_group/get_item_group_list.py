@@ -17,11 +17,23 @@ STANDARD_FIELDS = ("name", "owner", "creation", "modified", "modified_by", "docs
 
 
 def _parse_json_arg(value):
-    """Parse a request argument that may arrive as a JSON string."""
-    if isinstance(value, str):
-        value = value.strip()
-        return frappe.parse_json(value) if value else None
-    return value
+    """Parse a request argument that may arrive as a JSON string.
+
+    A string that is not JSON is handed back as-is rather than raising, so a
+    bare `fields=*` or `fields=item_group_name` behaves like the one element
+    list it means.
+    """
+    if not isinstance(value, str):
+        return value
+
+    value = value.strip()
+    if not value:
+        return None
+
+    try:
+        return frappe.parse_json(value)
+    except ValueError:
+        return value
 
 
 def _permitted_fieldnames():
@@ -52,10 +64,12 @@ def _requested_fields(permitted):
     if isinstance(fields, str):
         fields = [fields]
 
-    # "*" stays supported, but expands to the known columns rather than reaching
-    # the query builder, where it would also pull anything added later.
+    # "*" is passed through untouched so the wildcard returns exactly the columns
+    # it always did. It is the only expression allowed: every other entry has to
+    # be a plain Item Group fieldname, which is what keeps subqueries and SQL
+    # functions out of the select list.
     if any(field == "*" for field in fields):
-        return sorted(permitted)
+        return ["*"]
 
     for field in fields:
         _validate_fieldname(field, permitted)
