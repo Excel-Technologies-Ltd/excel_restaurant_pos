@@ -174,7 +174,12 @@ doc_events = {
 # ---------------
 # Runs after fixtures sync, so the code custom fields exist before backfilling.
 
-after_migrate = ["excel_restaurant_pos.shared.coupon.codes.backfill_coupon_codes"]
+after_migrate = [
+    "excel_restaurant_pos.shared.coupon.codes.backfill_coupon_codes",
+    # Installs every report_sql/*.sql file, so a new stored procedure only needs
+    # the file -- no patch entry per report.
+    "excel_restaurant_pos.shared.sql_procedures.sync.sync_sql_objects",
+]
 
 # Runs before DocType/fixture sync so a stuck Currency fieldtype cannot break migrate.
 before_migrate = [
