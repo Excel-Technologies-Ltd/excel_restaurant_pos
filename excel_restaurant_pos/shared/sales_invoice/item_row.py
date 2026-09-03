@@ -20,19 +20,20 @@ CORE_ITEM_FIELDS = ("item_code", "qty", "rate", "warehouse", "description")
 # path from an untrusted payload has no business being written to an invoice.
 SKIPPED_FIELDTYPES = set(no_value_fields) | {"Attach", "Attach Image"}
 
+# Only the `custom_` prefix is accepted, not every custom field. Sales Invoice
+# Item also carries the `excel_*` accounting dimensions (Excel LC No, Excel
+# Short Term Loan, ...), which belong to Accounts, not to the POS.
+CUSTOM_FIELD_PREFIX = "custom_"
+
 
 def get_allowed_custom_item_fields(doctype="Sales Invoice Item"):
-    """Custom fieldnames on `doctype` that a POS payload is allowed to set.
-
-    Includes both the `custom_` prefixed fields and the older custom fields that
-    predate that convention (`excel_serials`, `mrp_sales_rate`, ...).
-    """
+    """POS-owned custom fieldnames on `doctype` that a payload may set."""
     meta = frappe.get_meta(doctype)
     return tuple(
         df.fieldname
         for df in meta.fields
         if df.fieldtype not in SKIPPED_FIELDTYPES
-        and (getattr(df, "is_custom_field", False) or df.fieldname.startswith("custom_"))
+        and df.fieldname.startswith(CUSTOM_FIELD_PREFIX)
     )
 
 

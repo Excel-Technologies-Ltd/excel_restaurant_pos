@@ -34,6 +34,12 @@ class TestInvoiceItemRow(FrappeTestCase):
         for fieldname in ("income_account", "cost_center", "price_list_rate", "discount_percentage"):
             self.assertNotIn(fieldname, allowed)
 
+    def test_accounting_dimension_custom_fields_are_not_allowed(self):
+        """`excel_*` dimensions are custom fields too, but belong to Accounts."""
+        allowed = get_allowed_custom_item_fields()
+        for fieldname in ("excel_lc_no", "excel_short_term_loan", "excel_office_locations"):
+            self.assertNotIn(fieldname, allowed)
+
     def test_layout_and_attachment_fields_are_skipped(self):
         meta = _meta(
             [
@@ -41,6 +47,7 @@ class TestInvoiceItemRow(FrappeTestCase):
                 {"fieldname": "custom_column_break_ppfaw", "fieldtype": "Column Break", "is_custom_field": 1},
                 {"fieldname": "custom_gift_receipt", "fieldtype": "Attach", "is_custom_field": 1},
                 {"fieldname": "custom_gift_amount", "fieldtype": "Data", "is_custom_field": 1},
+                {"fieldname": "excel_lc_no", "fieldtype": "Link", "is_custom_field": 1},
             ]
         )
         with patch("excel_restaurant_pos.shared.sales_invoice.item_row.frappe.get_meta", return_value=meta):
