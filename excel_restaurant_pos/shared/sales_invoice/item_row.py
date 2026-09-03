@@ -40,8 +40,9 @@ def get_allowed_custom_item_fields(doctype="Sales Invoice Item"):
 def build_invoice_item_row(item_data):
     """Map one payload line onto a Sales Invoice Item row.
 
-    Keys the payload does not carry are left out entirely so the field defaults
-    still apply.
+    Keys the payload does not carry are left out of the row. `append` does not
+    apply DocField defaults, so those columns end up NULL either way -- the same
+    result as the explicit `item_data.get(fieldname)` this replaced.
     """
     row = {
         "item_code": item_data.get("item_code"),

@@ -66,7 +66,7 @@ class TestInvoiceItemRow(FrappeTestCase):
         self.assertEqual(row["rate"], 50.0)
         self.assertEqual(row["custom_brand_new_gift_field"], "x")
 
-    def test_unsent_fields_are_omitted_so_defaults_apply(self):
+    def test_unsent_fields_are_omitted_from_the_row(self):
         meta = _meta([{"fieldname": "custom_if_not_available", "fieldtype": "Select", "is_custom_field": 1}])
         with patch("excel_restaurant_pos.shared.sales_invoice.item_row.frappe.get_meta", return_value=meta):
             row = build_invoice_item_row({"item_code": "COKE"})
