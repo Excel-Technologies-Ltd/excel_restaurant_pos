@@ -165,6 +165,58 @@ Creates the record with `manual_entry = 1` and `modified_by_manager` set. `timec
 
 Errors: a record already exists for that employee/date (edit it instead).
 
+### `api.timeclock.export` — XLSX download
+
+Streams Employee Timeclock Tracking rows as an `.xlsx` attachment. Unlike every
+other route here this one is **session authenticated, not PIN authenticated**:
+the caller must be logged in and hold the **Export** permission on Employee
+Timeclock Tracking. By the DocType's own permissions that means System Manager
+and ArcPOS Manager; Restaurant Manager can read records in the POS but cannot
+export them.
+
+Request (all optional — omit everything to export the whole DocType):
+
+| Argument | Shape | Notes |
+|----------|-------|-------|
+| `filters` | Desk filters, JSON | `[["business_date","between",["2026-09-01","2026-09-30"]],["employee","=","6"]]`, or a plain object `{"employee": "6"}` |
+| `columns` | list of fieldnames | Defaults to the full record |
+| `filename` | string | Defaults to `employee-timeclock-<timestamp>.xlsx` |
+
+```js
+// the browser handles the download; do not fetch() this into memory
+window.location = "/api/method/api.timeclock.export"
+  + "?filters=" + encodeURIComponent(JSON.stringify([
+      ["business_date", "between", ["2026-09-01", "2026-09-30"]],
+    ]));
+```
+
+Response headers:
+
+| Header | Value |
+|--------|-------|
+| `Content-Type` | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` |
+| `Content-Disposition` | `attachment; filename=employee-timeclock-….xlsx` |
+| `Content-Length` | exact size, so the browser can show progress |
+| `X-Row-Count` | rows written, excluding the header |
+| `Cache-Control` | `no-store, no-cache, must-revalidate, private` |
+
+How it stays safe and flat in memory:
+
+- Rows are read with **the caller's own permissions**, so an unfiltered export
+  returns only what that user may already see.
+- Filter fieldnames are checked against the DocType and the operator against a
+  fixed list, so nothing arbitrary reaches the query builder.
+- Rows are pulled in batches of 500, **keyset paged on `name`** rather than by
+  offset, so a check-in recorded mid-export cannot skip or duplicate a row.
+- The workbook is written in openpyxl's write-only mode, so memory does not grow
+  with the row count.
+- The finished file goes to a temp path, is streamed in 64 KB chunks and is
+  deleted as the stream drains. Nothing is ever written to `/files`, so there is
+  no guessable URL for wage data.
+- Six exports per user per minute; beyond that the request is rejected.
+- Over 100,000 rows the export is refused with a message asking for filters.
+- Every export is recorded in **Access Log** with the filters and row count.
+
 ---
 
 ## 5. Errors
@@ -176,5 +228,7 @@ Errors: a record already exists for that employee/date (edit it instead).
 | More than 10 failed PINs in 5 minutes (per user + IP) | `AuthenticationError` | 401 |
 | Non-manager PIN on a manager route | `PermissionError` | 403 |
 | Record missing / already exists / bad timestamps | `ValidationError` family | 417 |
+| Export without the Export permission | `PermissionError` | 403 |
+| Export: unknown filter field, bad operator, over the row cap, or throttled | `ValidationError` | 417 |
 
 Read the message from `_server_messages` or `exception` as with the other ArcPOS APIs.

@@ -2,6 +2,7 @@
 
 from .authenticate import authenticate_timeclock_pin
 from .clock import timeclock_check_in, timeclock_check_out
+from .export import timeclock_export
 from .manager import (
 	timeclock_add_entry,
 	timeclock_employee_list,
@@ -15,6 +16,7 @@ __all__ = [
 	"timeclock_add_entry",
 	"timeclock_check_in",
 	"timeclock_check_out",
+	"timeclock_export",
 	"timeclock_employee_list",
 	"timeclock_get_record",
 	"timeclock_manager_authenticate",
@@ -30,4 +32,5 @@ timeclock_api_routes = {
 	"api.timeclock.get_record": "excel_restaurant_pos.api.timeclock.timeclock_get_record",
 	"api.timeclock.update_record": "excel_restaurant_pos.api.timeclock.timeclock_update_record",
 	"api.timeclock.add_entry": "excel_restaurant_pos.api.timeclock.timeclock_add_entry",
+	"api.timeclock.export": "excel_restaurant_pos.api.timeclock.timeclock_export",
 }
