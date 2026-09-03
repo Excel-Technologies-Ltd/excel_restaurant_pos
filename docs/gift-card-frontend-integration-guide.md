@@ -74,6 +74,21 @@ Content-Type: application/json
 
 Args may also be nested under `data` (JSON string) — same as other ArcPOS APIs.
 
+### Access
+
+`api.gift_cards.verify` is **public** (`allow_guest`), matching
+`api.coupons.validate`, so an online-order customer can check a card before
+checkout without signing in. `sales_invoice` stays optional and, when given, must
+still be a draft.
+
+Every other gift card route — `apply`, `discard`, `list`, `list_inactive`,
+`generate_bulk`, `import` — remains authenticated.
+
+Because a gift card is a bearer instrument, the public checker is throttled to
+**20 requests per minute per caller** (per IP for guests, per user once signed
+in). Over that it returns `Too many requests. Please try again later.` as a
+`ValidationError`. Verify on submit or on blur, not on every keystroke.
+
 ---
 
 ## 3. Feature A — Sell gift cards
