@@ -217,6 +217,57 @@ How it stays safe and flat in memory:
 - Over 100,000 rows the export is refused with a message asking for filters.
 - Every export is recorded in **Access Log** with the filters and row count.
 
+### `api.timeclock.export_ticket` + `api.timeclock.download` — cross-origin downloads
+
+The SPA at `pos-order.aninda.me` authenticates with `Authorization: Bearer <jwt>`
+(`excel_restaurant_pos.auth.validate`). A browser navigation cannot carry that
+header, so `window.location = ".../api.timeclock.export"` arrives as **Guest**
+and is refused. Fetching the file instead works, but `response.blob()` buffers
+the whole workbook in browser memory, which throws away the streaming.
+
+Two steps instead:
+
+```js
+// 1. mint a ticket with the bearer token you already have
+const res = await fetch(`${API}/api/method/api.timeclock.export_ticket`, {
+  method: "POST",
+  headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
+  body: JSON.stringify({
+    filters: [["business_date", "between", ["2026-09-01", "2026-09-30"]]],
+  }),
+});
+const { ticket } = (await res.json()).message;
+
+// 2. let the browser download it -- streams to disk, native progress, no JS memory
+window.location = `${API}/api/method/api.timeclock.download?ticket=${encodeURIComponent(ticket)}`;
+```
+
+The ticket is random (32 bytes), **single use**, expires after **two minutes**,
+and carries the filters, columns, filename and minting user. Redeeming it runs
+the export as that user with that user's permissions, so a ticket cannot be
+replayed, widened, or used to export someone else's view. `api.timeclock.download`
+is the only guest-reachable route here and does nothing at all without a valid
+ticket.
+
+Because the ticket travels in the query string, the response sets
+`Referrer-Policy: no-referrer`. Treat the ticket as a password with a two minute
+life: mint it at the moment of the click, never log it.
+
+**If you would rather stay on `fetch`** (an in-app progress bar, no navigation),
+call `api.timeclock.export` directly with the bearer header and read the blob.
+The response sets `Access-Control-Expose-Headers`, so `Content-Disposition`,
+`Content-Length` and `X-Row-Count` are readable cross-origin — Frappe's own CORS
+handling sets `Allow-Origin` but never `Expose-Headers`. The server still streams
+and stays flat in memory; only the browser buffers.
+
+**Site config prerequisite.** Cross-origin calls need the API site's
+`site_config.json` to allow the SPA's origin, otherwise the browser blocks the
+response before your code sees it:
+
+```json
+{ "allow_cors": ["https://pos-order.aninda.me"] }
+```
+
 ---
 
 ## 5. Errors
@@ -230,5 +281,6 @@ How it stays safe and flat in memory:
 | Record missing / already exists / bad timestamps | `ValidationError` family | 417 |
 | Export without the Export permission | `PermissionError` | 403 |
 | Export: unknown filter field, bad operator, over the row cap, or throttled | `ValidationError` | 417 |
+| Download ticket missing, forged, expired, or already used | `AuthenticationError` | 401 |
 
 Read the message from `_server_messages` or `exception` as with the other ArcPOS APIs.

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import datetime
 import os
+import secrets
 import tempfile
 
 import frappe
@@ -43,6 +44,16 @@ MAX_ROWS = 100_000
 # Exports are expensive; one user should not be able to queue them in a loop.
 EXPORT_RATE_LIMIT = 6
 EXPORT_RATE_WINDOW = 60
+
+# A browser navigation cannot carry an Authorization header, so a cross origin
+# SPA mints a one time ticket and points the browser at it. Kept short lived
+# because it travels in the URL, where it can reach access logs and history.
+DOWNLOAD_TICKET_TTL = 120
+DOWNLOAD_TICKET_PREFIX = "arcpos:timeclock_export_ticket"
+
+# Headers a cross origin caller has to be told it may read. Frappe's own CORS
+# handling sets Allow-Origin but never Expose-Headers.
+EXPOSED_HEADERS = "Content-Disposition, Content-Length, X-Row-Count"
 
 DEFAULT_COLUMNS = (
 	"name",
@@ -383,7 +394,74 @@ def build_export_response(raw_filters=None, raw_columns=None, filename=None, bat
 	# The workbook holds wage data: never let a proxy or the browser keep it.
 	response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private"
 	response.headers["X-Content-Type-Options"] = "nosniff"
+	# Without this a cross origin fetch() can read the body but not the filename.
+	response.headers["Access-Control-Expose-Headers"] = EXPOSED_HEADERS
+	# A ticket rides in the query string; keep it out of the next site's referer.
+	response.headers["Referrer-Policy"] = "no-referrer"
 	return response
+
+
+# ---------------------------------------------------------------------------
+# One time download tickets (for cross origin browser downloads)
+# ---------------------------------------------------------------------------
+
+
+def _ticket_key(ticket):
+	return f"{DOWNLOAD_TICKET_PREFIX}:{ticket}"
+
+
+def create_download_ticket(raw_filters=None, raw_columns=None, filename=None):
+	"""Mint a single use ticket for a browser initiated download.
+
+	The filters are validated and frozen into the ticket now, while the caller
+	is still authenticated, so redeeming it cannot widen the export.
+	"""
+	frappe.has_permission(TRACKING_DOCTYPE, ptype="export", throw=True)
+
+	payload = {
+		"user": frappe.session.user,
+		"filters": parse_filters(raw_filters),
+		"columns": resolve_columns(raw_columns),
+		"filename": filename or export_filename(),
+	}
+
+	ticket = secrets.token_urlsafe(32)
+	frappe.cache().set_value(
+		_ticket_key(ticket), payload, expires_in_sec=DOWNLOAD_TICKET_TTL
+	)
+
+	return {
+		"ticket": ticket,
+		"expires_in": DOWNLOAD_TICKET_TTL,
+		"filename": payload["filename"],
+	}
+
+
+def redeem_download_ticket(ticket):
+	"""Consume a ticket and stream the export as the user who minted it."""
+	if not ticket:
+		frappe.throw(_("A download ticket is required"), frappe.AuthenticationError)
+
+	key = _ticket_key(str(ticket).strip())
+	payload = frappe.cache().get_value(key)
+	if not payload:
+		frappe.throw(
+			_("This download link has expired. Please start the export again."),
+			frappe.AuthenticationError,
+		)
+
+	# Single use: burn it before anything else can go wrong.
+	frappe.cache().delete_value(key)
+
+	# set_user clears form_dict, so nothing may be read from the request after
+	# this point -- everything the export needs is already in the ticket.
+	frappe.set_user(payload["user"])
+
+	return build_export_response(
+		raw_filters=payload["filters"],
+		raw_columns=payload["columns"],
+		filename=payload["filename"],
+	)
 
 
 def _log_export(filters, columns, rows):

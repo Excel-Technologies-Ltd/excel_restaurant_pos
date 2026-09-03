@@ -11,6 +11,9 @@ from frappe.tests.utils import FrappeTestCase
 
 from excel_restaurant_pos.shared.timeclock.export import (
 	DEFAULT_COLUMNS,
+	DOWNLOAD_TICKET_TTL,
+	create_download_ticket,
+	redeem_download_ticket,
 	_cell_value,
 	build_export_response,
 	column_labels,
@@ -211,3 +214,66 @@ class TestExportResponse(FrappeTestCase):
 
 		self.assertIn("throttled", outcomes)
 		self.assertEqual(outcomes.count("ok"), 6)
+
+
+class TestDownloadTicket(FrappeTestCase):
+	"""A cross origin SPA cannot put a bearer token on a browser navigation."""
+
+	def test_ticket_freezes_the_filters(self):
+		with patch(f"{MODULE}.frappe.has_permission", return_value=True):
+			ticket = create_download_ticket(raw_filters='[["employee", "=", "6"]]')
+
+		payload = frappe.cache().get_value(f"arcpos:timeclock_export_ticket:{ticket['ticket']}")
+		self.assertEqual(payload["filters"], [["employee", "=", "6"]])
+		self.assertEqual(payload["user"], frappe.session.user)
+		self.assertEqual(ticket["expires_in"], DOWNLOAD_TICKET_TTL)
+
+	def test_ticket_requires_export_permission(self):
+		with patch(f"{MODULE}.frappe.has_permission", side_effect=frappe.PermissionError):
+			with self.assertRaises(frappe.PermissionError):
+				create_download_ticket()
+
+	def test_ticket_is_single_use(self):
+		with patch(f"{MODULE}.frappe.has_permission", return_value=True):
+			ticket = create_download_ticket()
+
+			with patch(f"{MODULE}.frappe.get_list", return_value=[]):
+				with patch(f"{MODULE}._log_export"):
+					with patch(f"{MODULE}.frappe.set_user"):
+						response = redeem_download_ticket(ticket["ticket"])
+						b"".join(response.response)
+
+			with self.assertRaises(frappe.AuthenticationError):
+				redeem_download_ticket(ticket["ticket"])
+
+	def test_forged_ticket_is_rejected(self):
+		with self.assertRaises(frappe.AuthenticationError):
+			redeem_download_ticket("not-a-real-ticket")
+
+	def test_missing_ticket_is_rejected(self):
+		with self.assertRaises(frappe.AuthenticationError):
+			redeem_download_ticket(None)
+
+	def test_redemption_runs_as_the_minting_user(self):
+		with patch(f"{MODULE}.frappe.has_permission", return_value=True):
+			ticket = create_download_ticket()
+
+			with patch(f"{MODULE}.frappe.get_list", return_value=[]):
+				with patch(f"{MODULE}._log_export"):
+					with patch(f"{MODULE}.frappe.set_user") as set_user:
+						response = redeem_download_ticket(ticket["ticket"])
+						b"".join(response.response)
+
+		set_user.assert_called_once_with(frappe.session.user)
+
+	def test_cross_origin_headers_are_exposed(self):
+		with patch(f"{MODULE}.frappe.has_permission", return_value=True):
+			with patch(f"{MODULE}.frappe.get_list", return_value=[]):
+				with patch(f"{MODULE}._log_export"):
+					response = build_export_response()
+					b"".join(response.response)
+
+		exposed = response.headers["Access-Control-Expose-Headers"]
+		for header in ("Content-Disposition", "Content-Length", "X-Row-Count"):
+			self.assertIn(header, exposed)
+		self.assertEqual(response.headers["Referrer-Policy"], "no-referrer")
