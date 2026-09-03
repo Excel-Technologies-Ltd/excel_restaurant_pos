@@ -49,6 +49,13 @@ class TestItemGroupListArgs(FrappeTestCase):
         with self.assertRaises(frappe.ValidationError):
             _requested_order_by(PERMITTED)
 
+    def test_multi_column_order_by(self):
+        frappe.local.form_dict = frappe._dict(order_by="custom_is_gift_card desc, name asc")
+        self.assertEqual(
+            _requested_order_by(PERMITTED),
+            "`tabItem Group`.`custom_is_gift_card` desc, `tabItem Group`.`name` asc",
+        )
+
     def test_dict_filters_are_accepted(self):
         """`filters` as a dict used to raise AttributeError on .extend()."""
         frappe.local.form_dict = frappe._dict(filters='{"is_group": 0}')

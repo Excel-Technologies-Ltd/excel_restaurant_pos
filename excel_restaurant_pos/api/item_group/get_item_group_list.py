@@ -64,21 +64,32 @@ def _requested_fields(permitted):
 
 
 def _requested_order_by(permitted):
+    """Rebuild the sort clause from validated fieldnames.
+
+    Comma separated sorts are supported, so `custom_priority desc, name asc`
+    keeps working.
+    """
     order_by = (frappe.form_dict.get("order_by") or "").strip()
     if not order_by:
         return None
 
-    parts = order_by.replace("`", "").split()
-    if len(parts) > 2:
-        frappe.throw(_("Invalid order by: {0}").format(order_by), frappe.ValidationError)
+    clauses = []
+    for clause in order_by.replace("`", "").split(","):
+        parts = clause.split()
+        if not parts or len(parts) > 2:
+            frappe.throw(_("Invalid order by: {0}").format(order_by), frappe.ValidationError)
 
-    fieldname = parts[0]
-    direction = parts[1].lower() if len(parts) == 2 else "asc"
-    _validate_fieldname(fieldname, permitted)
-    if direction not in ("asc", "desc"):
-        frappe.throw(_("Invalid sort direction: {0}").format(direction), frappe.ValidationError)
+        fieldname = parts[0]
+        direction = parts[1].lower() if len(parts) == 2 else "asc"
+        _validate_fieldname(fieldname, permitted)
+        if direction not in ("asc", "desc"):
+            frappe.throw(
+                _("Invalid sort direction: {0}").format(direction), frappe.ValidationError
+            )
 
-    return f"`tab{ITEM_GROUP_DOCTYPE}`.`{fieldname}` {direction}"
+        clauses.append(f"`tab{ITEM_GROUP_DOCTYPE}`.`{fieldname}` {direction}")
+
+    return ", ".join(clauses)
 
 
 def _requested_filters(permitted):
