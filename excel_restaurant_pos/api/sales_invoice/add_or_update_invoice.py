@@ -5,6 +5,7 @@ import json
 import frappe
 from frappe.utils import flt, now_datetime, get_time
 from .handlers.update_sales_invoice import update_sales_invoice
+from excel_restaurant_pos.shared.sales_invoice import build_invoice_item_row
 from excel_restaurant_pos.utils import iso_to_frappe_datetime
 
 
@@ -124,33 +125,7 @@ def _add_items(sales_invoice, items):
         if not item_data.get("item_code"):
             frappe.throw("item_code is required for all items")
 
-        sales_invoice.append(
-            "items",
-            {
-                "item_code": item_data.get("item_code"),
-                "qty": flt(item_data.get("qty", 1)),
-                "rate": flt(item_data.get("rate", 0)),
-                "warehouse": item_data.get("warehouse"),
-                "description": item_data.get("description"),
-                "custom_parent_item": item_data.get("custom_parent_item"),
-                "custom_serve_type": item_data.get("custom_serve_type"),
-                "custom_order_item_status": item_data.get("custom_order_item_status"),
-                "custom_if_not_available": item_data.get("custom_if_not_available"),
-                "custom_special_note": item_data.get("custom_special_note"),
-                "custom_is_print": item_data.get("custom_is_print"),
-                "custom_guest_choice": item_data.get("custom_guest_choice"),
-                "custom_is_offer_price": item_data.get("custom_is_offer_price"),
-                "custom_choose_qty": item_data.get("custom_choose_qty"),
-                "custom_variant_child_items": item_data.get(
-                    "custom_variant_child_items"
-                ),
-                "custom_is_gift_card_item": item_data.get("custom_is_gift_card_item"),
-                "custom_gift_card_type": item_data.get("custom_gift_card_type"),
-                "custom_gift_card_code": item_data.get("custom_gift_card_code"),
-                "custom_coupon_value": item_data.get("custom_coupon_value"),
-                "custom_gift_amount": item_data.get("custom_gift_amount"),
-            },
-        )
+        sales_invoice.append("items", build_invoice_item_row(item_data))
 
 
 # add taxes

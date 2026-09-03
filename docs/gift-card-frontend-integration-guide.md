@@ -144,6 +144,12 @@ await call("api.gift_cards.list_inactive", {
 | **Sales Invoice API** | `add_or_update_invoice` / update handlers — pass item gift fields + `custom_gift_cards_for` |
 | **Admin POS (Table Order)** | `create_order` `item_list` rows with gift fields + optional `custom_gift_cards_for` on the order |
 
+`api.sales_invoices.add` accepts **every custom field defined on Sales Invoice Item**, on
+create and on update alike — the allowlist is read from the DocType meta, so a gift card
+field added to the DocType later works without an API change. Core fields stay restricted
+to `item_code`, `qty`, `rate`, `warehouse` and `description`; anything else that is not a
+custom field is ignored. Keys you omit are left unset so the field defaults apply.
+
 **Important:** Codes are created/activated only when the **Sales Invoice is submitted**. After submit, read:
 
 ```text
