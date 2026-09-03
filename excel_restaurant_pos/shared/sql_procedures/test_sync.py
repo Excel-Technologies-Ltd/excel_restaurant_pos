@@ -2,14 +2,19 @@
 # See license.txt
 
 import os
+from unittest.mock import patch
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from excel_restaurant_pos.shared.sql_procedures.sync import (
 	get_sql_files,
+	install_sql_file,
 	split_sql_statements,
+	strip_leading_comments,
 )
+
+MODULE = "excel_restaurant_pos.shared.sql_procedures.sync"
 
 
 class TestSqlStatementSplitter(FrappeTestCase):
@@ -69,3 +74,46 @@ class TestShippedSqlFiles(FrappeTestCase):
 	def test_timeclock_summary_procedure_is_shipped(self):
 		names = [os.path.basename(path) for path in get_sql_files()]
 		self.assertIn("GetEmployeeTimeclockSummary.sql", names)
+
+
+class TestLeadingComments(FrappeTestCase):
+	"""frappe reads a query's type from its first token, so a leading comment hides it."""
+
+	def test_comments_are_dropped(self):
+		self.assertEqual(
+			strip_leading_comments("-- why\n-- and how\nDROP PROCEDURE IF EXISTS `x`"),
+			"DROP PROCEDURE IF EXISTS `x`",
+		)
+
+	def test_statement_without_comments_is_unchanged(self):
+		self.assertEqual(strip_leading_comments("SELECT 1"), "SELECT 1")
+
+	def test_comment_only_statement_becomes_empty(self):
+		self.assertEqual(strip_leading_comments("-- nothing\n-- here\n"), "")
+
+	def test_inner_comments_are_kept(self):
+		statement = "CREATE PROCEDURE p()\nBEGIN\n  -- explain\n  SELECT 1;\nEND"
+		self.assertEqual(strip_leading_comments(statement), statement)
+
+
+class TestInstallUsesDdlPath(FrappeTestCase):
+	def test_statements_go_through_sql_ddl(self):
+		"""Plain db.sql raises ImplicitCommitError once a transaction has writes."""
+		path = get_sql_files()[0]
+
+		with patch(f"{MODULE}.frappe.db.sql_ddl") as sql_ddl:
+			with patch(f"{MODULE}.frappe.db.sql") as plain_sql:
+				count = install_sql_file(path)
+
+		self.assertEqual(sql_ddl.call_count, count)
+		plain_sql.assert_not_called()
+
+	def test_statements_reach_the_server_without_leading_comments(self):
+		path = get_sql_files()[0]
+
+		with patch(f"{MODULE}.frappe.db.sql_ddl") as sql_ddl:
+			install_sql_file(path)
+
+		for call in sql_ddl.call_args_list:
+			statement = call.args[0]
+			self.assertFalse(statement.lstrip().startswith("--"), statement[:60])

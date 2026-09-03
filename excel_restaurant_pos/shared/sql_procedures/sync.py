@@ -44,6 +44,26 @@ def get_sql_files() -> list:
 	return sorted(glob(os.path.join(folder, "*.sql")))
 
 
+def strip_leading_comments(statement: str) -> str:
+	"""Drop comment lines from the front of a statement.
+
+	frappe decides whether a query is DDL from its first token
+	(`database/utils.py:is_query_type`), so a statement that opens with `--`
+	reads as neither DDL nor a write and slips past checks meant to catch it.
+	"""
+	lines = statement.splitlines()
+	first = 0
+	for index, line in enumerate(lines):
+		stripped = line.strip()
+		if stripped and not stripped.startswith("--"):
+			first = index
+			break
+	else:
+		return ""
+
+	return "\n".join(lines[first:]).strip()
+
+
 def _is_only_comments(statement: str) -> bool:
 	for line in statement.splitlines():
 		line = line.strip()
@@ -100,7 +120,11 @@ def install_sql_file(path: str) -> int:
 
 	for statement in statements:
 		try:
-			frappe.db.sql(statement)
+			# sql_ddl commits first. MariaDB implicitly commits DDL anyway, and
+			# frappe refuses a CREATE/DROP while a transaction has pending writes
+			# ("This statement can cause implicit commit") -- which it always does
+			# by the time after_migrate runs.
+			frappe.db.sql_ddl(strip_leading_comments(statement))
 		except Exception as exc:
 			# Name the file: the traceback alone only shows the SQL text.
 			frappe.throw(

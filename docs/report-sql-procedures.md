@@ -30,6 +30,15 @@ A file that fails to install **aborts the migrate**, naming the file in the
 error. That is deliberate: a silently skipped procedure means a report that is
 broken at runtime instead of at deploy time.
 
+Statements run through `frappe.db.sql_ddl`, which commits first. MariaDB
+implicitly commits DDL anyway, and frappe refuses a `CREATE` or `DROP` while the
+transaction has pending writes — *"This statement can cause implicit commit"* —
+which it always does by the time `after_migrate` runs. Leading `--` comments are
+stripped from each statement before it is sent, because frappe reads a query's
+type from its first token (`database/utils.py:is_query_type`): a statement
+opening with a comment looks like neither DDL nor a write and slips past checks
+meant to catch it.
+
 ## Writing a file
 
 `DELIMITER` is a mysql *client* directive, not SQL. The installer interprets it
