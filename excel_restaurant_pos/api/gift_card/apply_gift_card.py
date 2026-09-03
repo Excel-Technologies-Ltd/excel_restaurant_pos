@@ -11,12 +11,23 @@ from excel_restaurant_pos.shared.gift_card.redemption import (
 	apply_gift_cards_to_sales_invoice,
 	parse_gift_card_codes,
 )
+from excel_restaurant_pos.utils import rate_limit_by_caller
+
+# Applying is a code oracle in the same way verifying is -- an invalid code
+# throws and a valid one succeeds -- so a public caller gets a budget.
+APPLY_RATE_LIMIT = 20
+APPLY_RATE_WINDOW = 60
 
 
-@frappe.whitelist(methods=["POST"])
+@frappe.whitelist(methods=["POST"], allow_guest=True)
 def apply_gift_card():
 	"""
 	Validate and apply gift card(s) to a draft Sales Invoice.
+
+	Public, so a website customer can pay with a gift card without signing in.
+	The invoice must still be a draft, which is the same rule the already public
+	invoice APIs follow, and no balance moves here -- it is reduced on submit.
+	Throttled per caller (per IP for guests).
 
 	Request
 	-------
@@ -32,6 +43,10 @@ def apply_gift_card():
 	- Cannot combine with a promotional coupon.
 	- Balance is reduced only when the invoice is submitted.
 	"""
+	rate_limit_by_caller(
+		"gift_card_apply", limit=APPLY_RATE_LIMIT, seconds=APPLY_RATE_WINDOW
+	)
+
 	data = get_request_data()
 	sales_invoice = get_sales_invoice_name(data, required=True)
 

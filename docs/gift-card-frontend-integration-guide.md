@@ -81,13 +81,21 @@ Args may also be nested under `data` (JSON string) — same as other ArcPOS APIs
 checkout without signing in. `sales_invoice` stays optional and, when given, must
 still be a draft.
 
-Every other gift card route — `apply`, `discard`, `list`, `list_inactive`,
-`generate_bulk`, `import` — remains authenticated.
+`api.gift_cards.apply` is **public** too, so a website customer can pay with a
+gift card without signing in. The invoice must be a draft, and **no balance
+moves on apply** — it is reduced when the Sales Invoice is submitted — so a
+guest applying a card is as reversible as a guest editing their own draft.
 
-Because a gift card is a bearer instrument, the public checker is throttled to
+`api.gift_cards.discard`, `list`, `list_inactive`, `generate_bulk` and `import`
+remain authenticated. ⚠️ That means a guest can attach a gift card but **cannot
+remove it**: a "remove gift card" control on the public checkout will get a 403
+until `discard` is made public as well.
+
+Because a gift card is a bearer instrument, both public routes are throttled to
 **20 requests per minute per caller** (per IP for guests, per user once signed
-in). Over that it returns `Too many requests. Please try again later.` as a
-`ValidationError`. Verify on submit or on blur, not on every keystroke.
+in) — an invalid code throws and a valid one succeeds, so either route is a code
+oracle. Over the budget they return `Too many requests. Please try again later.`
+as a `ValidationError`. Verify on submit or on blur, not on every keystroke.
 
 ---
 
