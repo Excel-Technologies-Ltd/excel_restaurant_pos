@@ -239,9 +239,8 @@ class TestDownloadTicket(FrappeTestCase):
 
 			with patch(f"{MODULE}.frappe.get_list", return_value=[]):
 				with patch(f"{MODULE}._log_export"):
-					with patch(f"{MODULE}.frappe.set_user"):
-						response = redeem_download_ticket(ticket["ticket"])
-						b"".join(response.response)
+					response = redeem_download_ticket(ticket["ticket"])
+					b"".join(response.response)
 
 			with self.assertRaises(frappe.AuthenticationError):
 				redeem_download_ticket(ticket["ticket"])
@@ -255,6 +254,26 @@ class TestDownloadTicket(FrappeTestCase):
 			redeem_download_ticket(None)
 
 	def test_redemption_runs_as_the_minting_user(self):
+		"""The user is threaded through the query, not set on the session."""
+		minting_user = frappe.session.user
+
+		with patch(f"{MODULE}.frappe.has_permission", return_value=True) as has_permission:
+			ticket = create_download_ticket()
+
+			with patch(f"{MODULE}.frappe.get_list", return_value=[]) as get_list:
+				with patch(f"{MODULE}._log_export"):
+					response = redeem_download_ticket(ticket["ticket"])
+					b"".join(response.response)
+
+		self.assertEqual(get_list.call_args.kwargs["user"], minting_user)
+		self.assertEqual(has_permission.call_args.kwargs["user"], minting_user)
+
+	def test_redemption_never_mutates_the_session(self):
+		"""frappe.set_user wipes local.session.data, poisoning the Desk session.
+
+		Session.resume reads the user from that nested dict, so a request after a
+		download would fail with "User None is disabled".
+		"""
 		with patch(f"{MODULE}.frappe.has_permission", return_value=True):
 			ticket = create_download_ticket()
 
@@ -264,7 +283,7 @@ class TestDownloadTicket(FrappeTestCase):
 						response = redeem_download_ticket(ticket["ticket"])
 						b"".join(response.response)
 
-		set_user.assert_called_once_with(frappe.session.user)
+		set_user.assert_not_called()
 
 	def test_cross_origin_headers_are_exposed(self):
 		with patch(f"{MODULE}.frappe.has_permission", return_value=True):

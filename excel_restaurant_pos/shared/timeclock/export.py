@@ -183,9 +183,9 @@ def column_labels(columns) -> list:
 # ---------------------------------------------------------------------------
 
 
-def _guard_export_rate():
+def _guard_export_rate(user=None):
 	"""Throttle exports per user."""
-	key = f"arcpos:timeclock_export:{frappe.session.user}"
+	key = f"arcpos:timeclock_export:{user or frappe.session.user}"
 	cache = frappe.cache()
 	attempts = cint(cache.get_value(key))
 	if attempts >= EXPORT_RATE_LIMIT:
@@ -195,7 +195,7 @@ def _guard_export_rate():
 	cache.set_value(key, attempts + 1, expires_in_sec=EXPORT_RATE_WINDOW)
 
 
-def iter_records(filters, columns, batch_size=None):
+def iter_records(filters, columns, batch_size=None, user=None):
 	"""Yield timeclock rows in batches, honouring the user's read permissions.
 
 	Paged on `name` rather than with an offset: `name` is the primary key, so a
@@ -218,6 +218,11 @@ def iter_records(filters, columns, batch_size=None):
 			order_by="name asc",
 			limit_page_length=batch_size,
 			ignore_permissions=False,
+			# Passed explicitly rather than switching frappe.session.user: a
+			# ticket redeemed from a browser navigation carries the Desk session
+			# cookie, and mutating that session corrupts it (see
+			# redeem_download_ticket).
+			user=user or frappe.session.user,
 		)
 		if not batch:
 			return
@@ -282,7 +287,7 @@ def _fieldtypes(columns):
 # ---------------------------------------------------------------------------
 
 
-def write_workbook(filters, columns, path, batch_size=None):
+def write_workbook(filters, columns, path, batch_size=None, user=None):
 	"""Write the export to `path` in write only mode. Returns the row count."""
 	from openpyxl import Workbook
 	from openpyxl.cell import WriteOnlyCell
@@ -303,7 +308,7 @@ def write_workbook(filters, columns, path, batch_size=None):
 	rows = 0
 	saved = False
 	try:
-		for record in iter_records(filters, columns, batch_size=batch_size):
+		for record in iter_records(filters, columns, batch_size=batch_size, user=user):
 			sheet.append(
 				[
 					_build_cell(sheet, record.get(fieldname), fieldtype)
@@ -354,12 +359,21 @@ def _stream_and_delete(path, chunk_size=STREAM_CHUNK_SIZE):
 	return generator()
 
 
-def build_export_response(raw_filters=None, raw_columns=None, filename=None, batch_size=None):
-	"""Permission checked XLSX export, returned as a streaming HTTP response."""
+def build_export_response(
+	raw_filters=None, raw_columns=None, filename=None, batch_size=None, user=None
+):
+	"""Permission checked XLSX export, returned as a streaming HTTP response.
+
+	`user` runs the export as somebody other than the session user, for a ticket
+	redeemed by a browser navigation. It is threaded through every permission
+	check and query rather than set on the session.
+	"""
 	from werkzeug.wrappers import Response
 
-	frappe.has_permission(TRACKING_DOCTYPE, ptype="export", throw=True)
-	_guard_export_rate()
+	user = user or frappe.session.user
+
+	frappe.has_permission(TRACKING_DOCTYPE, ptype="export", user=user, throw=True)
+	_guard_export_rate(user)
 
 	filters = parse_filters(raw_filters)
 	columns = resolve_columns(raw_columns)
@@ -369,7 +383,7 @@ def build_export_response(raw_filters=None, raw_columns=None, filename=None, bat
 	os.close(handle)
 
 	try:
-		rows = write_workbook(filters, columns, path, batch_size=batch_size)
+		rows = write_workbook(filters, columns, path, batch_size=batch_size, user=user)
 	except Exception:
 		# Nothing is streamed, so the half written file has to go now.
 		try:
@@ -378,7 +392,7 @@ def build_export_response(raw_filters=None, raw_columns=None, filename=None, bat
 			pass
 		raise
 
-	_log_export(filters, columns, rows)
+	_log_export(filters, columns, rows, user)
 
 	# Read before the generator starts, since streaming deletes the file.
 	size = os.path.getsize(path)
@@ -453,18 +467,20 @@ def redeem_download_ticket(ticket):
 	# Single use: burn it before anything else can go wrong.
 	frappe.cache().delete_value(key)
 
-	# set_user clears form_dict, so nothing may be read from the request after
-	# this point -- everything the export needs is already in the ticket.
-	frappe.set_user(payload["user"])
-
+	# The ticket's user is passed down rather than set on the session.
+	# frappe.set_user wipes local.session.data, which is the nested dict
+	# Session.resume reads the user from, and the request teardown persists that
+	# wiped dict against the browser's real sid -- poisoning the Desk session so
+	# the next request fails with "User None is disabled".
 	return build_export_response(
 		raw_filters=payload["filters"],
 		raw_columns=payload["columns"],
 		filename=payload["filename"],
+		user=payload["user"],
 	)
 
 
-def _log_export(filters, columns, rows):
+def _log_export(filters, columns, rows, user=None):
 	"""Record who exported what, so payroll data access is auditable."""
 	try:
 		from frappe.core.doctype.access_log.access_log import make_access_log
@@ -473,7 +489,16 @@ def _log_export(filters, columns, rows):
 			doctype=TRACKING_DOCTYPE,
 			file_type="XLSX",
 			method="Employee Timeclock Export",
-			filters=frappe.as_json({"filters": filters, "columns": columns, "rows": rows}),
+			filters=frappe.as_json(
+				{
+					# The acting user is recorded here as well: a ticket redeemed
+					# by a browser navigation has no session to attribute it to.
+					"user": user or frappe.session.user,
+					"filters": filters,
+					"columns": columns,
+					"rows": rows,
+				}
+			),
 		)
 	except Exception:
 		# An audit trail failure must not deny the export to a permitted user.

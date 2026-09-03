@@ -245,7 +245,11 @@ window.location = `${API}/api/method/api.timeclock.download?ticket=${encodeURICo
 The ticket is random (32 bytes), **single use**, expires after **two minutes**,
 and carries the filters, columns, filename and minting user. Redeeming it runs
 the export as that user with that user's permissions, so a ticket cannot be
-replayed, widened, or used to export someone else's view. `api.timeclock.download`
+replayed, widened, or used to export someone else's view. That user is threaded
+through the permission check and the query rather than set on the session:
+`frappe.set_user` wipes `local.session.data`, which is the nested dict
+`Session.resume` reads the user from, so persisting it against the browser's own
+sid would break the next Desk request with *"User None is disabled"*. `api.timeclock.download`
 is the only guest-reachable route here and does nothing at all without a valid
 ticket.
 
