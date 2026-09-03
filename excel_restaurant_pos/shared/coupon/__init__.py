@@ -3,6 +3,14 @@ from .codes import (
     generate_coupon_barcode,
     generate_coupon_qr_code,
 )
+from .order_status import (
+    ORDER_STATUS_CANCELLED,
+    apply_coupon_order_status,
+    ORDER_STATUS_SUBMITTED,
+    on_cancel_sales_invoice_coupon_status,
+    on_submit_sales_invoice_coupon_status,
+    sync_coupon_order_status,
+)
 from .services import (
     apply_coupon_to_sales_invoice,
     apply_sales_invoice_coupon_discount,
@@ -26,6 +34,12 @@ __all__ = [
     "before_submit_sales_invoice_coupon",
     "discard_coupon_from_sales_invoice",
     "ensure_coupon_codes",
+    "ORDER_STATUS_CANCELLED",
+    "apply_coupon_order_status",
+    "ORDER_STATUS_SUBMITTED",
+    "on_cancel_sales_invoice_coupon_status",
+    "on_submit_sales_invoice_coupon_status",
+    "sync_coupon_order_status",
     "expire_due_coupon_codes",
     "finalize_auto_generated_coupon",
     "generate_coupon_barcode",

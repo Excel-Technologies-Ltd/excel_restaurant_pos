@@ -36,6 +36,13 @@ custom_doc_events = {
             "excel_restaurant_pos.shared.gift_card.services.finalize_gift_card_links",
             "excel_restaurant_pos.shared.gift_card.services.record_gift_card_redemptions",
             "excel_restaurant_pos.doc_event.sales_invoice.submit_sales_invoice",
+            # Stamps custom_order_status = 1 on coupons generated on this order.
+            "excel_restaurant_pos.shared.coupon.order_status.on_submit_sales_invoice_coupon_status",
+        ],
+        "on_cancel": [
+            # custom_order_status = 2 and custom_status = Rejected, so a coupon
+            # from a voided order cannot be spent.
+            "excel_restaurant_pos.shared.coupon.order_status.on_cancel_sales_invoice_coupon_status",
         ],
         "on_trash": "excel_restaurant_pos.doc_event.sales_invoice.on_trash_sales_invoice",
         "on_change": "excel_restaurant_pos.doc_event.sales_invoice.change_sales_invoice",
