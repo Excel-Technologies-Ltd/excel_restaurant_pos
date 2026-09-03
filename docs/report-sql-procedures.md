@@ -72,18 +72,29 @@ Wraps `GetEmployeeTimeclockSummary`. Requires the **Report** permission on
 Employee Timeclock Tracking — System Manager, ArcPOS Manager and Restaurant
 Manager by the DocType's own permissions.
 
-```http
-POST /api/method/api.reports.employee_timeclock_summary
-Content-Type: application/json
+The report is read only, so it is a `GET` — linkable, bookmarkable, and no body
+to build:
 
-{
-  "start_date": "2026-09-01",
-  "end_date": "2026-09-30",
-  "employee_id": "6",
-  "page": 1,
-  "page_size": 20
-}
+```http
+GET /api/method/api.reports.employee_timeclock_summary
+    ?start_date=2026-09-01&end_date=2026-09-30&employee_id=6&page=1&page_size=20
 ```
+
+```js
+const q = new URLSearchParams({
+  start_date: "2026-09-01",
+  end_date: "2026-09-30",
+  employee_id: "6",
+  page: 1,
+  page_size: 20,
+});
+const res = await fetch(`${API}/api/method/api.reports.employee_timeclock_summary?${q}`, {
+  headers: { Authorization: `Bearer ${accessToken}` },
+});
+const report = (await res.json()).message;
+```
+
+`POST` with a JSON body is accepted as well, for callers that post everything.
 
 | Argument | Default | Notes |
 |----------|---------|-------|

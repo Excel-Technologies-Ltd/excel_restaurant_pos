@@ -68,12 +68,15 @@ def _empty_result(start_date, end_date, page, page_size):
 	}
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["GET", "POST"])
 def get_employee_timeclock_summary(
 	start_date=None, end_date=None, employee_id=None, page=1, page_size=None
 ):
 	"""
 	Timeclock hours and payroll totals per employee, with a per-day breakdown.
+
+	Read only, so GET is the natural verb and the arguments are plain query
+	parameters. POST is accepted too, for callers that post every request.
 
 	Requires the Report permission on Employee Timeclock Tracking, the same
 	permission that gates the XLSX export.
