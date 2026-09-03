@@ -36,24 +36,46 @@ def _parse_json_arg(value):
         return value
 
 
-def _permitted_fieldnames():
-    """Item Group columns a caller may read or filter on.
+def _permitted_fieldnames(doctype=ITEM_GROUP_DOCTYPE):
+    """Columns of `doctype` a caller may read or filter on.
 
     `frappe.get_all` runs with `ignore_permissions=True`, which also switches off
     field level permissions, so the allowlist has to live here.
     """
-    meta = frappe.get_meta(ITEM_GROUP_DOCTYPE)
+    meta = frappe.get_meta(doctype)
     return set(STANDARD_FIELDS) | {
         df.fieldname for df in meta.fields if df.fieldtype not in no_value_fields
     }
 
 
-def _validate_fieldname(fieldname, permitted):
-    if fieldname not in permitted:
+def _field_exists(doctype, fieldname):
+    """Whether a field is actually on the DocType on this site.
+
+    Fixtures can lag behind the code, and a filter on a column that does not
+    exist yet fails as a raw SQL error rather than anything a caller can act on.
+    """
+    return fieldname in _permitted_fieldnames(doctype)
+
+
+def _validate_fieldname(fieldname, permitted, doctype=ITEM_GROUP_DOCTYPE):
+    if fieldname in permitted:
+        return
+
+    # The gift card flag is named differently on each DocType, so sending it
+    # against the wrong one is a likelier mistake than a typo.
+    if fieldname in (GIFT_CARD_GROUP_FIELD, GIFT_CARD_ITEM_FIELD):
         frappe.throw(
-            _("{0} is not a valid Item Group field").format(fieldname),
+            _(
+                "{0} is not a field on {1}. Item Group has {2} (filter it with"
+                " `filters`), Item has {3} (filter it with `item_filters`)."
+            ).format(fieldname, _(doctype), GIFT_CARD_GROUP_FIELD, GIFT_CARD_ITEM_FIELD),
             frappe.ValidationError,
         )
+
+    frappe.throw(
+        _("{0} is not a valid {1} field").format(fieldname, _(doctype)),
+        frappe.ValidationError,
+    )
 
 
 def _requested_fields(permitted):
@@ -140,16 +162,47 @@ def _page_args():
     return limit_start, cint(limit_page_length) if limit_page_length else None
 
 
-def _wants_gift_cards():
-    """Whether gift card items and groups should be included in the result.
+def _gift_card_group_filter():
+    """`custom_is_gift_card` as a top level request parameter.
 
-    Off by default: the POS asks for the gift card catalogue explicitly.
+    Absent means no filter at all, so the default result is unchanged. `1`
+    returns only gift card groups, `0` only the rest. The same field also works
+    inside `filters`; this shorthand matches how `custom_combined_section` is
+    passed for the Item side.
     """
-    form = frappe.form_dict
-    return cint(form.get(GIFT_CARD_GROUP_FIELD) or form.get("include_gift_cards") or 0)
+    raw = frappe.form_dict.get(GIFT_CARD_GROUP_FIELD)
+    if raw in (None, ""):
+        return None
+
+    if not _field_exists(ITEM_GROUP_DOCTYPE, GIFT_CARD_GROUP_FIELD):
+        frappe.throw(
+            _("{0} is not a field on {1} on this site").format(
+                GIFT_CARD_GROUP_FIELD, _(ITEM_GROUP_DOCTYPE)
+            ),
+            frappe.ValidationError,
+        )
+
+    return [GIFT_CARD_GROUP_FIELD, "=", cint(raw)]
 
 
-def _build_item_filters(include_gift_cards):
+def _validate_item_filters(caller_filters):
+    """Check caller supplied Item filters before they reach the query builder.
+
+    Without this an unknown fieldname surfaces as
+    `Unknown column 'tabItem.x' in 'WHERE'` -- a 500 rather than a message the
+    caller can act on.
+    """
+    permitted = _permitted_fieldnames(ITEM_DOCTYPE)
+    for filter_row in caller_filters:
+        if not isinstance(filter_row, (list, tuple)) or len(filter_row) != 3:
+            frappe.throw(
+                _("Each item filter must be [field, operator, value]"),
+                frappe.ValidationError,
+            )
+        _validate_fieldname(filter_row[0], permitted, doctype=ITEM_DOCTYPE)
+
+
+def _build_item_filters():
     """Filters for the Item query that decides which groups have sellable items."""
     caller_filters = frappe.form_dict.get("item_filters")
 
@@ -157,6 +210,9 @@ def _build_item_filters(include_gift_cards):
         caller_filters = frappe.parse_json(caller_filters) if caller_filters.strip() else None
     if caller_filters is not None and not isinstance(caller_filters, list):
         caller_filters = None
+
+    if caller_filters:
+        _validate_item_filters(caller_filters)
 
     # Historical quirk, kept deliberately: the website default only applies when
     # `item_filters` is sent but unusable, never when it is omitted.
@@ -168,11 +224,6 @@ def _build_item_filters(include_gift_cards):
         ["disabled", "=", 0],
     ]
 
-    if not include_gift_cards:
-        # `= 0` rather than `!= 1` so rows that never had the flag set are kept:
-        # db_query wraps a falsy value in ifnull(column, 0).
-        item_filters.append([GIFT_CARD_ITEM_FIELD, "=", 0])
-
     combined_section = frappe.form_dict.get("custom_combined_section")
     if combined_section:
         item_filters.append(["custom_combined_section", "like", f"%{combined_section}%"])
@@ -180,18 +231,12 @@ def _build_item_filters(include_gift_cards):
     return item_filters
 
 
-def _gift_card_group_names():
-    return frappe.get_all(
-        ITEM_GROUP_DOCTYPE, filters={GIFT_CARD_GROUP_FIELD: 1}, pluck="name"
-    )
-
-
-def _candidate_group_names(include_gift_cards):
+def _candidate_group_names():
     """Item groups that hold at least one sellable item and are visible now."""
     group_names = set(
         frappe.get_all(
             ITEM_DOCTYPE,
-            filters=_build_item_filters(include_gift_cards),
+            filters=_build_item_filters(),
             pluck="item_group",
             distinct=True,
             # No ORDER BY: sorting by `modified` alongside a DISTINCT on
@@ -203,11 +248,6 @@ def _candidate_group_names(include_gift_cards):
     if not group_names:
         return []
 
-    if not include_gift_cards:
-        group_names -= set(_gift_card_group_names())
-        if not group_names:
-            return []
-
     # Visibility is resolved before the list query rather than after it, so a
     # paged request no longer returns short pages.
     return get_visible_item_group_names(sorted(group_names))
@@ -218,24 +258,29 @@ def get_item_group_list():
     """Item groups that currently have sellable items.
 
     Request arguments (all optional):
+        filters                   Item Group filters, including custom_is_gift_card
+        custom_is_gift_card       shorthand for the same field: 1 for gift card
+                                  groups only, 0 for everything else, omit for all
         item_filters              extra filters for the underlying Item query
         custom_combined_section   match items by combined section
-        custom_is_gift_card       1 to include gift card items and groups
-        filters, fields, order_by, limit_start, limit_page_length
+        fields, order_by, limit_start, limit_page_length
 
     Anything else in the request is ignored.
     """
-    include_gift_cards = _wants_gift_cards()
-
-    group_names = _candidate_group_names(include_gift_cards)
+    group_names = _candidate_group_names()
     if not group_names:
         return []
 
     permitted = _permitted_fieldnames()
     limit_start, limit_page_length = _page_args()
 
+    filters = _requested_filters(permitted)
+    gift_card_filter = _gift_card_group_filter()
+    if gift_card_filter:
+        filters.append(gift_card_filter)
+
     query_args = {
-        "filters": _requested_filters(permitted) + [["name", "in", group_names]],
+        "filters": filters + [["name", "in", group_names]],
         "fields": _requested_fields(permitted),
         "limit_start": limit_start,
         "limit_page_length": limit_page_length,

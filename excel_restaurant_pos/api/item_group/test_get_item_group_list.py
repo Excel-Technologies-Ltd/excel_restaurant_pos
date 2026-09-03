@@ -8,11 +8,12 @@ from frappe.tests.utils import FrappeTestCase
 
 from excel_restaurant_pos.api.item_group.get_item_group_list import (
     _build_item_filters,
+    _gift_card_group_filter,
     _page_args,
     _requested_fields,
     _requested_filters,
     _requested_order_by,
-    _wants_gift_cards,
+    _validate_item_filters,
     get_item_group_list,
 )
 
@@ -104,7 +105,7 @@ class TestLiveRequestShape(FrappeTestCase):
         self.assertEqual(_page_args(), (0, None))
 
     def test_item_filters_reach_the_item_query(self):
-        item_filters = _build_item_filters(False)
+        item_filters = _build_item_filters()
         self.assertIn(["custom_is_website_item", "=", "1"], item_filters)
         self.assertIn(
             ["custom_combined_section", "like", "%Bancan Kitchen%"], item_filters
@@ -115,34 +116,61 @@ class TestGiftCardFilter(FrappeTestCase):
     def setUp(self):
         frappe.local.form_dict = frappe._dict()
 
-    def test_gift_cards_excluded_by_default(self):
-        self.assertFalse(_wants_gift_cards())
-        self.assertIn(["custom_is_gift_card_item", "=", 0], _build_item_filters(False))
+    def test_no_gift_filter_by_default(self):
+        """Omitting the parameter must not change what the endpoint returns."""
+        self.assertIsNone(_gift_card_group_filter())
+        self.assertNotIn(["custom_is_gift_card_item", "=", 0], _build_item_filters())
 
-    def test_gift_cards_included_when_requested(self):
+    def test_gift_card_groups_only(self):
         frappe.local.form_dict = frappe._dict(custom_is_gift_card="1")
-        self.assertTrue(_wants_gift_cards())
-        filters = _build_item_filters(True)
-        self.assertNotIn(["custom_is_gift_card_item", "=", 0], filters)
+        self.assertEqual(_gift_card_group_filter(), ["custom_is_gift_card", "=", 1])
 
-    def test_include_gift_cards_alias(self):
-        frappe.local.form_dict = frappe._dict(include_gift_cards=1)
-        self.assertTrue(_wants_gift_cards())
+    def test_non_gift_card_groups_only(self):
+        frappe.local.form_dict = frappe._dict(custom_is_gift_card="0")
+        self.assertEqual(_gift_card_group_filter(), ["custom_is_gift_card", "=", 0])
+
+    def test_blank_parameter_is_not_a_filter(self):
+        frappe.local.form_dict = frappe._dict(custom_is_gift_card="")
+        self.assertIsNone(_gift_card_group_filter())
+
+    def test_group_field_also_works_inside_filters(self):
+        frappe.local.form_dict = frappe._dict(filters='[["custom_is_gift_card", "=", 1]]')
+        permitted = {"name", "custom_is_gift_card"}
+        self.assertEqual(_requested_filters(permitted), [["custom_is_gift_card", "=", 1]])
+
+    def test_item_field_belongs_in_item_filters(self):
+        frappe.local.form_dict = frappe._dict(
+            item_filters='[["custom_is_gift_card_item", "=", 1]]'
+        )
+        self.assertIn(["custom_is_gift_card_item", "=", 1], _build_item_filters())
+
+    def test_group_field_in_item_filters_is_rejected_with_a_hint(self):
+        """The 500 that started this: custom_is_gift_card is not an Item column."""
+        with self.assertRaises(frappe.ValidationError) as caught:
+            _validate_item_filters([["custom_is_gift_card", "=", 1]])
+
+        message = str(caught.exception)
+        self.assertIn("custom_is_gift_card_item", message)
+        self.assertIn("item_filters", message)
+
+    def test_unknown_item_filter_field_is_rejected(self):
+        with self.assertRaises(frappe.ValidationError):
+            _validate_item_filters([["not_a_column", "=", 1]])
 
     def test_base_filters_are_always_applied(self):
-        filters = _build_item_filters(True)
+        filters = _build_item_filters()
         self.assertIn(["variant_of", "is", "not set"], filters)
         self.assertIn(["disabled", "=", 0], filters)
 
     def test_combined_section_filter(self):
         frappe.local.form_dict = frappe._dict(custom_combined_section="Lunch")
-        self.assertIn(
-            ["custom_combined_section", "like", "%Lunch%"], _build_item_filters(True)
-        )
+        self.assertIn(["custom_combined_section", "like", "%Lunch%"], _build_item_filters())
 
     def test_item_filters_are_passed_through(self):
-        frappe.local.form_dict = frappe._dict(item_filters='[["custom_is_website_item", "=", "1"]]')
-        self.assertIn(["custom_is_website_item", "=", "1"], _build_item_filters(True))
+        frappe.local.form_dict = frappe._dict(
+            item_filters='[["custom_is_website_item", "=", "1"]]'
+        )
+        self.assertIn(["custom_is_website_item", "=", "1"], _build_item_filters())
 
 
 class TestItemGroupListQuery(FrappeTestCase):
@@ -172,21 +200,6 @@ class TestItemGroupListQuery(FrappeTestCase):
         self.assertNotIn("order_by", kwargs)
 
     @patch("excel_restaurant_pos.api.item_group.get_item_group_list.get_visible_item_group_names")
-    @patch("excel_restaurant_pos.api.item_group.get_item_group_list._gift_card_group_names")
-    def test_gift_card_groups_dropped_unless_requested(self, gift_groups, visible):
-        from excel_restaurant_pos.api.item_group.get_item_group_list import _candidate_group_names
-
-        gift_groups.return_value = ["Gift Cards"]
-        visible.side_effect = lambda names: names
-
-        with patch(
-            "excel_restaurant_pos.api.item_group.get_item_group_list.frappe.get_all",
-            return_value=["Beverages", "Gift Cards"],
-        ):
-            self.assertEqual(_candidate_group_names(False), ["Beverages"])
-            self.assertEqual(_candidate_group_names(True), ["Beverages", "Gift Cards"])
-
-    @patch("excel_restaurant_pos.api.item_group.get_item_group_list.get_visible_item_group_names")
     def test_item_query_is_distinct(self, visible):
         from excel_restaurant_pos.api.item_group.get_item_group_list import _candidate_group_names
 
@@ -195,7 +208,7 @@ class TestItemGroupListQuery(FrappeTestCase):
             "excel_restaurant_pos.api.item_group.get_item_group_list.frappe.get_all",
             return_value=["Beverages"],
         ) as get_all:
-            _candidate_group_names(True)
+            _candidate_group_names()
 
         self.assertTrue(get_all.call_args.kwargs["distinct"])
         self.assertEqual(get_all.call_args.kwargs["pluck"], "item_group")
