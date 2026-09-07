@@ -57,9 +57,22 @@ def compute_paid_hours(first_check_in, last_check_out) -> float:
 	return flt(seconds / 3600.0, 2)
 
 
-def get_timeclock_cost() -> float:
-	"""Hourly timeclock cost configured in ArcPOS Settings."""
-	return flt(frappe.db.get_single_value("ArcPOS Settings", "timeclock_cost"))
+def get_timeclock_cost(employee) -> float:
+	"""The employee's own hourly timeclock cost.
+
+	A rate of exactly 0 is returned as such: the column is `not null default 0`,
+	so there is no value that means "unset" once the row exists, and the v1_8_0
+	patch is what seeds the employees that predate the field. `None` here means
+	the employee row itself is missing, not that the rate is blank.
+	"""
+	if not employee:
+		frappe.throw(_("An employee is required to resolve the timeclock cost"), frappe.MandatoryError)
+
+	cost = frappe.db.get_value(EMPLOYEE_DOCTYPE, employee, "timeclock_cost")
+	if cost is None:
+		frappe.throw(_("Employee {0} not found").format(employee), frappe.DoesNotExistError)
+
+	return flt(cost)
 
 
 # ---------------------------------------------------------------------------

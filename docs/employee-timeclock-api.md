@@ -26,7 +26,8 @@ Backend for the POS **Employee Timeclock** menu: PIN numpad check in / check out
 |-------|------|-------|
 | `name` | Autoincrement | The `employee_id`. Link target of the tracking record. |
 | `employee_name` | Data | Required. |
-| `role` | Select | `Manager`, `Waiter`, `Barista`, `Cashier`. |
+| `role` | Select | `Manager`, `Waiter`, `Barista`, `Cashier`, `Bartender`, `Chef`, `Kitchen Helper`, `Janitor`, `Other`. Only `Manager` carries behaviour (it gates the manager routes). |
+| `timeclock_cost` | Currency | Required. The employee's own hourly rate, snapshotted onto each tracking record at creation. |
 | `new_pin` | Data | Write-only input: enter 6 digits, hashed on save, then cleared. |
 | `pin` | Data (read only) | Stored hash. Used to look the employee up from the numpad. |
 | `is_active` | Check | Default `1`. Inactive employees cannot authenticate. |
@@ -42,7 +43,7 @@ The hash is keyed with the site `encryption_key`, so PINs must be re-issued if t
 | `first_check_in` | Datetime | Written by the first check in of the business day. |
 | `last_check_out` | Datetime | Replaced by every check out before the 04:00 AM cutoff. |
 | `total_paid_hours` | Float (2 dp), read only | `last_check_out - first_check_in`, in hours. `0` while incomplete. |
-| `timeclock_cost` | Currency | Copied from **ArcPOS Settings → Timeclock Cost (Hourly)** when the record is created. |
+| `timeclock_cost` | Currency | Copied from **ArcPOS Employee → Timeclock Cost (Hourly)** when the record is created, so a later rate change never re-prices a shift that has already been worked. |
 | `total_payment` | Currency, read only | `total_paid_hours × timeclock_cost`. |
 | `manual_entry` | Check, read only | Manager created the record for a date the employee never clocked. |
 | `is_modified` | Check, read only | Manager edited the timestamps of an existing record. |
@@ -50,7 +51,15 @@ The hash is keyed with the site `encryption_key`, so PINs must be re-issued if t
 
 ### ArcPOS Settings
 
-New field `timeclock_cost` (Currency, *Employee Timeclock* section) — the hourly rate.
+`timeclock_cost` (Currency, *Employee Timeclock* section) is **deprecated**. The
+rate now lives on each ArcPOS Employee. The field is kept hidden and read only
+so the `v1_8_0.backfill_employee_timeclock_cost` patch can seed employees that
+predate the move; no runtime code reads it.
+
+A Currency column is created `not null default 0` and Frappe's mandatory check
+counts `0` as a value, so `reqd` alone would have left every existing employee
+silently costed at zero — that is what the patch exists to prevent. After it has
+run, an employee sitting at `0` is a deliberate `0` and is costed as such.
 
 ---
 
@@ -60,7 +69,9 @@ New field `timeclock_cost` (Currency, *Employee Timeclock* section) — the hour
 bench --site <site> migrate
 ```
 
-Then: set **ArcPOS Settings → Timeclock Cost (Hourly)**, and create **ArcPOS Employee** records with a role and a 6-digit PIN.
+Then create **ArcPOS Employee** records with a role, a 6-digit PIN, and a
+**Timeclock Cost (Hourly)**. On an existing site the migrate seeds every employee
+with the old global rate, so check those values before the next payroll run.
 
 ---
 
@@ -161,7 +172,7 @@ Errors: no record for that employee/date; `last_check_out` earlier than `first_c
 
 Request: same shape as `update_record`; `first_check_in` is required, `last_check_out` optional.
 
-Creates the record with `manual_entry = 1` and `modified_by_manager` set. `timeclock_cost` is taken from ArcPOS Settings at creation, and `total_working_hours` comes back as `total_paid_hours`.
+Creates the record with `manual_entry = 1` and `modified_by_manager` set. `timeclock_cost` is taken from the employee's own rate at creation, and `total_working_hours` comes back as `total_paid_hours`.
 
 Errors: a record already exists for that employee/date (edit it instead).
 
@@ -256,6 +267,34 @@ ticket.
 Because the ticket travels in the query string, the response sets
 `Referrer-Policy: no-referrer`. Treat the ticket as a password with a two minute
 life: mint it at the moment of the click, never log it.
+
+**If the backend origin must not surface in the UI** — no address bar flash, no
+backend URL in the browser's download list — use `fetch` instead of the ticket.
+`api.timeclock.export` takes the same arguments and the bearer token you already
+hold, so no Frappe/Desk session and no cookie is involved either way; the only
+thing the ticket buys is streaming straight to disk. Save the blob from your own
+origin:
+
+```js
+const res = await fetch(`${API}/api/method/api.timeclock.export`, {
+  method: "POST",
+  headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
+  body: JSON.stringify({ filters: [["business_date", "between", [from, to]]] }),
+});
+if (!res.ok) throw new Error((await res.json()).exception ?? res.statusText);
+
+const blob = await res.blob();                       // buffered in browser memory
+const href = URL.createObjectURL(blob);              // blob: URL on YOUR origin
+const a = Object.assign(document.createElement("a"), { href, download: filename });
+a.click();
+URL.revokeObjectURL(href);
+```
+
+Read `filename` off `Content-Disposition` and the row count off `X-Row-Count` —
+both are readable cross-origin because the response sets
+`Access-Control-Expose-Headers`. The trade is memory: the whole workbook is held
+in the tab until the blob is revoked, so keep the ticket flow for exports that
+can run to tens of thousands of rows.
 
 **If you would rather stay on `fetch`** (an in-app progress bar, no navigation),
 call `api.timeclock.export` directly with the bearer header and read the blob.

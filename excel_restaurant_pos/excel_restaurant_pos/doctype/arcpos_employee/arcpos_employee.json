@@ -10,6 +10,7 @@
  "field_order": [
   "employee_name",
   "role",
+  "timeclock_cost",
   "column_break_main",
   "is_active",
   "pin_section",
@@ -32,7 +33,16 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Role",
-   "options": "Manager\nWaiter\nBarista\nCashier",
+   "options": "Manager\nWaiter\nBarista\nCashier\nBartender\nChef\nKitchen Helper\nJanitor\nOther",
+   "reqd": 1
+  },
+  {
+   "description": "Hourly rate used to cost this employee's timeclock hours. Snapshotted onto each Employee Timeclock Tracking record when it is created, so changing it does not re-price past shifts.",
+   "fieldname": "timeclock_cost",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Timeclock Cost (Hourly)",
+   "non_negative": 1,
    "reqd": 1
   },
   {

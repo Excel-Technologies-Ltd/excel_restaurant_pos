@@ -11,8 +11,12 @@ from excel_restaurant_pos.shared.timeclock.services import compute_paid_hours, g
 
 class EmployeeTimeclockTracking(Document):
 	def before_insert(self):
+		# Snapshotted once, from the employee's own rate: a later change to that
+		# rate must not re-price shifts that have already been worked.
+		# Falsy rather than None: the Desk form posts 0 for an untouched Currency
+		# field, and an employee whose own rate really is 0 resolves to 0 anyway.
 		if not flt(self.timeclock_cost):
-			self.timeclock_cost = get_timeclock_cost()
+			self.timeclock_cost = get_timeclock_cost(self.employee)
 
 	def validate(self):
 		self.validate_identity_unchanged()

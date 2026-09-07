@@ -93,7 +93,7 @@
    "read_only": 1
   },
   {
-   "description": "Hourly rate fetched from ArcPOS Settings when the entry is created.",
+   "description": "Hourly rate copied from the employee's own Timeclock Cost (Hourly) when the entry is created. Kept on the record so a later rate change does not re-price past shifts.",
    "fieldname": "timeclock_cost",
    "fieldtype": "Currency",
    "label": "Timeclock Cost (Hourly)"

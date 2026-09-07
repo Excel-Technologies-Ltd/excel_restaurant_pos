@@ -132,6 +132,8 @@
   "sfa",
   "offer_price_applied_on_website",
   "connect_with_uberdirect",
+  "delivery_order_ends_on",
+  "allowed_web_services",
   "section_break_qrwmt",
   "banner_image_list",
   "subsite_tab",
@@ -283,10 +285,12 @@
    "label": "Employee Timeclock"
   },
   {
-   "description": "Hourly rate copied to an Employee Timeclock Tracking entry when it is created.",
+   "description": "Deprecated. The hourly rate now lives on each ArcPOS Employee. Kept hidden so the v1_8_0 backfill can seed employees that predate the move; nothing reads it at runtime.",
    "fieldname": "timeclock_cost",
    "fieldtype": "Currency",
-   "label": "Timeclock Cost (Hourly)"
+   "hidden": 1,
+   "label": "Timeclock Cost (Hourly)",
+   "read_only": 1
   },
   {
    "fieldname": "coupon_code_list_tab",
@@ -1037,6 +1041,21 @@
    "fieldname": "connect_with_uberdirect",
    "fieldtype": "Check",
    "label": "Connect with UberDirect"
+  },
+  {
+   "depends_on": "eval:doc.connect_with_uberdirect",
+   "description": "Time of day after which delivery orders stop being taken. Not yet wired to any behaviour -- pending confirmation of the business rule.",
+   "fieldname": "delivery_order_ends_on",
+   "fieldtype": "Time",
+   "label": "Delivery Order Ends On"
+  },
+  {
+   "depends_on": "eval:doc.connect_with_uberdirect",
+   "description": "Service types the web channel may order. Not yet wired to any behaviour -- pending confirmation of the business rule.",
+   "fieldname": "allowed_web_services",
+   "fieldtype": "Select",
+   "label": "Allowed Web Services",
+   "options": "None\nPickup\nDelivery\nBoth"
   },
   {
    "fieldname": "coupon_type",

@@ -9,10 +9,11 @@ from excel_restaurant_pos.shared.timeclock.services import check_in, check_out
 BUSINESS_DATE = "2026-09-01"
 
 
-def create_employee(employee_name: str, pin: str, role: str = "Waiter"):
+def create_employee(employee_name: str, pin: str, role: str = "Waiter", timeclock_cost: float = 20.0):
 	doc = frappe.new_doc("ArcPOS Employee")
 	doc.employee_name = employee_name
 	doc.role = role
+	doc.timeclock_cost = timeclock_cost
 	doc.new_pin = pin
 	doc.insert()
 	return doc
@@ -72,3 +73,54 @@ class TestEmployeeTimeclockTracking(FrappeTestCase):
 
 		record.last_check_out = f"{BUSINESS_DATE} 09:00:00"
 		self.assertRaises(frappe.ValidationError, record.save)
+
+
+class TestEmployeeTimeclockCost(FrappeTestCase):
+	def _record_for(self, employee, business_date=BUSINESS_DATE):
+		record = frappe.new_doc("Employee Timeclock Tracking")
+		record.employee = employee.name
+		record.business_date = business_date
+		record.first_check_in = f"{business_date} 09:00:00"
+		record.last_check_out = f"{business_date} 17:00:00"
+		record.insert()
+		return record
+
+	def test_rate_comes_from_the_employee(self):
+		employee = create_employee("Cost Test Chef", "907541", role="Chef", timeclock_cost=31.25)
+
+		record = self._record_for(employee)
+
+		self.assertEqual(record.timeclock_cost, 31.25)
+		self.assertEqual(record.total_paid_hours, 8.0)
+		self.assertEqual(record.total_payment, 250.0)
+
+	def test_each_employee_is_costed_at_their_own_rate(self):
+		cheap = create_employee("Cost Test Janitor", "907542", role="Janitor", timeclock_cost=12.0)
+		dear = create_employee("Cost Test Bartender", "907543", role="Bartender", timeclock_cost=40.0)
+
+		self.assertEqual(self._record_for(cheap).total_payment, 96.0)
+		self.assertEqual(self._record_for(dear).total_payment, 320.0)
+
+	def test_employee_without_a_rate_costs_nothing(self):
+		# The column is `not null default 0`, so an employee that predates the
+		# field reads back as 0 rather than blank. The v1_8_0 patch seeds those;
+		# an employee left at 0 after it is a deliberate 0.
+		employee = create_employee("Cost Test Unpaid", "907544", timeclock_cost=0)
+
+		record = self._record_for(employee)
+
+		self.assertEqual(record.timeclock_cost, 0.0)
+		self.assertEqual(record.total_payment, 0.0)
+
+	def test_later_rate_change_does_not_reprice_a_past_shift(self):
+		employee = create_employee("Cost Test Raise", "907545", timeclock_cost=10.0)
+		record = self._record_for(employee)
+
+		employee.timeclock_cost = 50.0
+		employee.save()
+
+		record.reload()
+		record.save()
+
+		self.assertEqual(record.timeclock_cost, 10.0)
+		self.assertEqual(record.total_payment, 80.0)
