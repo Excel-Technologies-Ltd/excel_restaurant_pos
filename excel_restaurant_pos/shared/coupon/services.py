@@ -21,6 +21,7 @@ COUPON_STATUS_REJECTED = "Rejected"
 COUPON_GENERATION_RETRY_LIMIT = 50
 COUPON_RANDOM_CHARS = string.ascii_uppercase + string.digits
 GIFT_CARD_COUPON_TYPE = "Gift Card"
+PROMOTIONAL_COUPON_TYPE = "Promotional"
 
 
 def invalid_coupon_code_message() -> str:
@@ -49,12 +50,33 @@ def validate_coupon_generation_settings(settings, overrides=None):
     if not settings:
         frappe.throw(_("ArcPOS Settings is required before generating coupon codes."))
 
-    coupon_type = overrides.get("coupon_type") or settings.coupon_type
+    # This path only ever mints promotional coupons -- gift cards are created by
+    # shared.gift_card.services.create_gift_card_coupon and shared.gift_card.admin,
+    # both of which stamp the type themselves. `coupon_type` is the only thing
+    # that tells the two apart downstream, so a coupon stamped "Gift Card" here
+    # would be accepted by the gift card endpoints and rejected by the coupon
+    # ones. Neither the setting nor a caller may produce that.
+    requested_type = (overrides.get("coupon_type") or "").strip()
+    if requested_type == GIFT_CARD_COUPON_TYPE:
+        frappe.throw(
+            _("Coupon Type cannot be {0} here. Gift cards are issued through the gift card APIs.").format(
+                GIFT_CARD_COUPON_TYPE
+            ),
+            frappe.ValidationError,
+        )
+
+    coupon_type = requested_type or (settings.coupon_type or "").strip()
     if not coupon_type:
         frappe.throw(
             _("Please set Coupon Type in ArcPOS Settings before generating coupon codes."),
             frappe.MandatoryError,
         )
+
+    if coupon_type == GIFT_CARD_COUPON_TYPE:
+        # A misconfigured setting, not a bad request. Minting a broken coupon is
+        # worse than ignoring the setting, and refusing outright would silently
+        # stop auto generation on submit (the caller there swallows and logs).
+        coupon_type = PROMOTIONAL_COUPON_TYPE
 
     pricing_rule = (overrides.get("pricing_rule") or settings.default_pricing_rule or "").strip()
     if not pricing_rule:

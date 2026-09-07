@@ -13,6 +13,7 @@ from excel_restaurant_pos.shared.coupon.services import (
     is_channel_allowed,
     is_online_order,
     resolve_validity_dates,
+    validate_coupon_generation_settings,
 )
 
 
@@ -538,3 +539,48 @@ class TestPromotionalCouponGuard(FrappeTestCase):
             invalid_coupon_code_message(),
             "The entered code is not a valid Coupon Code. Please enter a valid Coupon Code.",
         )
+
+
+class TestCouponGenerationNeverMintsGiftCards(FrappeTestCase):
+    """`coupon_type` is the only thing that tells a coupon from a gift card.
+
+    A promotional coupon stamped "Gift Card" is accepted by the gift card
+    endpoints and rejected by the coupon ones, so this path must never produce
+    one -- gift cards are issued by the gift card APIs, which stamp their own type.
+    """
+
+    def setUp(self):
+        from unittest.mock import patch
+
+        # Only the Pricing Rule existence check reaches the database here.
+        patcher = patch(
+            "excel_restaurant_pos.shared.coupon.services.frappe.db.exists", return_value=True
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _settings(self, coupon_type):
+        return frappe._dict(coupon_type=coupon_type, default_pricing_rule="PR-001")
+
+    def test_gift_card_setting_falls_back_to_promotional(self):
+        validated = validate_coupon_generation_settings(self._settings("Gift Card"))
+
+        self.assertEqual(validated["coupon_type"], "Promotional")
+
+    def test_promotional_setting_is_untouched(self):
+        validated = validate_coupon_generation_settings(self._settings("Promotional"))
+
+        self.assertEqual(validated["coupon_type"], "Promotional")
+
+    def test_caller_cannot_request_a_gift_card(self):
+        with self.assertRaises(frappe.ValidationError) as raised:
+            validate_coupon_generation_settings(
+                self._settings("Promotional"), overrides={"coupon_type": "Gift Card"}
+            )
+
+        self.assertIn("Gift Card", str(raised.exception))
+
+    def test_missing_type_still_raises(self):
+        with self.assertRaises(frappe.MandatoryError):
+            validate_coupon_generation_settings(self._settings(None))
+
