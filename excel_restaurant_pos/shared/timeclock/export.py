@@ -187,7 +187,11 @@ def _guard_export_rate(user=None):
 	"""Throttle exports per user."""
 	key = f"arcpos:timeclock_export:{user or frappe.session.user}"
 	cache = frappe.cache()
-	attempts = cint(cache.get_value(key))
+	# expires=True or the counter cannot advance within one process: a miss is
+	# cached in frappe.local as None, while set_value with expires_in_sec
+	# deliberately skips frappe.local, so every later read returns that stale
+	# None and Redis is never consulted again.
+	attempts = cint(cache.get_value(key, expires=True))
 	if attempts >= EXPORT_RATE_LIMIT:
 		frappe.throw(
 			_("Too many exports. Please try again in a minute."), frappe.ValidationError

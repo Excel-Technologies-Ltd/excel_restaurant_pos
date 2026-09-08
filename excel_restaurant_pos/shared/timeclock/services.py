@@ -86,13 +86,15 @@ def _pin_attempt_key() -> str:
 
 
 def _guard_pin_attempts():
-	if flt(frappe.cache().get_value(_pin_attempt_key())) >= PIN_ATTEMPT_LIMIT:
+	# expires=True: the counter is written with expires_in_sec, which never
+	# updates frappe.local, so a locally cached miss would pin it at zero.
+	if flt(frappe.cache().get_value(_pin_attempt_key(), expires=True)) >= PIN_ATTEMPT_LIMIT:
 		frappe.throw(_("Too many invalid PIN attempts. Please try again later."), frappe.AuthenticationError)
 
 
 def _record_failed_attempt():
 	key = _pin_attempt_key()
-	attempts = flt(frappe.cache().get_value(key)) + 1
+	attempts = flt(frappe.cache().get_value(key, expires=True)) + 1
 	frappe.cache().set_value(key, attempts, expires_in_sec=PIN_ATTEMPT_WINDOW)
 
 

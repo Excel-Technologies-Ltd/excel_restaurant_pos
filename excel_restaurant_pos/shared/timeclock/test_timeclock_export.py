@@ -27,6 +27,16 @@ from excel_restaurant_pos.shared.timeclock.export import (
 MODULE = "excel_restaurant_pos.shared.timeclock.export"
 
 
+def reset_export_rate_limit():
+	"""Clear the per user export counter.
+
+	It lives in redis for EXPORT_RATE_WINDOW seconds, so without this a test
+	that exports inherits the count from the ones before it -- and from the
+	previous run of the suite, which is inside the same window.
+	"""
+	frappe.cache().delete_value(f"arcpos:timeclock_export:{frappe.session.user}")
+
+
 def _record(name, employee="6", business_date="2026-09-01"):
 	return frappe._dict(
 		{
@@ -197,6 +207,9 @@ class TestWorkbook(FrappeTestCase):
 
 
 class TestExportResponse(FrappeTestCase):
+	def setUp(self):
+		reset_export_rate_limit()
+
 	def test_export_permission_is_required(self):
 		with patch(f"{MODULE}.frappe.has_permission", side_effect=frappe.PermissionError):
 			with self.assertRaises(frappe.PermissionError):
@@ -223,7 +236,6 @@ class TestExportResponse(FrappeTestCase):
 		self.assertTrue(body.startswith(b"PK"))
 
 	def test_rate_limit_blocks_a_burst(self):
-		frappe.cache().delete_value(f"arcpos:timeclock_export:{frappe.session.user}")
 		outcomes = []
 
 		with patch(f"{MODULE}.frappe.has_permission", return_value=True):
@@ -243,6 +255,9 @@ class TestExportResponse(FrappeTestCase):
 
 class TestDownloadTicket(FrappeTestCase):
 	"""A cross origin SPA cannot put a bearer token on a browser navigation."""
+
+	def setUp(self):
+		reset_export_rate_limit()
 
 	def test_ticket_freezes_the_filters(self):
 		with patch(f"{MODULE}.frappe.has_permission", return_value=True):

@@ -17,8 +17,10 @@ def rate_limit_guest(endpoint, limit=5, seconds=60):
     key = f"guest:{endpoint}"
     cache = frappe.cache()
 
-    # Get current count
-    current_count = cache.get_value(key) or 0
+    # Get current count. expires=True keeps the miss out of frappe.local:
+    # set_value with expires_in_sec never updates that local dict, so a cached
+    # miss would freeze the counter for the rest of the process.
+    current_count = cache.get_value(key, expires=True) or 0
 
     if current_count >= limit:
         frappe.throw(
@@ -53,7 +55,8 @@ def rate_limit_by_caller(endpoint, limit=20, seconds=60):
     key = f"arcpos:rate:{endpoint}:{caller}"
     cache = frappe.cache()
 
-    current_count = cache.get_value(key) or 0
+    # expires=True: see rate_limit_guest.
+    current_count = cache.get_value(key, expires=True) or 0
     if current_count >= limit:
         frappe.throw(
             _("Too many requests. Please try again later."), exc=frappe.ValidationError
