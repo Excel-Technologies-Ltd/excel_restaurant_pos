@@ -328,22 +328,42 @@ Desk page: **Gift Card Admin** (`/app/gift-card-admin`). Portal can call the sam
 | Method | Purpose |
 |--------|---------|
 | `api.gift_cards.list` | Paginated list + `status` / `search` |
-| `api.gift_cards.generate_bulk` | `{ qty, amount, prefix?, linked_email?, valid_upto? }` → Inactive codes |
-| `api.gift_cards.import` | `{ csv_text, valid_upto? }` → Inactive codes |
+| `api.gift_cards.generate_bulk` | `{ qty, amount, prefix?, linked_email?, validity_days?, valid_upto? }` → Inactive codes |
+| `api.gift_cards.import` | `{ csv_text, validity_days?, valid_upto? }` → Inactive codes |
 
 ### Expiry at generation
 
-`valid_upto` (alias `expiry_date`) stamps an expiry on the generated cards. It must not be in the past, and it **survives the sale**: activation only falls back to ArcPOS Settings → *Expire After (Days)* for a card that carries no expiry of its own. A card whose expiry has already passed cannot be sold.
+### Expiry: use `validity_days`, not `valid_upto`
+
+**`validity_days`** is the field to send. It stores a day count and only becomes
+a date when the card is **sold**, so a card can sit in a drawer for a month and
+the customer still gets the full window.
+
+`valid_upto` (alias `expiry_date`) pins an **absolute date** at creation, which
+means the card starts expiring before anyone owns it — print a 10-day card on
+the 1st, sell it on the 3rd, and the customer gets 8 days. Reach for it only
+when the seller genuinely means "expires on this calendar day" (a promotion
+that ends on a fixed date). It must not be in the past, and a card whose date
+has already passed cannot be sold.
+
+At activation the window is resolved in this order:
+
+1. `validity_days` → that many days from the sale
+2. `valid_upto` → honoured exactly as written
+3. ArcPOS Settings → *Expire After (Days)*
+
+A card carrying only `validity_days` has **no `valid_upto` at all** while it is
+unsold, so it can never expire on the shelf and the daily expiry job skips it.
 
 ### CSV import format
 
 ```csv
-code,amount,email,expiry
+code,amount,email,validity_days
 GIFT-001,1000,guest@example.com,2027-12-31
 ,2000,,
 ```
 
-Blank `code` → auto-generated from ArcPOS Settings `gift_card_prefix`. A row's `expiry` (aliases `expiry_date`, `valid_upto`) overrides the request-level `valid_upto`.
+Blank `code` → auto-generated from ArcPOS Settings `gift_card_prefix`. A row's `validity_days` (aliases `validity`, `days`) overrides the request-level `validity_days`, and likewise a row's `expiry` (aliases `expiry_date`, `valid_upto`) overrides the request-level `valid_upto`. Both columns are optional; prefer `validity_days`.
 
 ### List response shape
 

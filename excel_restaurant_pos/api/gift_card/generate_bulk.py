@@ -17,8 +17,13 @@ def generate_bulk_gift_cards():
 	amount (required): face value
 	prefix (optional): override ArcPOS Settings gift_card_prefix
 	linked_email (optional): email stamped on each card
-	valid_upto / expiry_date (optional): expiry stamped on each card. Kept when the
-		card is sold; without it activation falls back to the ArcPOS Settings expiry.
+	validity_days (optional): days the card stays valid, counted from the day it
+		is SOLD. Prefer this for stock printed in advance -- it does not burn
+		down while the card is unsold.
+	valid_upto / expiry_date (optional): an absolute expiry date, honoured as
+		written. Only correct when the seller really means "expires on this
+		calendar day"; otherwise the card starts expiring before anyone owns it.
+		validity_days wins when both are given.
 	"""
 	data = get_request_data()
 	qty = data.get("qty") or frappe.form_dict.get("qty")
@@ -32,6 +37,11 @@ def generate_bulk_gift_cards():
 		or frappe.form_dict.get("valid_upto")
 		or frappe.form_dict.get("expiry_date")
 	)
+	validity_days = (
+		data.get("validity_days")
+		or data.get("validity")
+		or frappe.form_dict.get("validity_days")
+	)
 
 	if qty is None or amount is None:
 		frappe.throw("qty and amount are required")
@@ -42,4 +52,5 @@ def generate_bulk_gift_cards():
 		prefix=prefix,
 		linked_email=linked_email,
 		valid_upto=valid_upto,
+		validity_days=validity_days,
 	)

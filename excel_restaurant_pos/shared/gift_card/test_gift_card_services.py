@@ -14,8 +14,11 @@ from excel_restaurant_pos.shared.gift_card.services import (
 	_resolve_gift_card_customer,
 )
 from excel_restaurant_pos.shared.gift_card.redemption import validate_gift_card_globally
-from excel_restaurant_pos.shared.gift_card.admin import parse_expiry_date
-from excel_restaurant_pos.shared.gift_card.services import activate_existing_gift_card
+from excel_restaurant_pos.shared.gift_card.admin import parse_expiry_date, parse_validity_days
+from excel_restaurant_pos.shared.gift_card.services import (
+	activate_existing_gift_card,
+	resolve_activation_validity,
+)
 from excel_restaurant_pos.shared.gift_card.validation import (
 	GIFT_CARD_TYPE_EXISTING,
 	GIFT_CARD_TYPE_NEW,
@@ -23,6 +26,23 @@ from excel_restaurant_pos.shared.gift_card.validation import (
 	invalid_gift_card_message,
 	resolve_line_gift_amount,
 )
+
+
+def _coupon_mock(**fields):
+	"""A coupon stand-in whose `.get()` reads its attributes, like a Document.
+
+	A bare MagicMock answers `.get()` with another MagicMock, and `int()` of one
+	is 1 -- so an unconfigured mock silently reads as "1 day of validity".
+	"""
+	coupon = MagicMock()
+	coupon.custom_validity_days = 0
+	coupon.valid_upto = None
+	coupon.custom_discount_amount = 1000.0
+	coupon.custom_discount_type = "Flat Amount"
+	for field, value in fields.items():
+		setattr(coupon, field, value)
+	coupon.get.side_effect = lambda field, default=None: getattr(coupon, field, default)
+	return coupon
 
 
 def _settings(**flags):
@@ -171,9 +191,12 @@ class TestGiftCardLines(FrappeTestCase):
 			custom_discount_amount=500,
 			custom_linked_email="",
 			custom_discount_type="Flat Amount",
+			custom_validity_days=0,
+			valid_upto=None,
 			flags=SimpleNamespace(),
 			save=MagicMock(),
 		)
+		coupon.get = lambda field, default=None: getattr(coupon, field, default)
 		invoice = frappe._dict(name="ORD-26-02285", posting_date="2026-08-31")
 
 		activate_existing_gift_card(coupon, invoice, frappe._dict())
@@ -333,10 +356,7 @@ class TestGiftCardExpiryAtGeneration(FrappeTestCase):
 	@patch("excel_restaurant_pos.shared.gift_card.services.get_gift_card_email", return_value="guest@example.com")
 	@patch("excel_restaurant_pos.shared.gift_card.services._gift_validity_dates")
 	def test_expiry_from_generation_survives_the_sale(self, validity_dates, _email, _customer):
-		coupon = MagicMock()
-		coupon.valid_upto = "2099-12-31"
-		coupon.custom_discount_amount = 1000.0
-		coupon.custom_discount_type = "Flat Amount"
+		coupon = _coupon_mock(valid_upto="2099-12-31")
 		invoice = frappe._dict(name="SINV-1", posting_date="2026-09-02", customer="Walk In")
 
 		activate_existing_gift_card(coupon, invoice, _settings())
@@ -352,13 +372,78 @@ class TestGiftCardExpiryAtGeneration(FrappeTestCase):
 		return_value=("2026-09-02", "2027-09-02"),
 	)
 	def test_settings_expiry_is_used_when_none_was_generated(self, validity_dates, _email, _customer):
-		coupon = MagicMock()
-		coupon.valid_upto = None
-		coupon.custom_discount_amount = 1000.0
-		coupon.custom_discount_type = "Flat Amount"
+		coupon = _coupon_mock()
 		invoice = frappe._dict(name="SINV-1", posting_date="2026-09-02", customer="Walk In")
 
 		activate_existing_gift_card(coupon, invoice, _settings())
 
 		validity_dates.assert_called_once()
 		self.assertEqual(coupon.valid_upto, "2027-09-02")
+
+
+class TestGiftCardValidityDays(FrappeTestCase):
+	"""An unsold card must not burn down its own validity on the shelf."""
+
+	def test_parse_validity_days(self):
+		self.assertIsNone(parse_validity_days(None))
+		self.assertIsNone(parse_validity_days(""))
+		self.assertEqual(parse_validity_days("10"), 10)
+		self.assertEqual(parse_validity_days(10), 10)
+
+	def test_non_positive_validity_is_rejected(self):
+		for value in (0, -1, "0"):
+			with self.assertRaises(frappe.ValidationError):
+				parse_validity_days(value)
+
+	def test_absurd_validity_is_rejected(self):
+		with self.assertRaises(frappe.ValidationError):
+			parse_validity_days(10_000)
+
+	def test_days_are_counted_from_the_sale_not_the_creation(self):
+		# The reported bug: a 10 day card printed on the 1st and sold on the 3rd
+		# left the customer 8 days. It now leaves 10.
+		coupon = _coupon_mock(custom_validity_days=10, valid_upto="2026-09-11")
+
+		valid_from, valid_upto = resolve_activation_validity(coupon, _settings(), "2026-09-03")
+
+		self.assertEqual(str(valid_from), "2026-09-03")
+		self.assertEqual(str(valid_upto), "2026-09-13")
+
+	def test_validity_days_wins_over_a_stamped_date(self):
+		coupon = _coupon_mock(custom_validity_days=5, valid_upto="2099-12-31")
+
+		_valid_from, valid_upto = resolve_activation_validity(coupon, _settings(), "2026-09-03")
+
+		self.assertEqual(str(valid_upto), "2026-09-08")
+
+	def test_an_explicit_date_is_still_honoured_without_days(self):
+		# "Expires 31 Dec" is a real requirement, not the bug -- leave it alone.
+		coupon = _coupon_mock(valid_upto="2099-12-31")
+
+		_valid_from, valid_upto = resolve_activation_validity(coupon, _settings(), "2026-09-03")
+
+		self.assertEqual(str(valid_upto), "2099-12-31")
+
+	@patch(
+		"excel_restaurant_pos.shared.gift_card.services._gift_validity_dates",
+		return_value=("2026-09-03", "2027-09-03"),
+	)
+	def test_settings_default_when_the_card_carries_neither(self, validity_dates):
+		coupon = _coupon_mock()
+
+		_valid_from, valid_upto = resolve_activation_validity(coupon, _settings(), "2026-09-03")
+
+		validity_dates.assert_called_once()
+		self.assertEqual(valid_upto, "2027-09-03")
+
+	@patch("excel_restaurant_pos.shared.gift_card.services._resolve_gift_card_customer", return_value="Walk In")
+	@patch("excel_restaurant_pos.shared.gift_card.services.get_gift_card_email", return_value="guest@example.com")
+	def test_activation_stamps_the_computed_window(self, _email, _customer):
+		coupon = _coupon_mock(custom_validity_days=10)
+		invoice = frappe._dict(name="SINV-1", posting_date="2026-09-03", customer="Walk In")
+
+		activate_existing_gift_card(coupon, invoice, _settings())
+
+		self.assertEqual(str(coupon.valid_from), "2026-09-03")
+		self.assertEqual(str(coupon.valid_upto), "2026-09-13")
+

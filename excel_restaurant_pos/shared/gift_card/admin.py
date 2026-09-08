@@ -46,6 +46,7 @@ def _create_inactive_gift_card(
 	linked_email: str | None = None,
 	coupon_code: str | None = None,
 	valid_upto=None,
+	validity_days=None,
 ) -> str:
 	"""Insert one Inactive Gift Card Coupon Code; return its name."""
 	amount = flt(amount)
@@ -75,6 +76,9 @@ def _create_inactive_gift_card(
 			"custom_discount_type": "Flat Amount",
 			"custom_discount_amount": amount,
 			"custom_available_balance": amount,
+			# Stored as a day count, not a date: the card has no owner yet, so
+			# there is nothing for an expiry to count down from until it sells.
+			"custom_validity_days": validity_days,
 			"valid_upto": valid_upto,
 			"custom_created_on": now_datetime(),
 			"custom_linked_email": (linked_email or "").strip() or None,
@@ -86,6 +90,23 @@ def _create_inactive_gift_card(
 	return doc.name
 
 
+MAX_VALIDITY_DAYS = 3650
+
+
+def parse_validity_days(value):
+	"""Validate an optional day count for generated gift cards."""
+	if value in (None, ""):
+		return None
+
+	days = cint(value)
+	if days < 1:
+		frappe.throw(_("Validity (Days) must be at least 1."))
+	if days > MAX_VALIDITY_DAYS:
+		frappe.throw(_("Validity (Days) cannot exceed {0}.").format(MAX_VALIDITY_DAYS))
+
+	return days
+
+
 def generate_bulk_inactive_gift_cards(
 	qty: int,
 	amount: float,
@@ -93,11 +114,15 @@ def generate_bulk_inactive_gift_cards(
 	prefix: str | None = None,
 	linked_email: str | None = None,
 	valid_upto=None,
+	validity_days=None,
 ) -> dict[str, Any]:
 	"""Create N Inactive gift cards with the same face value.
 
-	`valid_upto` sets the expiry on the generated cards. It survives the sale —
-	activation only falls back to the ArcPOS Settings expiry when a card carries none.
+	`validity_days` is the one to reach for: the window it describes starts when
+	the card is sold, so a card that sits on the shelf loses nothing. Prefer it
+	over `valid_upto`, which pins an absolute date and therefore starts counting
+	down while the card is still unsold — only correct when the seller really
+	does mean "expires on this calendar day".
 	"""
 	qty = cint(qty)
 	if qty < 1:
@@ -106,6 +131,7 @@ def generate_bulk_inactive_gift_cards(
 		frappe.throw(_("Quantity cannot exceed {0}.").format(MAX_BULK_QTY))
 
 	expiry = parse_expiry_date(valid_upto)
+	days = parse_validity_days(validity_days)
 
 	settings = get_gift_card_settings()
 	pricing_rule = _validate_gift_pricing_rule(settings)
@@ -120,6 +146,7 @@ def generate_bulk_inactive_gift_cards(
 				prefix=code_prefix,
 				linked_email=linked_email,
 				valid_upto=expiry,
+				validity_days=days,
 			)
 		)
 
@@ -129,6 +156,7 @@ def generate_bulk_inactive_gift_cards(
 		"codes": created,
 		"amount": flt(amount),
 		"valid_upto": str(expiry) if expiry else None,
+		"validity_days": days,
 	}
 
 
@@ -160,6 +188,8 @@ def _parse_import_rows(raw_text: str) -> list[dict]:
 			"expiry",
 			"expiry_date",
 			"valid_upto",
+			"validity_days",
+			"validity",
 		)
 		for h in header
 	)
@@ -183,6 +213,7 @@ def _parse_import_rows(raw_text: str) -> list[dict]:
 					"amount": _cell(row, "amount", "face_value", "value"),
 					"email": _cell(row, "email", "linked_email"),
 					"expiry": _cell(row, "expiry", "expiry_date", "valid_upto"),
+					"validity_days": _cell(row, "validity_days", "validity", "days"),
 				}
 			)
 	else:
@@ -221,17 +252,22 @@ def _parse_import_rows(raw_text: str) -> list[dict]:
 	return parsed
 
 
-def import_inactive_gift_cards(csv_text: str, valid_upto=None) -> dict[str, Any]:
+def import_inactive_gift_cards(csv_text: str, valid_upto=None, validity_days=None) -> dict[str, Any]:
 	"""Import Inactive gift cards from CSV text.
 
 	Supported headers: code/coupon_code, amount/face_value, email/linked_email,
-	expiry/expiry_date/valid_upto. Code is optional — auto-generated from ArcPOS
-	Settings prefix when blank. A row expiry overrides the `valid_upto` argument.
+	expiry/expiry_date/valid_upto, validity_days/validity/days. Code is optional
+	— auto-generated from ArcPOS Settings prefix when blank. A row value
+	overrides the matching argument.
+
+	Prefer validity_days: it only becomes a date when the card is sold, so an
+	imported batch does not start expiring on the shelf.
 	"""
 	settings = get_gift_card_settings()
 	pricing_rule = _validate_gift_pricing_rule(settings)
 	prefix = (getattr(settings, "gift_card_prefix", None) or "GIFT####").strip()
 	default_expiry = parse_expiry_date(valid_upto)
+	default_days = parse_validity_days(validity_days)
 
 	rows = _parse_import_rows(csv_text)
 	created: list[str] = []
@@ -249,6 +285,7 @@ def import_inactive_gift_cards(csv_text: str, valid_upto=None) -> dict[str, Any]
 				linked_email=row.get("email"),
 				coupon_code=row.get("code") or None,
 				valid_upto=parse_expiry_date(row.get("expiry")) or default_expiry,
+				validity_days=parse_validity_days(row.get("validity_days")) or default_days,
 			)
 			created.append(name)
 		except Exception as exc:

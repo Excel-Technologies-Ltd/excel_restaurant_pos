@@ -15,10 +15,13 @@ def import_gift_cards():
 	-------
 	csv_text or data (required): CSV body
 
-	Headers (optional): code, amount, email, expiry
+	Headers (optional): code, amount, email, expiry, validity_days
 	Without code, codes are auto-generated from ArcPOS Settings prefix.
 
-	valid_upto / expiry_date (optional): expiry applied to rows without their own.
+	validity_days (optional): days from the sale, applied to rows without their
+		own. Prefer this over an absolute expiry for stock printed in advance.
+	valid_upto / expiry_date (optional): absolute expiry applied to rows without
+		their own. validity_days wins when a card carries both.
 	"""
 	data = get_request_data()
 	csv_text = (
@@ -39,5 +42,12 @@ def import_gift_cards():
 		or frappe.form_dict.get("valid_upto")
 		or frappe.form_dict.get("expiry_date")
 	)
+	validity_days = (
+		data.get("validity_days")
+		or data.get("validity")
+		or frappe.form_dict.get("validity_days")
+	)
 
-	return import_inactive_gift_cards(csv_text, valid_upto=valid_upto)
+	return import_inactive_gift_cards(
+		csv_text, valid_upto=valid_upto, validity_days=validity_days
+	)

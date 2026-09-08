@@ -124,6 +124,35 @@ def _gift_validity_dates(settings, posting_date=None) -> tuple[Any, Any]:
 	return valid_from, add_days(valid_from, expire_after)
 
 
+def resolve_activation_validity(coupon, settings, posting_date=None) -> tuple[Any, Any]:
+	"""Validity window to stamp on a gift card at the moment it is sold.
+
+	An Inactive card sits on a shelf for an unknown time, so a `valid_upto`
+	written when it was printed has already been burning down before anyone
+	owned it -- a "10 day" card generated on Monday and sold on Wednesday used
+	to hand the customer 8 days. `custom_validity_days` is the fix: the day
+	count is stored at creation and only becomes a date here.
+
+	Precedence, most specific first:
+
+	1. `custom_validity_days` -- N days from the sale.
+	2. `valid_upto` -- an explicit calendar date the seller chose, honoured as
+	   written, because "expires 31 Dec" is a real requirement (a promotion
+	   that ends on a fixed day) and not the bug above.
+	3. ArcPOS Settings `expire_after_days_gift`.
+	"""
+	valid_from = getdate(posting_date or nowdate())
+
+	validity_days = cint(coupon.get("custom_validity_days"))
+	if validity_days > 0:
+		return valid_from, add_days(valid_from, validity_days)
+
+	if coupon.valid_upto:
+		return valid_from, getdate(coupon.valid_upto)
+
+	return _gift_validity_dates(settings, posting_date)
+
+
 def _resolve_gift_card_customer(invoice=None) -> str:
 	"""Resolve Customer link required by ERPNext for Gift Card coupons."""
 	if invoice:
@@ -188,12 +217,9 @@ def activate_existing_gift_card(coupon, invoice, settings) -> Any:
 	if isinstance(coupon, str):
 		coupon = frappe.get_doc("Coupon Code", coupon)
 
-	if coupon.valid_upto:
-		# An expiry stamped when the card was generated wins over the settings default.
-		valid_from = getdate(invoice.get("posting_date") or nowdate())
-		valid_upto = getdate(coupon.valid_upto)
-	else:
-		valid_from, valid_upto = _gift_validity_dates(settings, invoice.get("posting_date"))
+	valid_from, valid_upto = resolve_activation_validity(
+		coupon, settings, invoice.get("posting_date")
+	)
 
 	face_value = flt(coupon.custom_discount_amount)
 	if face_value <= 0:
