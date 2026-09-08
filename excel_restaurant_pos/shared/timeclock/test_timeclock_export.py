@@ -123,29 +123,54 @@ class TestRecordStreaming(FrappeTestCase):
 			[_record("ETT-2026-09-02-6")],
 		]
 
-		with patch(f"{MODULE}.frappe.get_list", side_effect=pages) as get_list:
+		with patch(f"{MODULE}._query_records", side_effect=pages) as query:
 			names = [row["name"] for row in iter_records([], list(DEFAULT_COLUMNS), batch_size=2)]
 
 		self.assertEqual(names, ["ETT-2026-09-01-6", "ETT-2026-09-01-7", "ETT-2026-09-02-6"])
 		# Second page continues after the last name, never with an offset.
-		second_call_filters = get_list.call_args_list[1].kwargs["filters"]
+		second_call_filters = query.call_args_list[1].args[0]
 		self.assertIn(["name", ">", "ETT-2026-09-01-7"], second_call_filters)
 
 	def test_short_page_ends_the_scan(self):
-		with patch(f"{MODULE}.frappe.get_list", return_value=[_record("ETT-1")]) as get_list:
+		with patch(f"{MODULE}._query_records", return_value=[_record("ETT-1")]) as query:
 			list(iter_records([], list(DEFAULT_COLUMNS), batch_size=10))
 
-		self.assertEqual(get_list.call_count, 1)
+		self.assertEqual(query.call_count, 1)
 
 	def test_rows_are_read_with_the_callers_permissions(self):
-		with patch(f"{MODULE}.frappe.get_list", return_value=[]) as get_list:
-			list(iter_records([], list(DEFAULT_COLUMNS)))
+		from frappe.model.db_query import DatabaseQuery
 
-		self.assertIs(get_list.call_args.kwargs["ignore_permissions"], False)
+		with patch.object(DatabaseQuery, "execute", return_value=[]) as execute:
+			list(iter_records([], list(DEFAULT_COLUMNS), user="payroll@example.com"))
+
+		self.assertIs(execute.call_args.kwargs["ignore_permissions"], False)
+		self.assertEqual(execute.call_args.kwargs["user"], "payroll@example.com")
+
+	def test_read_check_is_bound_to_the_export_user_not_the_session(self):
+		"""`execute()` runs check_read_permission() before it assigns `user`.
+
+		The check therefore resolves against whatever __init__ stored, so the
+		user has to reach the constructor. frappe.get_list never passes one,
+		which is why a ticket redeemed without a Frappe session was refused as
+		Guest while the same ticket worked from a logged-in Desk browser.
+		"""
+		import frappe.model.db_query as db_query
+
+		with patch.object(db_query, "DatabaseQuery") as query_class:
+			query_class.return_value.execute.return_value = []
+			list(iter_records([], list(DEFAULT_COLUMNS), user="payroll@example.com"))
+
+		self.assertEqual(query_class.call_args.kwargs["user"], "payroll@example.com")
+
+	def test_the_export_user_reaches_the_query(self):
+		with patch(f"{MODULE}._query_records", return_value=[]) as query:
+			list(iter_records([], list(DEFAULT_COLUMNS), user="payroll@example.com"))
+
+		self.assertEqual(query.call_args.args[3], "payroll@example.com")
 
 	def test_row_cap_is_enforced(self):
 		with patch(f"{MODULE}.MAX_ROWS", 1):
-			with patch(f"{MODULE}.frappe.get_list", return_value=[_record("A"), _record("B")]):
+			with patch(f"{MODULE}._query_records", return_value=[_record("A"), _record("B")]):
 				with self.assertRaises(frappe.ValidationError):
 					list(iter_records([], list(DEFAULT_COLUMNS), batch_size=2))
 
@@ -157,7 +182,7 @@ class TestWorkbook(FrappeTestCase):
 		handle, path = tempfile.mkstemp(suffix=".xlsx")
 		os.close(handle)
 
-		with patch(f"{MODULE}.frappe.get_list", return_value=[_record("ETT-2026-09-01-6")]):
+		with patch(f"{MODULE}._query_records", return_value=[_record("ETT-2026-09-01-6")]):
 			rows = write_workbook([], list(DEFAULT_COLUMNS), path)
 
 		self.assertEqual(rows, 1)
@@ -179,7 +204,7 @@ class TestExportResponse(FrappeTestCase):
 
 	def test_response_is_a_streamed_attachment(self):
 		with patch(f"{MODULE}.frappe.has_permission", return_value=True):
-			with patch(f"{MODULE}.frappe.get_list", return_value=[_record("ETT-2026-09-01-6")]):
+			with patch(f"{MODULE}._query_records", return_value=[_record("ETT-2026-09-01-6")]):
 				with patch(f"{MODULE}._log_export"):
 					response = build_export_response()
 
@@ -202,7 +227,7 @@ class TestExportResponse(FrappeTestCase):
 		outcomes = []
 
 		with patch(f"{MODULE}.frappe.has_permission", return_value=True):
-			with patch(f"{MODULE}.frappe.get_list", return_value=[]):
+			with patch(f"{MODULE}._query_records", return_value=[]):
 				with patch(f"{MODULE}._log_export"):
 					for _attempt in range(8):
 						try:
@@ -237,7 +262,7 @@ class TestDownloadTicket(FrappeTestCase):
 		with patch(f"{MODULE}.frappe.has_permission", return_value=True):
 			ticket = create_download_ticket()
 
-			with patch(f"{MODULE}.frappe.get_list", return_value=[]):
+			with patch(f"{MODULE}._query_records", return_value=[]):
 				with patch(f"{MODULE}._log_export"):
 					response = redeem_download_ticket(ticket["ticket"])
 					b"".join(response.response)
@@ -260,12 +285,12 @@ class TestDownloadTicket(FrappeTestCase):
 		with patch(f"{MODULE}.frappe.has_permission", return_value=True) as has_permission:
 			ticket = create_download_ticket()
 
-			with patch(f"{MODULE}.frappe.get_list", return_value=[]) as get_list:
+			with patch(f"{MODULE}._query_records", return_value=[]) as query:
 				with patch(f"{MODULE}._log_export"):
 					response = redeem_download_ticket(ticket["ticket"])
 					b"".join(response.response)
 
-		self.assertEqual(get_list.call_args.kwargs["user"], minting_user)
+		self.assertEqual(query.call_args.args[3], minting_user)
 		self.assertEqual(has_permission.call_args.kwargs["user"], minting_user)
 
 	def test_redemption_never_mutates_the_session(self):
@@ -277,7 +302,7 @@ class TestDownloadTicket(FrappeTestCase):
 		with patch(f"{MODULE}.frappe.has_permission", return_value=True):
 			ticket = create_download_ticket()
 
-			with patch(f"{MODULE}.frappe.get_list", return_value=[]):
+			with patch(f"{MODULE}._query_records", return_value=[]):
 				with patch(f"{MODULE}._log_export"):
 					with patch(f"{MODULE}.frappe.set_user") as set_user:
 						response = redeem_download_ticket(ticket["ticket"])
@@ -287,7 +312,7 @@ class TestDownloadTicket(FrappeTestCase):
 
 	def test_cross_origin_headers_are_exposed(self):
 		with patch(f"{MODULE}.frappe.has_permission", return_value=True):
-			with patch(f"{MODULE}.frappe.get_list", return_value=[]):
+			with patch(f"{MODULE}._query_records", return_value=[]):
 				with patch(f"{MODULE}._log_export"):
 					response = build_export_response()
 					b"".join(response.response)

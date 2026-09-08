@@ -195,6 +195,32 @@ def _guard_export_rate(user=None):
 	cache.set_value(key, attempts + 1, expires_in_sec=EXPORT_RATE_WINDOW)
 
 
+def _query_records(filters, fields, batch_size, user):
+	"""One page of rows, read with `user`'s permissions.
+
+	Built through DatabaseQuery rather than `frappe.get_list` because the user
+	has to reach the constructor. `execute()` runs `check_read_permission()`
+	before it assigns the `user` argument, so the read check resolves against
+	whatever `__init__` stored -- and `frappe.get_list` constructs the query
+	without a user, leaving the session user there. That check therefore passes
+	for a ticket redeemed from a Desk browser (a System Manager cookie) and
+	fails with the same ticket from a browser that is not logged into Frappe,
+	which is the whole point of the ticket.
+	"""
+	from frappe.model.db_query import DatabaseQuery
+
+	return DatabaseQuery(TRACKING_DOCTYPE, user=user).execute(
+		filters=filters,
+		fields=fields,
+		order_by="name asc",
+		limit_page_length=batch_size,
+		ignore_permissions=False,
+		# Passed here too: `execute()` overwrites `self.user` from this argument
+		# before it builds the row level permission conditions.
+		user=user,
+	)
+
+
 def iter_records(filters, columns, batch_size=None, user=None):
 	"""Yield timeclock rows in batches, honouring the user's read permissions.
 
@@ -203,6 +229,12 @@ def iter_records(filters, columns, batch_size=None, user=None):
 	"""
 	batch_size = batch_size or BATCH_SIZE
 	fields = list(dict.fromkeys(["name", *columns]))
+	# Resolved once: the permissions the export runs under must not change
+	# between pages. Passed explicitly rather than switching frappe.session.user,
+	# because a ticket redeemed from a browser navigation carries the Desk
+	# session cookie and mutating that session corrupts it (see
+	# redeem_download_ticket).
+	user = user or frappe.session.user
 	last_name = None
 	exported = 0
 
@@ -211,19 +243,7 @@ def iter_records(filters, columns, batch_size=None, user=None):
 		if last_name is not None:
 			page_filters.append(["name", ">", last_name])
 
-		batch = frappe.get_list(
-			TRACKING_DOCTYPE,
-			filters=page_filters,
-			fields=fields,
-			order_by="name asc",
-			limit_page_length=batch_size,
-			ignore_permissions=False,
-			# Passed explicitly rather than switching frappe.session.user: a
-			# ticket redeemed from a browser navigation carries the Desk session
-			# cookie, and mutating that session corrupts it (see
-			# redeem_download_ticket).
-			user=user or frappe.session.user,
-		)
+		batch = _query_records(page_filters, fields, batch_size, user)
 		if not batch:
 			return
 

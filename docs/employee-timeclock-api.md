@@ -264,6 +264,16 @@ sid would break the next Desk request with *"User None is disabled"*. `api.timec
 is the only guest-reachable route here and does nothing at all without a valid
 ticket.
 
+Threading that user through the rows takes `DatabaseQuery(doctype, user=...)`
+rather than `frappe.get_list(..., user=...)`. `execute()` runs
+`check_read_permission()` **before** it assigns its `user` argument, so the read
+check resolves against whatever the constructor stored — and `frappe.get_list`
+builds the query with no user at all, leaving the session user there. The
+`user=` argument still governs the row-level permission conditions, so the bug
+is invisible from a Desk browser (the cookie makes the session a System
+Manager) and fails as Guest from a browser that is not logged into Frappe —
+exactly the case the ticket exists to serve. Both call sites now pass the user.
+
 Because the ticket travels in the query string, the response sets
 `Referrer-Policy: no-referrer`. Treat the ticket as a password with a two minute
 life: mint it at the moment of the click, never log it.
