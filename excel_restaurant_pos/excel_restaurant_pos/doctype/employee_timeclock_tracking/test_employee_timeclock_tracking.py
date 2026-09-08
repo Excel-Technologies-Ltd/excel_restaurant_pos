@@ -1,12 +1,25 @@
 # Copyright (c) 2026, Sohanur Rahman and Contributors
 # See license.txt
 
+import itertools
+
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from excel_restaurant_pos.shared.timeclock.services import check_in, check_out
 
 BUSINESS_DATE = "2026-09-01"
+
+
+# FrappeTestCase rolls back once per class (addClassCleanup), not per test, so
+# everything an earlier test in the class inserted is still there for the next
+# one. A fixed PIN in setUp therefore collides with itself from the second test
+# onwards -- PINs have to be unique per test, not per class.
+_pin_counter = itertools.count(900001)
+
+
+def next_pin() -> str:
+	return str(next(_pin_counter))
 
 
 def create_employee(employee_name: str, pin: str, role: str = "Waiter", timeclock_cost: float = 20.0):
@@ -21,7 +34,9 @@ def create_employee(employee_name: str, pin: str, role: str = "Waiter", timecloc
 
 class TestEmployeeTimeclockTracking(FrappeTestCase):
 	def setUp(self):
-		self.employee = create_employee("Timeclock Test Waiter", "907531")
+		# A fresh employee per test: the record name is ETT-<date>-<employee>,
+		# so a shared employee would collide on BUSINESS_DATE too.
+		self.employee = create_employee("Timeclock Test Waiter", next_pin())
 
 	def _make_record(self, first_check_in=f"{BUSINESS_DATE} 09:00:00"):
 		record = frappe.new_doc("Employee Timeclock Tracking")
@@ -43,7 +58,7 @@ class TestEmployeeTimeclockTracking(FrappeTestCase):
 		self.assertEqual(record.total_paid_hours, 8.5)
 
 	def test_employee_cannot_be_changed(self):
-		other = create_employee("Timeclock Test Barista", "907532", role="Barista")
+		other = create_employee("Timeclock Test Barista", next_pin(), role="Barista")
 		record = self._make_record()
 
 		record.employee = other.name
@@ -86,7 +101,7 @@ class TestEmployeeTimeclockCost(FrappeTestCase):
 		return record
 
 	def test_rate_comes_from_the_employee(self):
-		employee = create_employee("Cost Test Chef", "907541", role="Chef", timeclock_cost=31.25)
+		employee = create_employee("Cost Test Chef", next_pin(), role="Chef", timeclock_cost=31.25)
 
 		record = self._record_for(employee)
 
@@ -95,8 +110,8 @@ class TestEmployeeTimeclockCost(FrappeTestCase):
 		self.assertEqual(record.total_payment, 250.0)
 
 	def test_each_employee_is_costed_at_their_own_rate(self):
-		cheap = create_employee("Cost Test Janitor", "907542", role="Janitor", timeclock_cost=12.0)
-		dear = create_employee("Cost Test Bartender", "907543", role="Bartender", timeclock_cost=40.0)
+		cheap = create_employee("Cost Test Janitor", next_pin(), role="Janitor", timeclock_cost=12.0)
+		dear = create_employee("Cost Test Bartender", next_pin(), role="Bartender", timeclock_cost=40.0)
 
 		self.assertEqual(self._record_for(cheap).total_payment, 96.0)
 		self.assertEqual(self._record_for(dear).total_payment, 320.0)
@@ -105,7 +120,7 @@ class TestEmployeeTimeclockCost(FrappeTestCase):
 		# The column is `not null default 0`, so an employee that predates the
 		# field reads back as 0 rather than blank. The v1_8_0 patch seeds those;
 		# an employee left at 0 after it is a deliberate 0.
-		employee = create_employee("Cost Test Unpaid", "907544", timeclock_cost=0)
+		employee = create_employee("Cost Test Unpaid", next_pin(), timeclock_cost=0)
 
 		record = self._record_for(employee)
 
@@ -113,7 +128,7 @@ class TestEmployeeTimeclockCost(FrappeTestCase):
 		self.assertEqual(record.total_payment, 0.0)
 
 	def test_later_rate_change_does_not_reprice_a_past_shift(self):
-		employee = create_employee("Cost Test Raise", "907545", timeclock_cost=10.0)
+		employee = create_employee("Cost Test Raise", next_pin(), timeclock_cost=10.0)
 		record = self._record_for(employee)
 
 		employee.timeclock_cost = 50.0

@@ -1,3 +1,4 @@
+[pre_model_sync]
 excel_restaurant_pos.patches.v1_1_0.create_sales_summary_function
 excel_restaurant_pos.patches.v1_1_0.create_sales_by_service_procedure
 excel_restaurant_pos.patches.v1_2_0.setup_clover_integration
@@ -9,4 +10,6 @@ excel_restaurant_pos.patches.v1_6_0.repair_gift_amount_fieldtype
 excel_restaurant_pos.patches.v1_6_0.repair_coupon_code_numeric_columns
 excel_restaurant_pos.patches.v1_7_0.sync_report_sql_objects
 excel_restaurant_pos.patches.v1_7_0.backfill_coupon_order_status
+
+[post_model_sync]
 excel_restaurant_pos.patches.v1_8_0.backfill_employee_timeclock_cost

@@ -13,6 +13,8 @@
   "timeclock_cost",
   "column_break_main",
   "is_active",
+  "mobile_no",
+  "email_address",
   "pin_section",
   "new_pin",
   "column_break_pin",
@@ -67,8 +69,8 @@
    "fieldname": "new_pin",
    "fieldtype": "Data",
    "label": "Set 6-Digit PIN",
-   "no_copy": 1,
-   "length": 6
+   "length": 6,
+   "no_copy": 1
   },
   {
    "fieldname": "column_break_pin",
@@ -82,11 +84,23 @@
    "length": 128,
    "no_copy": 1,
    "read_only": 1
+  },
+  {
+   "fieldname": "mobile_no",
+   "fieldtype": "Data",
+   "label": "Mobile No",
+   "options": "Phone"
+  },
+  {
+   "fieldname": "email_address",
+   "fieldtype": "Data",
+   "label": "Email Address",
+   "options": "Email"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-09-01 10:00:00.000000",
+ "modified": "2026-09-08 11:11:11.430965",
  "modified_by": "Administrator",
  "module": "Excel Restaurant Pos",
  "name": "ArcPOS Employee",

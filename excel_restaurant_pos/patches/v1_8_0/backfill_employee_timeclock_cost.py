@@ -12,6 +12,9 @@ with the rate those employees were already being costed at.
 
 A direct UPDATE rather than a save per employee: saving would run the PIN
 validation, and one employee with a legacy PIN would abort the whole migration.
+
+Registered under [post_model_sync]: it reads a column the DocType sync creates,
+so it cannot run before that sync.
 """
 
 import frappe
@@ -21,9 +24,14 @@ EMPLOYEE_DOCTYPE = "ArcPOS Employee"
 
 
 def execute():
+	# `has_column` raises TableMissingError rather than returning False when the
+	# table is absent, so the table has to be checked first -- and uncached,
+	# because the DocType may have been created by the sync in this same
+	# migrate, after the table list was cached.
+	if not frappe.db.table_exists(EMPLOYEE_DOCTYPE, cached=False):
+		return
+
 	if not frappe.db.has_column(EMPLOYEE_DOCTYPE, "timeclock_cost"):
-		# The DocType sync normally runs first; an interrupted migrate can land
-		# here before the column exists.
 		return
 
 	# The deprecated single value, read directly. It is hidden and read only now
