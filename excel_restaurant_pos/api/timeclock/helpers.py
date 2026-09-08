@@ -25,6 +25,21 @@ def get_pin(data: dict, fieldname: str = "pin") -> str:
 	return str(pin).strip()
 
 
+def get_remarks(data: dict, fieldname: str = "remarks"):
+	"""Resolve the shift note from request data.
+
+	Returns `None` when the caller did not send the key at all, which the
+	services read as "leave whatever is stored alone". An empty string is a
+	real value and means "clear it", so absence and emptiness cannot be
+	collapsed with the usual `or` chain.
+	"""
+	for source in (data, frappe.form_dict):
+		if fieldname in source:
+			value = source[fieldname]
+			return "" if value is None else str(value)
+	return None
+
+
 def get_business_date_param(data: dict, required: bool = True):
 	"""Resolve the business date from request data."""
 	business_date = (

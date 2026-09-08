@@ -6,7 +6,7 @@ import datetime
 
 import frappe
 from frappe import _
-from frappe.utils import flt, get_datetime, getdate, now_datetime
+from frappe.utils import cstr, flt, get_datetime, getdate, now_datetime
 
 from excel_restaurant_pos.shared.timeclock.pin import hash_pin, normalize_pin
 
@@ -172,6 +172,7 @@ def serialize_record(doc) -> dict | None:
 		"is_modified": bool(doc.is_modified),
 		"manual_entry": bool(doc.manual_entry),
 		"modified_by_manager": doc.modified_by_manager,
+		"remarks": doc.remarks,
 	}
 
 
@@ -225,7 +226,7 @@ def get_timeclock_state(employee) -> dict:
 	}
 
 
-def check_in(employee) -> dict:
+def check_in(employee, remarks=None) -> dict:
 	"""Record the first check in of an employee for the current business date."""
 	business_date = get_business_date()
 
@@ -248,12 +249,13 @@ def check_in(employee) -> dict:
 		record.business_date = business_date
 
 	record.first_check_in = now_datetime()
+	_apply_remarks(record, remarks)
 	record.save(ignore_permissions=True)
 
 	return {**serialize_employee(employee), "action": "check_out", "record": serialize_record(record)}
 
 
-def check_out(employee) -> dict:
+def check_out(employee, remarks=None) -> dict:
 	"""Record (or replace) the last check out of an employee for the current business date."""
 	business_date = get_business_date()
 	record = get_tracking_record(employee.name, business_date, for_update=True)
@@ -262,6 +264,7 @@ def check_out(employee) -> dict:
 		frappe.throw(_("{0} has not checked in for {1}").format(employee.employee_name, business_date))
 
 	record.last_check_out = now_datetime()
+	_apply_remarks(record, remarks)
 	record.save(ignore_permissions=True)
 
 	return {**serialize_employee(employee), "action": "check_out", "record": serialize_record(record)}
@@ -270,6 +273,18 @@ def check_out(employee) -> dict:
 # ---------------------------------------------------------------------------
 # Manager overrides
 # ---------------------------------------------------------------------------
+
+
+def _apply_remarks(record, remarks):
+	"""Set the shift note, following the same rule as the timestamps.
+
+	`None` (the argument was omitted) leaves whatever is stored alone; an empty
+	string clears it. Without that distinction a check out with no note would
+	wipe the note left at check in.
+	"""
+	if remarks is None:
+		return
+	record.remarks = cstr(remarks).strip() or None
 
 
 def _parse_datetime(value, label: str):
@@ -305,7 +320,9 @@ def get_record_for_manager(employee, business_date) -> dict:
 	}
 
 
-def update_record(manager, employee, business_date, first_check_in=None, last_check_out=None) -> dict:
+def update_record(
+	manager, employee, business_date, first_check_in=None, last_check_out=None, remarks=None
+) -> dict:
 	"""Manager edit of an existing record: flags it modified and recalculates totals."""
 	employee = _validate_employee(employee)
 	business_date = getdate(business_date)
@@ -322,6 +339,8 @@ def update_record(manager, employee, business_date, first_check_in=None, last_ch
 	if last_check_out is not None:
 		record.last_check_out = _parse_datetime(last_check_out, _("Last Check Out"))
 
+	_apply_remarks(record, remarks)
+
 	if not record.first_check_in:
 		frappe.throw(_("First Check In is required"), frappe.MandatoryError)
 
@@ -332,7 +351,9 @@ def update_record(manager, employee, business_date, first_check_in=None, last_ch
 	return {**serialize_employee(employee), "record": serialize_record(record)}
 
 
-def create_manual_entry(manager, employee, business_date, first_check_in, last_check_out=None) -> dict:
+def create_manual_entry(
+	manager, employee, business_date, first_check_in, last_check_out=None, remarks=None
+) -> dict:
 	"""Manager created entry for a business date the employee never clocked."""
 	employee = _validate_employee(employee)
 	business_date = getdate(business_date)
@@ -354,6 +375,7 @@ def create_manual_entry(manager, employee, business_date, first_check_in, last_c
 	record.last_check_out = _parse_datetime(last_check_out, _("Last Check Out"))
 	record.manual_entry = 1
 	record.modified_by_manager = manager.name
+	_apply_remarks(record, remarks)
 	record.insert(ignore_permissions=True)
 
 	return {**serialize_employee(employee), "record": serialize_record(record)}

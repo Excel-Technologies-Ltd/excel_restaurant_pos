@@ -68,6 +68,7 @@ DEFAULT_COLUMNS = (
 	"manual_entry",
 	"is_modified",
 	"modified_by_manager",
+	"remarks",
 )
 
 STANDARD_FIELDS = ("name", "owner", "creation", "modified", "modified_by", "docstatus", "idx")

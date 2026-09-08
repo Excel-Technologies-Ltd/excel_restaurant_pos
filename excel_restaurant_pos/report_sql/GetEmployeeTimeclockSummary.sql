@@ -61,6 +61,7 @@ BEGIN
             COALESCE(ETM.total_paid_hours, 0) as total_paid_hours,
             COALESCE(ETM.timeclock_cost, 0) as timeclock_cost,
             COALESCE(ETM.total_payment, 0) as total_payment,
+            ETM.remarks,
             TIME(ETM.first_check_in) as shift_start,
             TIME(ETM.last_check_out) as shift_end,
             ROW_NUMBER() OVER (PARTITION BY ae.employee_name ORDER BY dr.business_date ASC) as date_rank
@@ -97,6 +98,7 @@ BEGIN
             total_paid_hours,
             timeclock_cost,
             total_payment,
+            remarks,
             shift_start,
             shift_end,
             date_rank
@@ -164,7 +166,8 @@ BEGIN
                                     'check_out', IFNULL(TIME_FORMAT(ps.shift_end, '%l:%i %p'), ''),
                                     'hours_worked', ps.total_paid_hours,
                                     'cost', ps.timeclock_cost,
-                                    'payment', ps.total_payment
+                                    'payment', ps.total_payment,
+                                    'remarks', IFNULL(ps.remarks, '')
                                 )
                                 ORDER BY ps.business_date ASC
                             )

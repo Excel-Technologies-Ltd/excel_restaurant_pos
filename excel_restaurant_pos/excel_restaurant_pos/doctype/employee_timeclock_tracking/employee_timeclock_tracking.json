@@ -25,7 +25,8 @@
   "manual_entry",
   "is_modified",
   "column_break_audit",
-  "modified_by_manager"
+  "modified_by_manager",
+  "remarks"
  ],
  "fields": [
   {
@@ -140,6 +141,12 @@
    "label": "Modified By (Manager)",
    "options": "ArcPOS Employee",
    "read_only": 1
+  },
+  {
+   "description": "Free text note about this shift -- a late start, a missed check out, why a manager edited it.",
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
   }
  ],
  "index_web_pages_for_search": 1,

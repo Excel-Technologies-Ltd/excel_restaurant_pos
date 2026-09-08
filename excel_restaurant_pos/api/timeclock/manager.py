@@ -6,6 +6,7 @@ from frappe.utils import cint
 from excel_restaurant_pos.api.timeclock.helpers import (
 	get_business_date_param,
 	get_pin,
+	get_remarks,
 	get_request_data,
 )
 from excel_restaurant_pos.shared.timeclock.services import (
@@ -86,6 +87,7 @@ def timeclock_update_record():
 	manager_pin (required)
 	employee (required), business_date (required)
 	first_check_in (optional), last_check_out (optional)
+	remarks (optional): free text note. Omit to leave it unchanged, send "" to clear.
 	"""
 	data = get_request_data()
 	manager = _manager_from_request(data)
@@ -95,6 +97,7 @@ def timeclock_update_record():
 		get_business_date_param(data),
 		first_check_in=data.get("first_check_in"),
 		last_check_out=data.get("last_check_out"),
+		remarks=get_remarks(data),
 	)
 
 
@@ -110,6 +113,7 @@ def timeclock_add_entry():
 	manager_pin (required)
 	employee (required), business_date (required)
 	first_check_in (required), last_check_out (optional)
+	remarks (optional): free text note for the entry
 	"""
 	data = get_request_data()
 	manager = _manager_from_request(data)
@@ -119,4 +123,5 @@ def timeclock_add_entry():
 		get_business_date_param(data),
 		data.get("first_check_in"),
 		last_check_out=data.get("last_check_out"),
+		remarks=get_remarks(data),
 	)

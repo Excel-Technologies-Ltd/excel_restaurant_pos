@@ -128,7 +128,8 @@ Response shape:
           "check_out": "5:30 PM",
           "hours_worked": 8.5,
           "cost": 20.0,           // the hourly rate for that day
-          "payment": 170.0
+          "payment": 170.0,
+          "remarks": ""           // shift note, "" when there is none
         }
       ]
     }
@@ -148,6 +149,8 @@ Three things to get right when you bind this:
   like `"9:00 AM"`, and `""` when the employee never clocked that day.
 - `date_summary`, `employees` and `daily_slots` are always arrays. The backend
   normalises SQL `NULL` to `[]`, so you can map over them without guarding.
+- `remarks` is the free text shift note, `""` when there is none (the procedure
+  coalesces `NULL`). It is filterable and exportable like any other column.
 
 `page`/`page_size` paginate the **day columns**, not the employees: every
 employee comes back on every page, each carrying only the `daily_slots` for the
@@ -276,7 +279,7 @@ builder. Field names are validated against the DocType, so a typo returns a
 
 `name`, `employee`, `employee_name`, `business_date`, `first_check_in`,
 `last_check_out`, `total_paid_hours`, `timeclock_cost`, `total_payment`,
-`manual_entry`, `is_modified`, `modified_by_manager`
+`manual_entry`, `is_modified`, `modified_by_manager`, `remarks`
 
 Layout fields (section breaks, column breaks) and `pin` are not selectable.
 

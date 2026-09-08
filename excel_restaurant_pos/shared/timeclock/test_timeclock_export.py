@@ -52,6 +52,7 @@ def _record(name, employee="6", business_date="2026-09-01"):
 			"manual_entry": 0,
 			"is_modified": 0,
 			"modified_by_manager": None,
+			"remarks": "covered a double shift",
 		}
 	)
 
@@ -61,6 +62,11 @@ class TestExportArguments(FrappeTestCase):
 		permitted = permitted_fieldnames()
 		for fieldname in DEFAULT_COLUMNS:
 			self.assertIn(fieldname, permitted)
+
+	def test_remarks_is_exported_and_filterable(self):
+		self.assertIn("remarks", DEFAULT_COLUMNS)
+		self.assertIn("remarks", permitted_fieldnames())
+		self.assertEqual(parse_filters('[["remarks", "like", "%late%"]]'), [["remarks", "like", "%late%"]])
 
 	def test_layout_fields_are_not_permitted(self):
 		permitted = permitted_fieldnames()

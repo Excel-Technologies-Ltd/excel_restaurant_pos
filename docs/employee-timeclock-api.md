@@ -48,6 +48,7 @@ The hash is keyed with the site `encryption_key`, so PINs must be re-issued if t
 | `manual_entry` | Check, read only | Manager created the record for a date the employee never clocked. |
 | `is_modified` | Check, read only | Manager edited the timestamps of an existing record. |
 | `modified_by_manager` | Link → ArcPOS Employee, read only | The manager who edited or created it. Named `modified_by_manager` because `modified_by` is a reserved Frappe column. |
+| `remarks` | Small Text | Free text note about the shift. Accepted by every write route and included in the export and the summary report. |
 
 ### ArcPOS Settings
 
@@ -115,13 +116,18 @@ Request: `{ "pin": "123456" }`
 
 ### `api.timeclock.check_in`
 
-Request: `{ "pin": "123456" }` → `{ "action": "check_out", "record": { … } }`
+Request: `{ "pin": "123456", "remarks": "arrived late, traffic" }` → `{ "action": "check_out", "record": { … } }`
+
+`remarks` is optional everywhere it is accepted and follows one rule: **omit the
+key to leave the stored note alone, send `""` to clear it.** Anything else
+replaces it, trimmed. Without that distinction a check out with no note would
+silently wipe the note left at check in.
 
 Errors: already checked in for the business date; an earlier business date is still open.
 
 ### `api.timeclock.check_out`
 
-Request: `{ "pin": "123456" }` → `{ "action": "check_out", "record": { … } }`
+Request: `{ "pin": "123456", "remarks": "…" }` → `{ "action": "check_out", "record": { … } }`
 
 Every call replaces `last_check_out` with the current time and recalculates `total_paid_hours` / `total_payment`.
 
@@ -164,13 +170,13 @@ Request:
 }
 ```
 
-Omit a timestamp to leave it unchanged; send `""` to clear it. Saving sets `is_modified = 1`, stores the manager in `modified_by_manager`, and recalculates `total_paid_hours` / `total_payment`.
+Omit a timestamp to leave it unchanged; send `""` to clear it. `remarks` follows the same rule. Saving sets `is_modified = 1`, stores the manager in `modified_by_manager`, and recalculates `total_paid_hours` / `total_payment`.
 
 Errors: no record for that employee/date; `last_check_out` earlier than `first_check_in`.
 
 ### `api.timeclock.add_entry` — manager manual entry
 
-Request: same shape as `update_record`; `first_check_in` is required, `last_check_out` optional.
+Request: same shape as `update_record`; `first_check_in` is required, `last_check_out` and `remarks` optional.
 
 Creates the record with `manual_entry = 1` and `modified_by_manager` set. `timeclock_cost` is taken from the employee's own rate at creation, and `total_working_hours` comes back as `total_paid_hours`.
 

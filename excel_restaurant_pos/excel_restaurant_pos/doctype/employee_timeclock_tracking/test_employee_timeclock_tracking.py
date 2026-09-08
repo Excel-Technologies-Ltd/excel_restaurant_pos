@@ -6,7 +6,12 @@ import itertools
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
-from excel_restaurant_pos.shared.timeclock.services import check_in, check_out
+from excel_restaurant_pos.shared.timeclock.services import (
+	check_in,
+	check_out,
+	create_manual_entry,
+	update_record,
+)
 
 BUSINESS_DATE = "2026-09-01"
 
@@ -139,3 +144,61 @@ class TestEmployeeTimeclockCost(FrappeTestCase):
 
 		self.assertEqual(record.timeclock_cost, 10.0)
 		self.assertEqual(record.total_payment, 80.0)
+
+
+class TestTimeclockRemarks(FrappeTestCase):
+	"""`remarks` follows the same omitted/empty rule as the timestamps."""
+
+	def setUp(self):
+		self.employee = create_employee("Remarks Test Chef", next_pin(), role="Chef")
+		self.identity = frappe._dict(
+			name=self.employee.name,
+			employee_name=self.employee.employee_name,
+			role=self.employee.role,
+		)
+
+	def test_check_in_stores_a_trimmed_note(self):
+		result = check_in(self.identity, remarks="  arrived late, traffic  ")
+
+		self.assertEqual(result["record"]["remarks"], "arrived late, traffic")
+
+	def test_omitting_remarks_leaves_the_note_alone(self):
+		# Otherwise a check out with no note silently wipes the one left at
+		# check in, which is how the shift context gets lost.
+		check_in(self.identity, remarks="arrived late")
+
+		result = check_out(self.identity)
+
+		self.assertEqual(result["record"]["remarks"], "arrived late")
+
+	def test_empty_remarks_clears_the_note(self):
+		check_in(self.identity, remarks="arrived late")
+
+		result = check_out(self.identity, remarks="")
+
+		self.assertIsNone(result["record"]["remarks"])
+
+	def test_manager_edit_sets_the_note(self):
+		record = check_in(self.identity)["record"]
+		manager = create_employee("Remarks Test Manager", next_pin(), role="Manager")
+
+		result = update_record(
+			manager, self.employee.name, record["business_date"], remarks="fixed a missed check out"
+		)
+
+		self.assertEqual(result["record"]["remarks"], "fixed a missed check out")
+
+	def test_manual_entry_carries_the_note(self):
+		manager = create_employee("Remarks Entry Manager", next_pin(), role="Manager")
+
+		result = create_manual_entry(
+			manager,
+			self.employee.name,
+			"2026-08-01",
+			"2026-08-01 09:00:00",
+			last_check_out="2026-08-01 17:00:00",
+			remarks="forgot to clock in",
+		)
+
+		self.assertEqual(result["record"]["remarks"], "forgot to clock in")
+
