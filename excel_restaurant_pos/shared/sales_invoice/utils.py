@@ -70,3 +70,29 @@ def get_write_off_account(company):
     """
     write_off_account = frappe.db.get_value("Company", company, "write_off_account")
     return write_off_account
+
+
+def fill_required_payment_entry_fields(payment_entry, invoice) -> None:
+    """Fill custom fields another app has made mandatory on Payment Entry.
+
+    excel_erpnext adds a required `excel_territory` with no default and nothing
+    that populates it, so any Payment Entry built in code fails validation
+    before it is ever saved. That takes down the gateway payment flow, where
+    create_payment_entry runs inline from api.payments.receipt_payment -- after
+    the customer has already been charged. The invoice already knows which
+    territory the sale belongs to, so take it from there and fall back to the
+    customer's.
+
+    Written defensively on purpose: the field belongs to another app, so it may
+    not be installed, and a site without it must not start failing here.
+    """
+    meta = frappe.get_meta("Payment Entry")
+    if not meta.has_field("excel_territory") or payment_entry.get("excel_territory"):
+        return
+
+    territory = invoice.get("territory") or frappe.db.get_value(
+        "Customer", invoice.get("customer"), "territory"
+    )
+    if territory:
+        payment_entry.excel_territory = territory
+

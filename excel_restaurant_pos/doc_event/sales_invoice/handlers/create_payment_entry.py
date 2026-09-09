@@ -1,6 +1,7 @@
 import frappe
 from frappe.utils import nowdate
 from excel_restaurant_pos.shared.sales_invoice import (
+    fill_required_payment_entry_fields,
     get_receivable_account,
     get_mode_of_payment_account,
 )
@@ -54,6 +55,12 @@ def create_payment_entry(sales_invoice, payments=None):
                 "allocated_amount": amount,
             },
         )
+
+        # Without this the insert dies on excel_erpnext's mandatory
+        # excel_territory, which takes down every gateway payment: this runs
+        # inline from api.payments.receipt_payment, after the customer has
+        # already been charged.
+        fill_required_payment_entry_fields(payment_entry, doc)
 
         payment_entry.insert(ignore_permissions=True)
         payment_entry.submit()
