@@ -161,7 +161,9 @@ class TestGiftCardLines(FrappeTestCase):
 	def test_process_gift_cards_on_submit_new_type(self, _allowed, get_settings, create_coupon):
 		from excel_restaurant_pos.shared.gift_card.services import process_gift_cards_on_submit
 
-		get_settings.return_value = frappe._dict()
+		# Not frappe._dict(): an empty _dict is falsy, so `if not settings` in
+		# process_gift_cards_on_submit rejected it as "no settings at all".
+		get_settings.return_value = frappe._dict(name="ArcPOS Settings")
 		create_coupon.return_value = frappe._dict(name="GIFT-NEW")
 		doc = frappe._dict(
 			customer="CUST-1",

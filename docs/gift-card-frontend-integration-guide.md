@@ -442,6 +442,50 @@ Common messages:
 | Unknown code, or a promo coupon typed into the gift card field | “The entered code is not a valid Gift Card. Please enter a valid Gift Card code.” |
 | Unknown code, or a gift card typed into the coupon field (`api.coupons.validate` / `verify` / `apply`) | “The entered code is not a valid Coupon Code. Please enter a valid Coupon Code.” |
 | Selling an Inactive card whose expiry already passed | “Gift Card {code} expired on {date} and cannot be sold.” |
+
+---
+
+## Website orders paid entirely by gift card
+
+A Website order is **Pay First**: it only reaches `docstatus = 1` through the
+payment gateway. When a gift card covers the whole basket there is nothing to
+charge, and the gateway refuses to open a $0 transaction — which used to leave
+the order stranded as a draft, so the `on_submit` hook that actually spends the
+gift card never ran and the customer's balance was never touched.
+
+This bites **Website + Pickup** in particular: it is the only channel that both
+requires an online payment and can reach zero. A Delivery order keeps its
+delivery charge in the grand total (redemption is capped at the item subtotal),
+and Dine-in / In-store settle in person.
+
+`api.payments.get_ticket` now detects this before it calls the gateway and
+settles the order itself. **Your checkout has to branch on the response:**
+
+```ts
+const res = await getPaymentTicket(invoiceName);
+
+if (res.payment_required === false) {
+  // Fully covered by the gift card. The order is already submitted and Paid.
+  // Do NOT redirect to the gateway and do NOT call api.payments.receipt_payment.
+  return showOrderConfirmed(res.invoice);
+}
+
+redirectToGateway(res.ticket);   // unchanged: something is still owed
+```
+
+| Response | Meaning |
+|----------|---------|
+| `{ ticket }` | Money is owed. Redirect to the gateway exactly as before. |
+| `{ payment_required: false, paid: true, invoice, grand_total: 0, status }` | Nothing owed. The invoice is submitted, the gift card is spent, the order is live. |
+
+Retrying is safe: calling it again on an already settled order returns the same
+payload rather than an error, so a double tap on *Place Order* is harmless. Any
+payment ticket minted while the order still had a balance is discarded when it
+settles, so a stale ticket cannot be replayed against it.
+
+A zero total that is **not** explained by a coupon or gift card is refused
+outright — this route is guest reachable, and a basket must not be able to
+submit itself simply by costing nothing.
 | No draft SI | “only allowed on draft Sales Invoices” |
 | Promo + gift | Mutual exclusion error |
 | Inactive / Used / Expired code on redeem | Invalid / not Active |

@@ -7,6 +7,7 @@ from excel_restaurant_pos.utils import convert_to_flt_string, convert_to_decimal
 from .helper.get_ticket_from_db import get_ticket_from_db
 from .helper.get_payment_config import get_payment_config
 from .helper.save_ticket_to_db import save_ticket_to_db
+from .helper.settle_zero_payment import is_fully_discounted, settle_zero_payment
 
 
 def _validate_invoice_number() -> str:
@@ -185,7 +186,6 @@ def _request_payment_ticket(payload: dict, payment_config: dict) -> str:
         frappe.throw("Invalid response from payment gateway", frappe.ValidationError)
 
     res = response_data.get("response", {})
-    print(res)
     if res.get("success", "false").lower() != "true":
         error_message = res.get("message", "Unknown error from payment gateway")
         frappe.log_error(
@@ -210,14 +210,25 @@ def get_payment_ticket():
     Checks for existing valid ticket first. If none exists or it's expired,
     creates a new ticket from the payment gateway.
 
+    An order a gift card has already paid in full never reaches the gateway: it
+    is submitted here and comes back as {"payment_required": False, ...} with no
+    ticket, because the gateway rejects a $0 transaction and would otherwise
+    strand the order as an unpayable draft.
+
     Returns:
-        dict: {"ticket": ticket_string}
+        dict: {"ticket": ticket_string}, or the settled-order payload above.
     """
     # Validate and get invoice number
     invoice_number = _validate_invoice_number()
 
     # Get and validate invoice
     invoice = _get_invoice(invoice_number)
+
+    # Before any ticket handling: an order with nothing left to charge must not
+    # be sent to the gateway, and must not reuse a ticket minted while it still
+    # had a balance (applying the gift card is what emptied it).
+    if is_fully_discounted(invoice):
+        return settle_zero_payment(invoice)
 
     # Check for existing valid ticket
     existing_ticket = _get_existing_ticket_if_valid(invoice_number)
@@ -229,7 +240,6 @@ def get_payment_ticket():
 
     # Prepare payload
     payload = _prepare_payment_payload(invoice, payment_config)
-    print(payload)
 
     # Request new ticket from payment gateway
     ticket = _request_payment_ticket(payload, payment_config)
