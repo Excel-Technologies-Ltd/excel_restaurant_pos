@@ -7,9 +7,10 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from excel_restaurant_pos.shared.print_format.invoice_pdf import (
+	DEFAULT_FORMAT_KEY,
 	FALLBACK_PRINT_FORMAT,
 	build_pdf_response,
-	is_delivery_order,
+	parse_format_key,
 	pdf_filename,
 	render_pdf,
 	resolve_print_format,
@@ -36,39 +37,59 @@ def _invoice(service_type="Pickup", name="ORD-26-01409", docstatus=1):
 	)
 
 
-class TestPrintFormatSelection(FrappeTestCase):
-	"""The format comes from ArcPOS Settings, never from the caller."""
+class TestFormatKey(FrappeTestCase):
+	"""The caller picks the format; it is not inferred from the invoice."""
 
-	def test_delivery_is_detected_case_insensitively(self):
-		self.assertTrue(is_delivery_order(_invoice("Delivery")))
-		self.assertTrue(is_delivery_order(_invoice(" delivery ")))
-		self.assertFalse(is_delivery_order(_invoice("Pickup")))
-		self.assertFalse(is_delivery_order(_invoice(None)))
+	def test_known_keys_are_accepted_case_insensitively(self):
+		self.assertEqual(parse_format_key("default"), "default")
+		self.assertEqual(parse_format_key("Delivery"), "delivery")
+		self.assertEqual(parse_format_key("  DELIVERY  "), "delivery")
+
+	def test_an_omitted_key_is_the_standard_receipt(self):
+		self.assertEqual(parse_format_key(None), DEFAULT_FORMAT_KEY)
+		self.assertEqual(parse_format_key(""), DEFAULT_FORMAT_KEY)
+
+	def test_an_unknown_key_is_refused_not_defaulted(self):
+		# Asking for a format that does not exist must not quietly hand back a
+		# different document.
+		with self.assertRaises(frappe.ValidationError) as raised:
+			parse_format_key("kitchen")
+
+		self.assertIn("default", str(raised.exception))
+		self.assertIn("delivery", str(raised.exception))
+
+
+class TestPrintFormatSelection(FrappeTestCase):
+	"""Each key maps to its own ArcPOS Settings field."""
 
 	@patch(f"{MODULE}.frappe.db.exists", return_value=True)
 	@patch(f"{MODULE}.frappe.db.get_single_value")
-	def test_delivery_uses_the_delivery_format(self, get_single_value, _exists):
+	def test_delivery_key_reads_the_delivery_setting(self, get_single_value, _exists):
 		get_single_value.return_value = "ArcPOS Delivery Slip"
 
-		self.assertEqual(resolve_print_format(_invoice("Delivery")), "ArcPOS Delivery Slip")
+		self.assertEqual(resolve_print_format("delivery"), "ArcPOS Delivery Slip")
 		get_single_value.assert_called_once_with("ArcPOS Settings", "default_delivery_pf")
 
 	@patch(f"{MODULE}.frappe.db.exists", return_value=True)
 	@patch(f"{MODULE}.frappe.db.get_single_value")
-	def test_everything_else_uses_the_default_format(self, get_single_value, _exists):
+	def test_default_key_reads_the_default_setting(self, get_single_value, _exists):
 		get_single_value.return_value = "ArcPOS Receipt"
 
-		for service_type in ("Pickup", "Dine-in", "Takeout"):
-			get_single_value.reset_mock()
+		self.assertEqual(resolve_print_format("default"), "ArcPOS Receipt")
+		get_single_value.assert_called_once_with("ArcPOS Settings", "print_format_for_order")
 
-			self.assertEqual(resolve_print_format(_invoice(service_type)), "ArcPOS Receipt")
-			get_single_value.assert_called_once_with("ArcPOS Settings", "print_format_for_order")
+	@patch(f"{MODULE}.frappe.db.exists", return_value=True)
+	@patch(f"{MODULE}.frappe.db.get_single_value", return_value="ArcPOS Receipt")
+	def test_the_invoice_service_type_has_no_say(self, get_single_value, _exists):
+		# A delivery order may legitimately want the customer receipt.
+		self.assertEqual(resolve_print_format("default"), "ArcPOS Receipt")
+		get_single_value.assert_called_once_with("ArcPOS Settings", "print_format_for_order")
 
 	@patch(f"{MODULE}.frappe.db.get_single_value", return_value="")
 	def test_an_unset_setting_falls_back_rather_than_failing(self, _get_single_value):
 		# A customer downloading their own receipt should not be blocked by a
 		# setting nobody filled in.
-		self.assertEqual(resolve_print_format(_invoice("Delivery")), FALLBACK_PRINT_FORMAT)
+		self.assertEqual(resolve_print_format("delivery"), FALLBACK_PRINT_FORMAT)
 
 	@patch(f"{MODULE}.frappe.log_error")
 	@patch(f"{MODULE}.frappe.db.exists", return_value=False)
@@ -78,7 +99,7 @@ class TestPrintFormatSelection(FrappeTestCase):
 	):
 		# The setting is a Link, but a format can be renamed or deleted after it
 		# was chosen; rendering would otherwise die in the template.
-		self.assertEqual(resolve_print_format(_invoice()), FALLBACK_PRINT_FORMAT)
+		self.assertEqual(resolve_print_format("default"), FALLBACK_PRINT_FORMAT)
 		log_error.assert_called_once()
 
 
@@ -115,7 +136,29 @@ class TestPdfResponse(FrappeTestCase):
 		self.assertIn("attachment", response.headers["Content-Disposition"])
 		self.assertIn("ORD-26-01409.pdf", response.headers["Content-Disposition"])
 		self.assertEqual(response.headers["X-Print-Format"], "ArcPOS Receipt")
+		self.assertEqual(response.headers["X-Print-Format-Key"], "default")
 		self.assertEqual(response.headers["Content-Length"], str(len(b"%PDF-1.4 fake")))
+
+	@patch(f"{MODULE}.render_pdf", return_value=b"%PDF-1.4 fake")
+	@patch(f"{MODULE}.resolve_print_format", return_value="ArcPOS Delivery Slip")
+	@patch(f"{MODULE}.get_invoice")
+	def test_the_requested_key_reaches_the_resolver(self, get_invoice, resolve, _render):
+		get_invoice.return_value = _invoice()
+
+		response = build_pdf_response("ORD-26-01409", "delivery")
+
+		resolve.assert_called_once_with("delivery")
+		self.assertEqual(response.headers["X-Print-Format"], "ArcPOS Delivery Slip")
+		self.assertEqual(response.headers["X-Print-Format-Key"], "delivery")
+
+	@patch(f"{MODULE}.render_pdf")
+	@patch(f"{MODULE}.get_invoice")
+	def test_a_bad_key_fails_before_the_invoice_is_loaded(self, get_invoice, render):
+		with self.assertRaises(frappe.ValidationError):
+			build_pdf_response("ORD-26-01409", "kitchen")
+
+		get_invoice.assert_not_called()
+		render.assert_not_called()
 
 	@patch(f"{MODULE}.render_pdf", return_value=b"%PDF-1.4 fake")
 	@patch(f"{MODULE}.resolve_print_format", return_value="ArcPOS Receipt")
@@ -133,6 +176,7 @@ class TestPdfResponse(FrappeTestCase):
 		self.assertEqual(response.headers["Referrer-Policy"], "no-referrer")
 		self.assertIn("Content-Disposition", response.headers["Access-Control-Expose-Headers"])
 		self.assertIn("X-Print-Format", response.headers["Access-Control-Expose-Headers"])
+		self.assertIn("X-Print-Format-Key", response.headers["Access-Control-Expose-Headers"])
 
 	# A burst has to be refused: the route is guest reachable and every render
 	# is real CPU.

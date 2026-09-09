@@ -1,10 +1,13 @@
 """Sales Invoice PDF rendering for the Order Web.
 
-The print format is not chosen by the caller. It comes from ArcPOS Settings --
-*Default Delivery Print Format* for a delivery order, *Default Print Format* for
-everything else -- so the storefront cannot render an invoice through an
-arbitrary format, and the receipt a customer downloads is the one the restaurant
-configured.
+The caller says which of the two configured formats it wants -- `default` for
+ArcPOS Settings *Default Print Format*, `delivery` for *Default Delivery Print
+Format*. Only those two keys are accepted, so the storefront chooses between the
+restaurant's own formats and cannot render an invoice through an arbitrary one.
+
+Deliberately not inferred from the invoice's service type: a delivery order may
+legitimately need the customer receipt, and a pickup order the delivery slip.
+Guessing from the document takes that choice away from the caller.
 
 The finished PDF is streamed as an attachment with the same response discipline
 as the timeclock export: never cached, never sniffed, and with the headers a
@@ -23,11 +26,12 @@ INVOICE_DOCTYPE = "Sales Invoice"
 PDF_MIMETYPE = "application/pdf"
 FALLBACK_PRINT_FORMAT = "Standard"
 
-# Settings field per service type. Delivery orders carry the driver copy.
-DELIVERY_FORMAT_FIELD = "default_delivery_pf"
-DEFAULT_FORMAT_FIELD = "print_format_for_order"
-
-DELIVERY_SERVICE_TYPE = "delivery"
+# The format key a caller may ask for -> the ArcPOS Settings field holding it.
+FORMAT_FIELDS = {
+	"default": "print_format_for_order",
+	"delivery": "default_delivery_pf",
+}
+DEFAULT_FORMAT_KEY = "default"
 
 # Rendering a PDF costs real CPU, and this route is reachable without a login.
 PDF_RATE_LIMIT = 30
@@ -35,22 +39,39 @@ PDF_RATE_WINDOW = 60
 
 # Frappe's CORS handling sets Allow-Origin but never Expose-Headers, so a cross
 # origin fetch() could otherwise read the body but not the filename.
-EXPOSED_HEADERS = "Content-Disposition, Content-Length, X-Print-Format"
+EXPOSED_HEADERS = "Content-Disposition, Content-Length, X-Print-Format, X-Print-Format-Key"
 
 
-def is_delivery_order(invoice) -> bool:
-	"""True when the invoice is a delivery, whatever channel it came from."""
-	return (invoice.get("custom_service_type") or "").strip().lower() == DELIVERY_SERVICE_TYPE
+def parse_format_key(value) -> str:
+	"""Normalise the requested format key, defaulting to the standard receipt.
+
+	An unrecognised key is refused rather than quietly served as the default:
+	asking for a format that does not exist should not hand back a different
+	document without saying so.
+	"""
+	key = (value or "").strip().lower()
+	if not key:
+		return DEFAULT_FORMAT_KEY
+
+	if key not in FORMAT_FIELDS:
+		frappe.throw(
+			_("Unknown print format {0}. Use one of: {1}.").format(
+				value, ", ".join(sorted(FORMAT_FIELDS))
+			),
+			frappe.ValidationError,
+		)
+
+	return key
 
 
-def resolve_print_format(invoice) -> str:
-	"""The configured print format for this invoice's service type.
+def resolve_print_format(format_key: str = DEFAULT_FORMAT_KEY) -> str:
+	"""The Print Format configured in ArcPOS Settings for this key.
 
 	Falls back to Frappe's Standard format rather than throwing: a customer
 	downloading their own receipt should not be blocked by a setting nobody
 	filled in, and Standard renders every field that matters.
 	"""
-	fieldname = DELIVERY_FORMAT_FIELD if is_delivery_order(invoice) else DEFAULT_FORMAT_FIELD
+	fieldname = FORMAT_FIELDS[parse_format_key(format_key)]
 	print_format = (frappe.db.get_single_value(SETTINGS_DOCTYPE, fieldname) or "").strip()
 
 	if not print_format:
@@ -120,7 +141,7 @@ def render_pdf(invoice, print_format: str) -> bytes:
 		)
 
 
-def build_pdf_response(invoice_name: str):
+def build_pdf_response(invoice_name: str, format_key: str = DEFAULT_FORMAT_KEY):
 	"""Permission free, rate limited PDF download for the Order Web.
 
 	Reachable without a Frappe session on purpose: the storefront is public and
@@ -134,8 +155,12 @@ def build_pdf_response(invoice_name: str):
 
 	rate_limit_by_caller("invoice_pdf", limit=PDF_RATE_LIMIT, seconds=PDF_RATE_WINDOW)
 
+	# Parsed before the invoice is loaded, so a bad key fails on its own terms
+	# rather than after the work of fetching a document.
+	format_key = parse_format_key(format_key)
+
 	invoice = get_invoice(invoice_name)
-	print_format = resolve_print_format(invoice)
+	print_format = resolve_print_format(format_key)
 	content = render_pdf(invoice, print_format)
 
 	response = Response(content, mimetype=PDF_MIMETYPE)
@@ -144,6 +169,9 @@ def build_pdf_response(invoice_name: str):
 	# Tells the caller which format rendered it, so a mis-set setting is visible
 	# from the response rather than only from the PDF itself.
 	response.headers["X-Print-Format"] = print_format
+	# Echoes the key back, so a caller can confirm which of the two it got
+	# without knowing what the settings are named.
+	response.headers["X-Print-Format-Key"] = format_key
 	# A receipt carries the customer's name, address and phone: never let a
 	# proxy or the browser keep a copy.
 	response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private"
