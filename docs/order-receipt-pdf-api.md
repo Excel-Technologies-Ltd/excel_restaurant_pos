@@ -106,6 +106,21 @@ format references by absolute URL (logo, QR, stylesheet). If it cannot reach the
 site host it fails with `HostNotFoundError`, and **every** PDF for that format
 fails. Check the error log before suspecting the invoice.
 
+### Why a login is not needed
+
+Being `allow_guest` on the route is not by itself enough. Frappe's print
+pipeline runs `validate_print_permission()` on the document, which wants `read`
+or `print` on Sales Invoice — a Guest has neither, so the render failed its
+permission check and Frappe returned its login response, which came back as a
+**blank page** rather than a receipt.
+
+The render therefore sets `frappe.flags.ignore_print_permissions`, Frappe's own
+escape hatch for this, and restores the previous value in a `finally`. The flag
+lives on `frappe.flags` for the whole request, so leaking it would silently
+disable print permission checks for anything that ran afterwards. Switching the
+session user would have worked too and is deliberately not done — that is how a
+request ends up doing the rest of its work as somebody else.
+
 ---
 
 ## 4. A caveat worth reading

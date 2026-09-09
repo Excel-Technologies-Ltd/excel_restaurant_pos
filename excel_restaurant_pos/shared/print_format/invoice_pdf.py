@@ -116,11 +116,25 @@ def render_pdf(invoice, print_format: str) -> bytes:
 
 	`no_letterhead=0` keeps whatever letterhead the format itself defines.
 
+	`ignore_print_permissions` is what makes this work without a login. Frappe's
+	print pipeline runs validate_print_permission() on the document, which wants
+	`read` or `print` on Sales Invoice -- a Guest has neither, so the render was
+	failing its permission check and the customer got a blank page rather than a
+	receipt. The flag is frappe's own escape hatch for it (printview.py). Used
+	instead of switching the session user, which is how a request ends up doing
+	the rest of its work as somebody else.
+
+	It is restored in a finally: the flag lives on frappe.flags for the whole
+	request, so leaking it would silently disable print permission checks for
+	anything that ran afterwards.
+
 	wkhtmltopdf failures surface as a bare OSError carrying its stderr -- most
 	often it could not fetch an asset the format references by absolute URL, so
 	the message names the site host and means nothing to a customer. Translate
 	it, and keep the real one in the error log where it can be acted on.
 	"""
+	previous = frappe.flags.get("ignore_print_permissions")
+	frappe.flags.ignore_print_permissions = True
 	try:
 		return frappe.get_print(
 			INVOICE_DOCTYPE,
@@ -139,6 +153,8 @@ def render_pdf(invoice, print_format: str) -> bytes:
 			_("Could not produce the PDF for order {0}. Please try again.").format(invoice.name),
 			frappe.ValidationError,
 		)
+	finally:
+		frappe.flags.ignore_print_permissions = previous
 
 
 def build_pdf_response(invoice_name: str, format_key: str = DEFAULT_FORMAT_KEY):

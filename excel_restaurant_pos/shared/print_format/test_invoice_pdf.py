@@ -103,6 +103,47 @@ class TestPrintFormatSelection(FrappeTestCase):
 		log_error.assert_called_once()
 
 
+class TestGuestRendering(FrappeTestCase):
+	"""Without this the customer gets a blank page instead of a receipt.
+
+	Frappe's print pipeline runs validate_print_permission(), which wants `read`
+	or `print` on Sales Invoice. A Guest has neither, so the render failed its
+	permission check and returned frappe's login response -- rendered as an
+	empty document.
+	"""
+
+	@patch(f"{MODULE}.frappe.get_print", return_value=b"%PDF")
+	def test_print_permissions_are_bypassed_for_the_render(self, get_print):
+		seen = {}
+		get_print.side_effect = lambda *a, **k: (
+			seen.update(flag=frappe.flags.get("ignore_print_permissions")) or b"%PDF"
+		)
+
+		render_pdf(_invoice(), "ArcPOS Receipt")
+
+		self.assertIs(seen["flag"], True)
+
+	@patch(f"{MODULE}.frappe.get_print", return_value=b"%PDF")
+	def test_the_flag_does_not_leak_past_the_render(self, _get_print):
+		# It lives on frappe.flags for the whole request, so leaking it would
+		# silently disable print permission checks for everything after.
+		frappe.flags.ignore_print_permissions = False
+
+		render_pdf(_invoice(), "ArcPOS Receipt")
+
+		self.assertIs(frappe.flags.get("ignore_print_permissions"), False)
+
+	@patch(f"{MODULE}.frappe.log_error")
+	@patch(f"{MODULE}.frappe.get_print", side_effect=OSError("boom"))
+	def test_the_flag_is_restored_even_when_the_render_fails(self, _get_print, _log_error):
+		frappe.flags.ignore_print_permissions = False
+
+		with self.assertRaises(frappe.ValidationError):
+			render_pdf(_invoice(), "ArcPOS Receipt")
+
+		self.assertIs(frappe.flags.get("ignore_print_permissions"), False)
+
+
 class TestRenderFailure(FrappeTestCase):
 	@patch(f"{MODULE}.frappe.log_error")
 	@patch(f"{MODULE}.frappe.get_print", side_effect=OSError("wkhtmltopdf reported an error"))
