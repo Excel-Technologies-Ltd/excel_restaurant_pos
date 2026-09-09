@@ -207,7 +207,14 @@ def add_or_update_invoice():
 
     invoice_name = data.get("invoice_name")
     if invoice_name:
-        updated = update_sales_invoice(invoice_name, items=data.get("items", []))
+        # docstatus is forwarded so an existing draft can be submitted here.
+        # Without it the request re-saved the draft and returned it unchanged,
+        # which looked like the submit had silently done nothing.
+        updated = update_sales_invoice(
+            invoice_name,
+            items=data.get("items", []),
+            docstatus=data.get("docstatus"),
+        )
         return updated.as_dict()
 
     items = data.get("items", [])
