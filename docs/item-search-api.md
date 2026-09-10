@@ -8,6 +8,8 @@ about the request or the response changes when it is absent.
 - Code: `excel_restaurant_pos/api/item/search.py`, wired in at
   `excel_restaurant_pos/api/item/get_item_list.py`
 - Guest reachable, exactly as before.
+- Client-side integration:
+  [`item-search-frontend-guide.md`](./item-search-frontend-guide.md).
 
 ## Request
 
