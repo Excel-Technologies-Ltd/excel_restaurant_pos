@@ -81,6 +81,12 @@ custom_doc_events = {
         # the Customer exists, so this is where the email/phone actually arrives.
         "on_update": "excel_restaurant_pos.shared.client_contact.sync_client_contact_from_contact",
     },
+    "Item": {
+        # The search term index is a snapshot of item names, codes and groups.
+        "after_insert": "excel_restaurant_pos.doc_event.item.clear_search_index.clear_item_search_index_cache",
+        "on_update": "excel_restaurant_pos.doc_event.item.clear_search_index.clear_item_search_index_cache",
+        "on_trash": "excel_restaurant_pos.doc_event.item.clear_search_index.clear_item_search_index_cache",
+    },
     "Item Group": {
         "after_insert": "excel_restaurant_pos.doc_event.item_group.clear_visibility_cache.clear_item_group_visibility_cache",
         "on_update": "excel_restaurant_pos.doc_event.item_group.clear_visibility_cache.clear_item_group_visibility_cache",
