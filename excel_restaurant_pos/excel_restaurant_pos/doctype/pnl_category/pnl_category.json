@@ -10,11 +10,13 @@
  "field_order": [
   "category_name",
   "pnl_type",
-  "is_group",
   "parent_pnl_category",
   "lft",
   "rgt",
-  "old_parent"
+  "old_parent",
+  "column_break_xpvoq",
+  "is_group",
+  "disabled"
  ],
  "fields": [
   {
@@ -32,11 +34,6 @@
    "label": "PnL Type",
    "options": "\nIncome\nExpense",
    "reqd": 1
-  },
-  {
-   "fieldname": "is_group",
-   "fieldtype": "Check",
-   "label": "Is Group"
   },
   {
    "fieldname": "parent_pnl_category",
@@ -73,12 +70,28 @@
    "options": "PnL Category",
    "print_hide": 1,
    "read_only": 1
+  },
+  {
+   "fieldname": "column_break_xpvoq",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_group",
+   "fieldtype": "Check",
+   "label": "Is Group"
+  },
+  {
+   "default": "0",
+   "fieldname": "disabled",
+   "fieldtype": "Check",
+   "label": "Disabled"
   }
  ],
  "index_web_pages_for_search": 0,
  "is_tree": 1,
  "links": [],
- "modified": "2026-03-25 00:00:01.000000",
+ "modified": "2026-09-14 13:01:00.000000",
  "modified_by": "Administrator",
  "module": "Excel Restaurant Pos",
  "name": "PnL Category",
