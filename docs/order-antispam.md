@@ -1,6 +1,6 @@
-# Order guards: honeypot and idempotency
+# Order guards: Turnstile, honeypot and idempotency
 
-Two guards on `api.sales_invoices.add`, the public order endpoint. Both are
+Three guards on `api.sales_invoices.add`, the public order endpoint. All are
 optional from the client's point of view — an existing storefront that sends
 neither keeps working exactly as before.
 
@@ -8,8 +8,73 @@ neither keeps working exactly as before.
 checkout means every web order is attached to the same shared Customer
 (`ArcPOS Settings.customer`), so an order carries no identity at all. What
 actually separates a real order from a fake one is payment and a verified phone
-number. These two guards raise the cost of automated abuse and remove duplicate
+number. These guards raise the cost of automated abuse and remove duplicate
 orders; they do not make ordering authenticated.
+
+**Order of execution matters and is not arbitrary:**
+
+1. **Idempotency replay check** — first, because a Turnstile token is single
+   use. A client retrying a dropped checkout re-sends the token it already
+   spent, so verifying before this would refuse every genuine retry.
+2. **Honeypot** — cheap and local.
+3. **Turnstile** — last, because it is a network call, and only for orders that
+   are genuinely new.
+
+---
+
+## Cloudflare Turnstile
+
+The only one of the three that survives contact with a real attacker. Tokens are
+single use and short lived, so copying the checkout request out of the network
+tab and replaying it presents a token Cloudflare has already spent.
+
+It still only proves a browser solved a challenge. Someone willing to place a
+fake order by hand through the real checkout passes it every time.
+
+### Setup
+
+```json
+// site_config.json -- the secret never goes in code or a fixture
+{
+  "arcpos_turnstile_secret": "0x4AAAAAAA...",
+  "arcpos_turnstile_action": "checkout"
+}
+```
+
+`arcpos_turnstile_action` is optional. Set it, and give the widget the matching
+`data-action`, and a token minted for another widget on your site cannot be
+replayed against the order endpoint.
+
+**Presence of the secret is the on switch**, so the backend can ship before the
+storefront starts sending tokens without refusing every order in between.
+`arcpos_disable_turnstile: 1` is the kill switch.
+
+The client sends the widget's token as `cf-turnstile-response`
+(`cf_turnstile_response` and `turnstile_token` also accepted).
+
+### What happens when things go wrong
+
+This is the part worth reading twice — whose fault it is decides whether the
+order goes through.
+
+| Situation | Outcome |
+|---|---|
+| Valid token | Order placed |
+| No token, Turnstile configured | **Refused**, no call to Cloudflare |
+| Token rejected (`invalid-input-response`) | **Refused** |
+| Token replayed or expired (`timeout-or-duplicate`) | **Refused** |
+| `action` does not match the configured one | **Refused** |
+| Cloudflare unreachable, timed out, 5xx, non-JSON | **Order placed**, logged |
+| Our own keys wrong (`invalid-input-secret`) | **Order placed**, logged as misconfigured |
+| Caller is signed in (POS terminal) | Skipped entirely |
+
+Fail open on infrastructure, fail closed on a token Cloudflare actively
+rejected. A restaurant must not stop taking orders during someone else's
+outage, and a mistyped secret key should page an engineer, not close the
+storefront. Both cases log loudly — check the Error Log for
+*"Turnstile unavailable"* and *"Turnstile misconfigured"*.
+
+The siteverify call is bounded at 5 seconds; checkout is on the critical path.
 
 ---
 
@@ -92,18 +157,36 @@ built here.
 
 ## Frontend changes needed
 
-1. Render the three honeypot fields hidden (CSS, off-screen — **not**
+1. Add the Turnstile widget to checkout in **managed/invisible** mode, with a
+   `data-action` matching `arcpos_turnstile_action`. Send its token as
+   `cf-turnstile-response`. Reset the widget after a failed submit — a token
+   cannot be used twice.
+2. Render the three honeypot fields hidden (CSS, off-screen — **not**
    `type="hidden"`, which bots skip), and submit them empty.
-2. Stamp `checkout_started_at` when the checkout screen opens; send it with the
+3. Stamp `checkout_started_at` when the checkout screen opens; send it with the
    order.
-3. Generate an idempotency key per checkout attempt; send it as
+4. Generate an idempotency key per checkout attempt; send it as
    `Idempotency-Key`; **reuse it on every retry**, including automatic ones.
-4. On a 417 with *"could not be placed"*, show a generic failure and let the
+   This is what lets a retry succeed despite carrying a spent Turnstile token.
+5. On a 417 with *"could not be placed"*, show a generic failure and let the
    customer retry — do not auto-retry, and do not surface the reason.
 
 ## Verified
 
 End-to-end over HTTP against the dev site, guest, no token:
+
+Turnstile, using Cloudflare's published always-pass / always-fail test keys, so
+the real siteverify call was exercised rather than a mock:
+
+```
+turnstile not configured   -> WEB-26-01367   (backend ahead of storefront)
+configured, no token       -> 417 This order could not be placed
+configured, with token     -> WEB-26-01368
+retry w/ same spent token  -> WEB-26-01369   SAME order, not refused
+always-fail secret         -> 417 This order could not be placed
+```
+
+Honeypot and idempotency:
 
 ```
 1. honeypot filled    -> 417 This order could not be placed
@@ -117,5 +200,5 @@ End-to-end over HTTP against the dev site, guest, no token:
 rows carrying the key -> 1
 ```
 
-28 unit tests, plus the unique index confirmed at the database level
+46 unit tests, plus the unique index confirmed at the database level
 (`non_unique=0`, a second row refused with `IntegrityError`).

@@ -5,7 +5,7 @@ import json
 import frappe
 from frappe.utils import flt, now_datetime, get_time
 from .handlers.update_sales_invoice import update_sales_invoice
-from excel_restaurant_pos.shared.antispam import check_order_honeypot
+from excel_restaurant_pos.shared.antispam import check_order_honeypot, verify_order_turnstile
 from excel_restaurant_pos.shared.sales_invoice import build_invoice_item_row
 from excel_restaurant_pos.shared.sales_invoice import idempotency
 from excel_restaurant_pos.utils import iso_to_frappe_datetime
@@ -222,14 +222,20 @@ def add_or_update_invoice():
     # From here on a new order is being created. The guards belong on this path
     # only: the branch above names an existing invoice, so it cannot produce a
     # second order however often it is retried.
-    check_order_honeypot(data)
-
+    #
+    # Order matters. The replay check comes first because a Turnstile token is
+    # single use: a client retrying a dropped checkout re-sends the token it
+    # already spent, so verifying before this would refuse every genuine retry.
+    # After that, cheapest first -- the local checks before the network call.
     idempotency_key = idempotency.read_key(data)
     already_placed = idempotency.find_invoice(idempotency_key)
     if already_placed:
         # A retry of a checkout that already went through. Hand back the order
         # it made rather than making another one.
         return already_placed.as_dict()
+
+    check_order_honeypot(data)
+    verify_order_turnstile(data)
 
     items = data.get("items", [])
     _validate_required_fields(data)
