@@ -8,8 +8,11 @@ from excel_restaurant_pos.shared.sales_invoice import (
 
 
 def create_payment_entry(sales_invoice, payments=None):
-    frappe.set_user("Administrator")
-
+    # This used to open with frappe.set_user("Administrator") and never put the
+    # session back, so every caller -- including the guest reachable gateway
+    # route -- ran as Administrator for the rest of the request. The inserts
+    # below already pass ignore_permissions, which is what the elevation was
+    # actually for, so the session is left alone.
     doc = frappe.get_doc("Sales Invoice", sales_invoice)
 
     receivable_account = get_receivable_account(doc.company)
@@ -92,6 +95,9 @@ def create_payment_entry(sales_invoice, payments=None):
         fill_required_payment_entry_fields(payment_entry, doc)
 
         payment_entry.insert(ignore_permissions=True)
+        # submit() re-checks permissions of its own, which the session no longer
+        # has now that nothing elevates to Administrator.
+        payment_entry.flags.ignore_permissions = True
         payment_entry.submit()
         created.append(payment_entry.name)
 
