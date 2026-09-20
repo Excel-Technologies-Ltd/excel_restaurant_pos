@@ -269,7 +269,8 @@ override_whitelisted_methods = {
 
 # Request Events
 # ----------------
-# before_request = ["excel_restaurant_pos.utils.before_request"]
+# Throttle Guest /api/method calls (public storefront + open REST surfaces).
+before_request = ["excel_restaurant_pos.utils.rate_limit.limit_guest_api_requests"]
 # after_request = ["excel_restaurant_pos.utils.after_request"]
 
 # Job Events

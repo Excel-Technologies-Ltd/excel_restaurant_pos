@@ -52,9 +52,24 @@ browser blocks the response before your code runs:
 }
 ```
 
-**No rate limit.** This endpoint is not rate limited, which means throttling is
-*your* responsibility. A search box that fires on every keystroke with no
-debounce will issue ~8 requests for "biryani". See §4.
+**Rate limit — this one matters for a search box.** Guest traffic to
+`/api/method/...` is throttled per IP by a `before_request` hook
+(`excel_restaurant_pos/utils/rate_limit.py`):
+
+| | Budget |
+|---|---|
+| `api.items.list` (on the read allowlist) | **120 requests / 60s per IP** |
+| All guest API methods combined | **200 requests / 60s per IP** |
+
+An undebounced search box issues one request per keystroke — "biryani" is 7.
+Add the item group, settings and other storefront calls against the same 200/min
+global budget and a fast typist on a shared NAT IP can realistically trip it.
+**Debouncing is a correctness requirement here, not a nicety.** See §4.
+
+**Sending a bearer token exempts you.** The hook only throttles `Guest`; a
+request carrying a valid `Authorization: Bearer <jwt>` is resolved to its real
+user *before* the check and is not rate limited at all. So a logged-in POS
+terminal is unaffected, and an anonymous storefront is not.
 
 ---
 
@@ -328,6 +343,7 @@ export async function toApiError(res: Response) {
 | `TypeError: DatabaseQuery.execute() got an unexpected keyword argument '…'` (500) | You sent a parameter the endpoint does not consume; it was splatted into the query builder | Only send documented parameters |
 | Unexpectedly the full item list | `search` was empty, whitespace, or punctuation-only | §5 — track search mode client-side |
 | Stale results under a newer query | Out-of-order responses | §4 — abort the previous request |
+| `Too many requests. Please try again later.` (**417**, not 429) | Guest IP over 120/min on this method, or 200/min across all guest methods | Debounce (§4); back off and retry after the minute. Send a bearer token if you have one |
 | CORS error in the console, no response | `allow_cors` missing your origin | §2 |
 
 ---
@@ -340,7 +356,8 @@ export async function toApiError(res: Response) {
 | Rows ranked per query | 500 (`CANDIDATE_LIMIT`) |
 | Typical latency | 1–4 ms server side |
 | Server-side cache | 300s, cleared immediately on any item edit |
-| Rate limit | none — debounce client-side |
+| Rate limit (guest, per IP) | 120/min for this method; 200/min across all guest API methods |
+| Rate limit (bearer token) | none — the hook only throttles `Guest` |
 
 The 300s cache is on the fuzzy term index only. A price or availability change is
 never stale: those come from the live query on every request.
@@ -360,3 +377,5 @@ never stale: those come from the live query on every request.
 - [ ] Search inside a category filter stays inside it.
 - [ ] With a bearer token and without one, results are identical.
 - [ ] Slow network (throttle to 3G): aborts fire, no request pile-up.
+- [ ] Hold a key down in the search box: debounce holds you under 120 req/min,
+      and a 417 renders a retry message rather than an empty result.

@@ -7,7 +7,10 @@ about the request or the response changes when it is absent.
 - Endpoint: `POST|GET /api/method/api.items.list`
 - Code: `excel_restaurant_pos/api/item/search.py`, wired in at
   `excel_restaurant_pos/api/item/get_item_list.py`
-- Guest reachable, exactly as before.
+- Guest reachable, exactly as before — and throttled by the same
+  `before_request` guest rate limiter as before (`api.items.list` is on the read
+  allowlist: 120 req/min per IP, inside a 200 req/min global guest budget;
+  bearer-token callers are exempt). Search adds no limit of its own.
 - Client-side integration:
   [`item-search-frontend-guide.md`](./item-search-frontend-guide.md).
 
