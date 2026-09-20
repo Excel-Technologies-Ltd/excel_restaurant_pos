@@ -156,3 +156,50 @@ class TestActionBinding(_TurnstileCase):
 	def test_no_expected_action_means_no_check(self, _siteverify):
 		with patch.dict(frappe.conf, SECRET):
 			turnstile.verify_order_turnstile(_with_token())
+
+
+class TestHostnameBinding(_TurnstileCase):
+	"""The storefront is on its own domain, so `hostname` is the origin evidence."""
+
+	CONFIG = {**SECRET, turnstile.HOSTNAME_CONFIG_KEY: ["order.example.com"]}
+
+	@patch(f"{MODULE}._siteverify", return_value={"success": True, "hostname": "order.example.com"})
+	def test_the_storefront_domain_passes(self, _siteverify):
+		with patch.dict(frappe.conf, self.CONFIG):
+			turnstile.verify_order_turnstile(_with_token())
+
+	@patch(f"{MODULE}._siteverify", return_value={"success": True, "hostname": "ORDER.Example.COM"})
+	def test_the_comparison_ignores_case(self, _siteverify):
+		with patch.dict(frappe.conf, self.CONFIG):
+			turnstile.verify_order_turnstile(_with_token())
+
+	@patch(f"{MODULE}._siteverify", return_value={"success": True, "hostname": "attacker.example"})
+	def test_a_token_minted_elsewhere_is_refused(self, _siteverify):
+		with patch.dict(frappe.conf, self.CONFIG):
+			with self.assertRaises(frappe.ValidationError):
+				turnstile.verify_order_turnstile(_with_token())
+
+	@patch(f"{MODULE}._siteverify", return_value={"success": True, "hostname": "b.example.com"})
+	def test_several_domains_can_be_allowed(self, _siteverify):
+		# A storefront, a staging copy and a marketing site can share a widget.
+		config = {**SECRET, turnstile.HOSTNAME_CONFIG_KEY: ["a.example.com", "b.example.com"]}
+		with patch.dict(frappe.conf, config):
+			turnstile.verify_order_turnstile(_with_token())
+
+	@patch(f"{MODULE}._siteverify", return_value={"success": True, "hostname": "order.example.com"})
+	def test_a_single_string_is_accepted(self, _siteverify):
+		config = {**SECRET, turnstile.HOSTNAME_CONFIG_KEY: "order.example.com"}
+		with patch.dict(frappe.conf, config):
+			turnstile.verify_order_turnstile(_with_token())
+
+	@patch(f"{MODULE}._siteverify", return_value={"success": True, "hostname": "anything.example"})
+	def test_no_configured_hostname_means_no_check(self, _siteverify):
+		with patch.dict(frappe.conf, SECRET):
+			turnstile.verify_order_turnstile(_with_token())
+
+	@patch(f"{MODULE}._siteverify", return_value={"success": True})
+	def test_a_missing_hostname_is_refused_when_pinned(self, _siteverify):
+		# Cloudflare always sends one on success; its absence is not a pass.
+		with patch.dict(frappe.conf, self.CONFIG):
+			with self.assertRaises(frappe.ValidationError):
+				turnstile.verify_order_turnstile(_with_token())

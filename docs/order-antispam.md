@@ -34,16 +34,44 @@ fake order by hand through the real checkout passes it every time.
 ### Setup
 
 ```json
-// site_config.json -- the secret never goes in code or a fixture
+// site_config.json on the API host -- the secret never goes in code or a fixture
 {
   "arcpos_turnstile_secret": "0x4AAAAAAA...",
-  "arcpos_turnstile_action": "checkout"
+  "arcpos_turnstile_action": "checkout",
+  "arcpos_turnstile_hostnames": ["order.yourdomain.com"]
 }
 ```
 
-`arcpos_turnstile_action` is optional. Set it, and give the widget the matching
-`data-action`, and a token minted for another widget on your site cannot be
-replayed against the order endpoint.
+### The widget and the API are on different domains
+
+That is the normal arrangement and needs no special handling. **The sitekey is
+bound to the domain where the widget renders — your storefront — not to the
+domain running the API.** `siteverify` is a server-to-server call authenticated
+by the secret, and Cloudflare never checks which host makes it.
+
+So:
+
+| | Where |
+|---|---|
+| Sitekey (public) | Storefront page, in the widget |
+| Storefront domain | Cloudflare dashboard → the widget's **hostname list** |
+| Secret | `site_config.json` on the **API** host |
+| API domain | Nowhere in Cloudflare — it does not need to be registered |
+
+What the split *does* mean is that the only evidence of which site minted a
+token is what Cloudflare reports back, so pin both:
+
+- `arcpos_turnstile_action` — set it, give the widget a matching `data-action`,
+  and a token minted by another widget on the same site cannot be replayed here.
+- `arcpos_turnstile_hostnames` — a string or a list. A token minted on any other
+  host sharing this widget is refused. Match is case-insensitive; a success
+  response with no hostname is refused when this is set.
+
+Both are reported by Cloudflare rather than sent by the caller, so neither can
+be forged by whoever posts the order. Both are off unless configured.
+
+Also make sure the API's `allow_cors` includes the storefront origin, or the
+browser blocks the order request before any of this runs.
 
 **Presence of the secret is the on switch**, so the backend can ship before the
 storefront starts sending tokens without refusing every order in between.
@@ -64,6 +92,7 @@ order goes through.
 | Token rejected (`invalid-input-response`) | **Refused** |
 | Token replayed or expired (`timeout-or-duplicate`) | **Refused** |
 | `action` does not match the configured one | **Refused** |
+| `hostname` not in the configured list | **Refused** |
 | Cloudflare unreachable, timed out, 5xx, non-JSON | **Order placed**, logged |
 | Our own keys wrong (`invalid-input-secret`) | **Order placed**, logged as misconfigured |
 | Caller is signed in (POS terminal) | Skipped entirely |
@@ -200,5 +229,5 @@ Honeypot and idempotency:
 rows carrying the key -> 1
 ```
 
-46 unit tests, plus the unique index confirmed at the database level
+53 unit tests, plus the unique index confirmed at the database level
 (`non_unique=0`, a second row refused with `IntegrityError`).

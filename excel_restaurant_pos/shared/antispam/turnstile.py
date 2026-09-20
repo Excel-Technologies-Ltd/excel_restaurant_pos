@@ -22,6 +22,12 @@ Three decisions worth keeping in mind before changing anything here:
 - Guests only. Staff on a POS terminal hit the same endpoint and must not be
   challenged. That is keyed off the session user, which the server knows, not
   `custom_order_from`, which the caller can set to anything.
+
+The widget lives on the storefront domain and this runs on the API domain, which
+is the normal arrangement: the sitekey is bound to wherever the widget renders,
+and siteverify is a server to server call that never looks at who is calling it.
+What that does mean is that the only evidence of *which* domain minted a token
+is the `hostname` Cloudflare returns, so pin it -- see `arcpos_turnstile_hostnames`.
 """
 
 import frappe
@@ -34,6 +40,7 @@ VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
 # site_config.json keys. The secret never belongs in code or in a fixture.
 SECRET_CONFIG_KEY = "arcpos_turnstile_secret"
 ACTION_CONFIG_KEY = "arcpos_turnstile_action"
+HOSTNAME_CONFIG_KEY = "arcpos_turnstile_hostnames"
 DISABLE_CONFIG_KEY = "arcpos_disable_turnstile"
 
 # The widget posts `cf-turnstile-response`; the others are for clients that
@@ -119,6 +126,44 @@ def _siteverify(secret, token):
 		return None
 
 
+def _allowed_hostnames():
+	"""Hostnames whose widget may mint a token for this endpoint.
+
+	A string or a list in site_config; empty means no check.
+	"""
+	configured_hosts = frappe.conf.get(HOSTNAME_CONFIG_KEY)
+	if not configured_hosts:
+		return []
+	if isinstance(configured_hosts, str):
+		configured_hosts = [configured_hosts]
+
+	return [str(host).strip().lower() for host in configured_hosts if str(host).strip()]
+
+
+def _check_origin(outcome):
+	"""Pin the token to the widget it was supposed to come from.
+
+	`action` says which widget on the page, `hostname` says which site. With the
+	storefront on its own domain these are the only evidence of origin the
+	verification carries, and both are reported by Cloudflare rather than by the
+	caller, so neither can be forged by whoever posts the order.
+
+	Both checks are off unless configured, so a site that has not set them keeps
+	taking orders.
+	"""
+	expected_action = frappe.conf.get(ACTION_CONFIG_KEY)
+	action = outcome.get("action")
+	if expected_action and action != expected_action:
+		# A token minted by another widget on the site, replayed here.
+		_reject(f"action={action!r} expected={expected_action!r}")
+
+	allowed = _allowed_hostnames()
+	hostname = (outcome.get("hostname") or "").lower()
+	if allowed and hostname not in allowed:
+		# A token minted on some other site that shares this widget.
+		_reject(f"hostname={hostname!r} allowed={allowed!r}")
+
+
 def verify_order_turnstile(data=None):
 	"""Verify the Turnstile token on an incoming order.
 
@@ -145,11 +190,7 @@ def verify_order_turnstile(data=None):
 		return
 
 	if outcome.get("success"):
-		expected_action = frappe.conf.get(ACTION_CONFIG_KEY)
-		action = outcome.get("action")
-		if expected_action and action != expected_action:
-			# A token minted for another widget on the site, replayed here.
-			_reject(f"action={action!r} expected={expected_action!r}")
+		_check_origin(outcome)
 		return
 
 	codes = outcome.get("error-codes") or []
