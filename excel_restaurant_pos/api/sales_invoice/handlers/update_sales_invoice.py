@@ -86,6 +86,13 @@ def _apply_docstatus(sales_invoice, docstatus):
             frappe.ValidationError,
         )
 
+    # The save that precedes this fires on_update handlers which write to the
+    # same row, so the in-memory copy's `modified` is already behind the
+    # database and submit() would refuse it as a concurrent edit
+    # (TimestampMismatchError). Re-reading also means the docstatus checked
+    # below is the stored one rather than whatever the caller sent.
+    sales_invoice.reload()
+
     # Already submitted: the caller may simply be retrying, and saying so is
     # more useful than failing a request that asked for a state it is in.
     if cint(sales_invoice.docstatus) == DOCSTATUS_SUBMITTED:

@@ -30,11 +30,19 @@ def receipt_payment():
     receipt_result = receipt_status.get("receipt", {}).get("result", "")
     success_result = receipt_status.get("success", "false")
 
-    # check payment is successful and the receipt is approved
-    is_development = frappe.conf.get("environment", None) == "development"
-    if not is_development:
-        if success_result != "true" or receipt_result != "a":
-            frappe.throw("Invalid or expired payment ticket", frappe.ValidationError)
+    # Check the payment succeeded and the receipt was approved.
+    #
+    # There was an `environment == "development"` escape hatch here that skipped
+    # this entirely. It is gone: site_config carries two keys called
+    # `environment` -- this one, and the Moneris store selector under `payment`
+    # -- so a plausible tidy-up, or one afternoon of debugging, silently turned
+    # payment verification off for everyone with no error and no log line.
+    #
+    # Nothing is lost by removing it. `payment.environment` already points a dev
+    # site at the Moneris QA store, which issues real tickets and real approval
+    # codes, so development tests the same path production runs.
+    if success_result != "true" or receipt_result != "a":
+        frappe.throw("Invalid or expired payment ticket", frappe.ValidationError)
 
     # # validate order number
     order_number = receipt_status.get("request", {}).get("order_no")
