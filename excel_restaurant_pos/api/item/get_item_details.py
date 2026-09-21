@@ -1,5 +1,5 @@
 import frappe
-from frappe.utils import today, getdate
+from excel_restaurant_pos.shared.item_price import VALIDITY_FIELDS, live_prices
 
 
 VARIANT_FIELDS = [
@@ -17,8 +17,8 @@ VARIANT_ATTRIBUTE_FIELDS = [
     "parent",
     "custom_max_choice_count",
 ]
-REGULAR_PRICE_FIELDS = ["item_code", "price_list", "price_list_rate", "valid_upto"]
-ADDON_PRICE_FIELDS = ["item_code", "price_list_rate"]
+REGULAR_PRICE_FIELDS = ["item_code", "price_list", "price_list_rate", *VALIDITY_FIELDS]
+ADDON_PRICE_FIELDS = ["item_code", "price_list_rate", *VALIDITY_FIELDS]
 
 
 def _get_variant_items(item_code: str):
@@ -85,12 +85,8 @@ def _get_regular_price_map(item_codes: list[str]) -> dict[str, list[dict]]:
         fields=REGULAR_PRICE_FIELDS,
     )
 
-    today_date = getdate(today())
     valid_price_map: dict[str, list[dict]] = {}
-    for price in prices:
-        if price.valid_upto and getdate(price.valid_upto) < today_date:
-            continue
-
+    for price in live_prices(prices):
         valid_price_map.setdefault(price.item_code, []).append(price)
 
     return valid_price_map
@@ -105,7 +101,8 @@ def _get_addon_price_map(addon_item_codes: list[str]) -> dict[str, float]:
         filters={"item_code": ["in", addon_item_codes], "price_list": "Add-on Price"},
         fields=ADDON_PRICE_FIELDS,
     )
-    return {price.item_code: price.price_list_rate for price in addon_prices}
+    # Add-on prices used to check neither end of the validity window.
+    return {price.item_code: price.price_list_rate for price in live_prices(addon_prices)}
 
 
 @frappe.whitelist(allow_guest=True)

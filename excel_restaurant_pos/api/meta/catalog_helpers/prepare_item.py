@@ -1,4 +1,5 @@
 import frappe
+from excel_restaurant_pos.shared.item_price import VALIDITY_FIELDS, live_prices
 
 
 def prepare_item(item_code: str):
@@ -12,10 +13,15 @@ def prepare_item(item_code: str):
         frappe.throw(f"Item {item_code} not found")
 
     # prepare item as like meta catalog item
-    selling_prices = frappe.get_all(
-        "Item Price",
-        filters={"item_code": item_code, "selling": 1},
-        fields=["price_list", "price_list_rate"],
+    # Only prices in force today. This published every selling row to Meta
+    # regardless of dates, so a scheduled offer was advertised before it began
+    # and an expired one after it ended.
+    selling_prices = live_prices(
+        frappe.get_all(
+            "Item Price",
+            filters={"item_code": item_code, "selling": 1},
+            fields=["price_list", "price_list_rate", *VALIDITY_FIELDS],
+        )
     )
 
     # price map

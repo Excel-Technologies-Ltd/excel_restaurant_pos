@@ -3,9 +3,10 @@ import json
 import frappe
 from frappe import _
 from frappe.model import no_value_fields
-from frappe.utils import cint, today, getdate
+from frappe.utils import cint
 
 from excel_restaurant_pos.api.item.search import find_ranked_names
+from excel_restaurant_pos.shared.item_price import VALIDITY_FIELDS, live_prices
 from excel_restaurant_pos.api.item_group import build_visible_item_filters
 
 ITEM_DOCTYPE = "Item"
@@ -119,15 +120,13 @@ def _attach_item_prices(item_list):
     prices = frappe.get_all(
         "Item Price",
         filters={"item_code": ["in", item_codes], "selling": 1},
-        fields=["item_code", "price_list", "price_list_rate", "valid_upto"],
+        fields=["item_code", "price_list", "price_list_rate", *VALIDITY_FIELDS],
     )
 
-    today_date = getdate(today())
     price_map = {}
-    for price in prices:
-        if price.valid_upto and getdate(price.valid_upto) < today_date:
-            continue
-
+    # Both ends of the validity window. Only valid_upto used to be checked, so a
+    # price scheduled to start next week was on sale from the day it was entered.
+    for price in live_prices(prices):
         item_code = price.item_code
         price_map.setdefault(item_code, []).append(price)
 
