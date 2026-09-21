@@ -95,6 +95,7 @@ STRICT_WRITE_LIMITS = {
 	"excel_restaurant_pos.overrides.user.verify_otp": (20, 60),
 	"excel_restaurant_pos.overrides.user.resend_otp": (5, 60),
 	"excel_restaurant_pos.api.auth.login.login": (20, 60),
+	"excel_restaurant_pos.api.auth.google.google_login": (20, 60),
 	"excel_restaurant_pos.api.auth.login.verify_2fa_and_login": (20, 60),
 	# File upload
 	"api.files.upload_public_file": (10, 60),

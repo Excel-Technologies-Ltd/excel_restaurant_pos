@@ -11,6 +11,7 @@ its value.
 import frappe
 from frappe.utils import cint, get_system_timezone
 
+from excel_restaurant_pos.api.auth import google
 from excel_restaurant_pos.api.payment_entry.create_payment import allowed_roles
 from excel_restaurant_pos.api.payments.helper.claim_ticket import claims_supported
 from excel_restaurant_pos.shared.antispam import turnstile
@@ -28,6 +29,12 @@ def report():
 			"hostnames": turnstile._allowed_hostnames() or "(not pinned)",
 		},
 		"honeypot_enabled": not cint(conf.get("arcpos_disable_order_honeypot")),
+		"google_sign_in": {
+			"enabled": bool(google.client_ids()),
+			"client_ids": len(google.client_ids()),
+			"staff_allowed": bool(cint(conf.get(google.ALLOW_STAFF_CONFIG_KEY))),
+			"web_customer_defaults": conf.get("arcpos_web_customer_defaults") or "(none)",
+		},
 		"migrated": {
 			"idempotency_column": idempotency.supported(),
 			"ticket_claim_columns": claims_supported(),

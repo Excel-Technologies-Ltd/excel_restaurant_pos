@@ -61,6 +61,17 @@ def login(user, pwd):
 			}
 		)
 
+	return issue_login_response(user, user_doc)
+
+
+def issue_login_response(user, user_doc=None):
+	"""Tokens and the login response for a user whose identity is established.
+
+	Shared by password login and Google sign-in, so both return the same shape
+	and enforce the same session limits.
+	"""
+	user_doc = user_doc or frappe.get_doc("User", user)
+
 	# Get user roles
 	user_permissions = frappe.get_roles(user)
 
