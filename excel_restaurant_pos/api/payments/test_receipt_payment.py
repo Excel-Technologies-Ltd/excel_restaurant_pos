@@ -53,3 +53,44 @@ class TestNoDevelopmentBypass(FrappeTestCase):
     def test_an_empty_receipt_is_refused(self):
         with self.assertRaises(frappe.ValidationError):
             self._call_with({})
+
+
+class TestQaAcceptsDeclined(FrappeTestCase):
+    """arcpos_moneris_qa_accept_declined: QA store only, switch required."""
+
+    def setUp(self):
+        patcher = patch(f"{MODULE}.frappe.log_error")
+        self.log_error = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def accepts(self, switch, environment, success="true"):
+        with patch.dict(frappe.conf, {module.QA_ACCEPT_DECLINED_KEY: switch}), \
+             patch(f"{MODULE}.get_payment_config", return_value={"environment": environment}):
+            return module._qa_accepts_declined(success)
+
+    def test_qa_with_the_switch_on_accepts(self):
+        self.assertTrue(self.accepts(1, "qa"))
+
+    def test_off_by_default(self):
+        self.assertFalse(self.accepts(0, "qa"))
+
+    def test_never_for_the_production_store(self):
+        self.assertFalse(self.accepts(1, "prod"))
+        self.assertFalse(self.accepts(1, ""))
+
+    def test_never_for_a_ticket_moneris_did_not_answer_for(self):
+        self.assertFalse(self.accepts(1, "qa", success="false"))
+
+    def test_a_declined_receipt_goes_on_to_the_order_checks(self):
+        """Accepted past the decline, then refused by the order-number check."""
+        frappe.local.form_dict = frappe._dict(ticket="TKT-1", order_no="WEB-26-00001")
+        ticket_row = frappe._dict(name="PT-1", invoice_no="WEB-26-00001", redeemed_at=None)
+        receipt = {"success": "true", "receipt": {"result": "d"}, "request": {"order_no": "SOMETHING-ELSE"}}
+        with patch.dict(frappe.conf, {module.QA_ACCEPT_DECLINED_KEY: 1}), \
+             patch(f"{MODULE}.get_payment_config", return_value={"environment": "qa"}), \
+             patch(f"{MODULE}.get_ticket", return_value=ticket_row), \
+             patch(f"{MODULE}.check_receipt", return_value=receipt):
+            with self.assertRaises(frappe.ValidationError) as refused:
+                module.receipt_payment()
+        self.assertIn("Order number mismatch", str(refused.exception))
+        self.assertEqual(self.log_error.call_args.kwargs["title"], "Moneris QA: declined payment accepted")

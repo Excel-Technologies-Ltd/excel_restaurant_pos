@@ -1,5 +1,6 @@
 import frappe
 from frappe import _
+from frappe.utils import cint
 
 from .helper.check_receipt import check_receipt
 from .helper.get_payment_config import get_payment_config
@@ -63,8 +64,13 @@ def receipt_payment():
         # tell a declined card from a QA ticket checked against production,
         # or an amount decline from a failed CVV/address/3-D Secure check.
         cc = (receipt_status.get("receipt") or {}).get("cc") or {}
+        accept_anyway = _qa_accepts_declined(success_result)
         frappe.log_error(
-            title="Payment not approved by Moneris",
+            title=(
+                "Moneris QA: declined payment accepted"
+                if accept_anyway
+                else "Payment not approved by Moneris"
+            ),
             message=(
                 f"invoice={invoice_no} order_no={invoice_name} success={success_result!r} "
                 f"result={receipt_result!r} error={receipt_status.get('error')!r} "
@@ -74,7 +80,8 @@ def receipt_payment():
                 f"fraud={cc.get('fraud')!r}"
             ),
         )
-        frappe.throw("Invalid or expired payment ticket", frappe.ValidationError)
+        if not accept_anyway:
+            frappe.throw("Invalid or expired payment ticket", frappe.ValidationError)
 
     # # validate order number
     order_number = receipt_status.get("request", {}).get("order_no")
@@ -119,6 +126,28 @@ def receipt_payment():
 
     # return True
     return {"success": True}
+
+
+# site_config switch: in the Moneris QA store only, settle a ticket Moneris
+# declined, so checkout can be tested past 3-D Secure and penny-value declines.
+QA_ACCEPT_DECLINED_KEY = "arcpos_moneris_qa_accept_declined"
+
+
+def _qa_accepts_declined(success_result):
+    """Whether to settle a declined receipt anyway. Never outside Moneris QA.
+
+    Three conditions, all required: the switch is on; the Moneris config names
+    the QA store, so a production store can never be settled unpaid even with
+    the switch left on; and Moneris answered for a real ticket (success
+    "true"), so only the approve/decline result is overlooked -- the order
+    number, amount and single-use checks below still run.
+    """
+    if not cint(frappe.conf.get(QA_ACCEPT_DECLINED_KEY)):
+        return False
+    if success_result != "true":
+        return False
+    environment = str(get_payment_config().get("environment") or "").strip().lower()
+    return environment == "qa"
 
 
 def _already_processed(ticket_row, invoice_name):
