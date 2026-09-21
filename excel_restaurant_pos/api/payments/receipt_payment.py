@@ -1,6 +1,7 @@
 import frappe
 
 from .helper.check_receipt import check_receipt
+from .helper.claim_ticket import claim_ticket, get_ticket
 from excel_restaurant_pos.doc_event.sales_invoice.handlers.create_payment_entry import (
     create_payment_entry,
 )
@@ -19,9 +20,18 @@ def receipt_payment():
         frappe.throw("Ticket and order number are required")
 
     # get ticket details
-    invoice_no = frappe.db.get_value("Payment Ticket", {"ticket": ticket}, "invoice_no")
-    if not invoice_no:
+    ticket_row = get_ticket(ticket)
+    if not ticket_row or not ticket_row.invoice_no:
         frappe.throw("Ticket not found")
+    invoice_no = ticket_row.invoice_no
+
+    # Already settled. Answered as done rather than processed again: a real
+    # customer retrying after a lost response should not see a payment failure
+    # for a payment that went through, and a replay gets nothing -- no second
+    # Payment Entry is made. Checked before the gateway call because Moneris
+    # would answer "approved" for this ticket forever.
+    if ticket_row.get("redeemed_at"):
+        return _already_processed(ticket_row, invoice_name)
 
     # check receipt status info
     receipt_status = check_receipt(ticket)
@@ -59,6 +69,12 @@ def receipt_payment():
     if not payments:
         frappe.throw("Payments are required")
 
+    # Claim the ticket before any Payment Entry exists. A concurrent request for
+    # the same ticket waits on the row lock here and then backs off; if anything
+    # below fails, the rollback releases the claim with everything else.
+    if not claim_ticket(ticket_row.name, via="receipt_payment"):
+        return _already_processed(ticket_row, invoice_name)
+
     # submit sales invoice with payment data
     invoice.docstatus = 1
     invoice.save(ignore_permissions=True)
@@ -70,3 +86,11 @@ def receipt_payment():
 
     # return True
     return {"success": True}
+
+
+def _already_processed(ticket_row, invoice_name):
+    """The response for a ticket that has already paid for its order."""
+    if invoice_name != ticket_row.invoice_no:
+        frappe.throw("Order number mismatch", frappe.ValidationError)
+
+    return {"success": True, "already_processed": True}

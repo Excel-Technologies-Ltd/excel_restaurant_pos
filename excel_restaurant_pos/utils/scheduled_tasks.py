@@ -5,6 +5,9 @@ from datetime import timedelta
 from excel_restaurant_pos.doc_event.sales_invoice.handlers.create_payment_entry import (
     create_payment_entry,
 )
+from excel_restaurant_pos.api.payments.helper.claim_ticket import claim_ticket
+
+STALE_ORDER_SAVEPOINT = "arcpos_stale_order_settle"
 from excel_restaurant_pos.doc_event.sales_invoice.handlers.payment_change_handler import (
     payment_change_handler,
 )
@@ -143,8 +146,18 @@ def delete_stale_website_orders():
             _delete_sales_invoice(invoice_name)
             continue
 
-        # submit sales invoice
+        # Claim the ticket first: api.payments.receipt_payment may be settling
+        # this very ticket right now, and either of them alone would make a
+        # Payment Entry. Inside a savepoint because the except below swallows
+        # the error without rolling back -- without it a failure after the
+        # claim would burn the ticket, and every later sweep would then skip a
+        # customer who really did pay.
+        frappe.db.savepoint(STALE_ORDER_SAVEPOINT)
         try:
+            if not claim_ticket(payment_ticket.name, via="scheduler"):
+                continue
+
+            # submit sales invoice
             invoice.docstatus = 1
             invoice.save(ignore_permissions=True)
 
@@ -175,6 +188,7 @@ def delete_stale_website_orders():
             create_payment_entry(**args)
 
         except Exception as e:
+            frappe.db.rollback(save_point=STALE_ORDER_SAVEPOINT)
             frappe.log_error(
                 message=f"Failed to delete stale website order {invoice_name}: {str(e)}",
                 title="Scheduled Website Order Deletion Error",

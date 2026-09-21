@@ -35,7 +35,8 @@ class TestNoDevelopmentBypass(FrappeTestCase):
         frappe.local.form_dict = frappe._dict(
             ticket="TKT-1", order_no="WEB-26-00001", payments=[{"mode_of_payment": "Card", "amount": 10}]
         )
-        with patch(f"{MODULE}.frappe.db.get_value", return_value="WEB-26-00001"):
+        ticket_row = frappe._dict(name="PT-1", invoice_no="WEB-26-00001", redeemed_at=None)
+        with patch(f"{MODULE}.get_ticket", return_value=ticket_row):
             with patch(f"{MODULE}.check_receipt", return_value=receipt):
                 return module.receipt_payment()
 

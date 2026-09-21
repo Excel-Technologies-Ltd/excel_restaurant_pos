@@ -8,7 +8,9 @@
   "details_section",
   "invoice_no",
   "column_break_xxes",
-  "ticket"
+  "ticket",
+  "redeemed_at",
+  "redeemed_via"
  ],
  "fields": [
   {
@@ -30,12 +32,28 @@
    "fieldname": "ticket",
    "fieldtype": "Small Text",
    "label": "Ticket"
+  },
+  {
+   "description": "When this ticket paid for its order. A Moneris receipt keeps answering approved forever, so this is what stops one payment settling twice.",
+   "fieldname": "redeemed_at",
+   "fieldtype": "Datetime",
+   "label": "Redeemed At",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "description": "receipt_payment, scheduler, or backfill",
+   "fieldname": "redeemed_via",
+   "fieldtype": "Data",
+   "label": "Redeemed Via",
+   "no_copy": 1,
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-01-27 13:06:15.762596",
+ "modified": "2026-09-21 12:00:00.000000",
  "modified_by": "Administrator",
  "module": "Excel Restaurant Pos",
  "name": "Payment Ticket",
