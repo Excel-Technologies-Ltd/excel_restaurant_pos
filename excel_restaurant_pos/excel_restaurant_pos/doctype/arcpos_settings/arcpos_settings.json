@@ -134,6 +134,7 @@
   "connect_with_uberdirect",
   "delivery_order_ends_on",
   "allowed_web_services",
+  "max_orders_per_customer_per_hour",
   "section_break_qrwmt",
   "banner_image_list",
   "subsite_tab",
@@ -1058,6 +1059,14 @@
    "options": "None\nPickup\nDelivery\nBoth"
   },
   {
+   "default": "5",
+   "description": "How many orders one customer can place in an hour, paid or not. 0 means no limit. Staff are never limited.",
+   "fieldname": "max_orders_per_customer_per_hour",
+   "fieldtype": "Int",
+   "label": "Max Orders per Customer per Hour",
+   "non_negative": 1
+  },
+  {
    "fieldname": "coupon_type",
    "fieldtype": "Select",
    "label": "Coupon Type",
@@ -1272,7 +1281,7 @@
  "issingle": 1,
  "links": [],
  "make_attachments_public": 1,
- "modified": "2026-09-08 11:12:46.524778",
+ "modified": "2026-09-21 17:54:55.306615",
  "modified_by": "Administrator",
  "module": "Excel Restaurant Pos",
  "name": "ArcPOS Settings",

@@ -7,6 +7,7 @@ from frappe import _
 from frappe.utils import flt, now_datetime, get_time
 from .handlers.update_sales_invoice import update_sales_invoice
 from excel_restaurant_pos.shared.antispam import check_order_honeypot, verify_order_turnstile
+from excel_restaurant_pos.shared.sales_invoice.order_limit import check_customer_order_limit
 from excel_restaurant_pos.shared.customer_access import (
     TABLE,
     access_level,
@@ -263,6 +264,9 @@ def add_or_update_invoice():
         return as_seen_by(already_placed, access_level(already_placed))
 
     check_order_honeypot(data)
+    if not is_staff(user):
+        # After the replay check: a retried checkout is the same order, not another.
+        check_customer_order_limit(data["customer"])
     verify_order_turnstile(data)
 
     items = data.get("items", [])
