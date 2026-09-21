@@ -17,7 +17,9 @@ route. Keep it in that order of importance.
 
 import frappe
 from frappe import _
-from frappe.utils import cint, get_datetime, now_datetime
+from zoneinfo import ZoneInfo
+
+from frappe.utils import cint, get_datetime, get_system_timezone, now_datetime
 
 # Fields the checkout renders out of sight. A real customer never fills one, so
 # any value at all means the request was machine generated. They are named after
@@ -60,6 +62,23 @@ def _check_hidden_fields(data):
 			_reject("honeypot", f"field={fieldname!r} value={str(value)[:80]!r}")
 
 
+def _as_server_time(started):
+	"""A timestamp in the server's own wall-clock time, without tzinfo.
+
+	The storefront sends UTC (an ISO string ending in Z), because the customer's
+	device and the server need not share a timezone -- and here they do not:
+	customers are in Canada while the site runs on Asia/Dhaka. Comparing the
+	browser's local time with the server's clock put every real order about ten
+	hours "old", past MAX_CHECKOUT_SECONDS, so the check was silently skipped
+	for everyone. A naive value is still taken as server time, for any client
+	that sends one.
+	"""
+	if started.tzinfo is None:
+		return started
+
+	return started.astimezone(ZoneInfo(get_system_timezone())).replace(tzinfo=None)
+
+
 def _check_elapsed_time(data):
 	"""Reject an order submitted faster than a person could fill the form.
 
@@ -74,13 +93,13 @@ def _check_elapsed_time(data):
 		return
 
 	try:
-		started = get_datetime(raw)
+		started = _as_server_time(get_datetime(raw))
+		elapsed = (now_datetime() - started).total_seconds()
 	except Exception:
 		# A malformed timestamp is a client bug, not an attack. Ignore it rather
 		# than refuse an order that may be perfectly real.
 		return
 
-	elapsed = (now_datetime() - started).total_seconds()
 	if elapsed < 0 or elapsed > MAX_CHECKOUT_SECONDS:
 		# Clock skew, or a tab left open since this morning.
 		return

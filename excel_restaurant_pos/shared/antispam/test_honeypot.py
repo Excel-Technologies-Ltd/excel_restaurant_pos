@@ -94,3 +94,47 @@ class TestKillSwitch(FrappeTestCase):
 		"""A broken client must not be able to take ordering down."""
 		with patch.dict(frappe.conf, {"arcpos_disable_order_honeypot": 1}):
 			check_order_honeypot(_order(website="spam", checkout_started_at=_ago(0)))
+
+
+def _utc_ago(seconds):
+	"""What the storefront sends: new Date().toISOString()."""
+	from datetime import datetime, timedelta, timezone
+
+	moment = datetime.now(timezone.utc) - timedelta(seconds=seconds)
+	return moment.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def _toronto_ago(seconds):
+	from datetime import datetime, timedelta
+	from zoneinfo import ZoneInfo
+
+	return (datetime.now(ZoneInfo("America/Toronto")) - timedelta(seconds=seconds)).isoformat()
+
+
+class TestCheckoutTimingAcrossTimezones(FrappeTestCase):
+	"""Customers are in Canada; the site runs on another timezone entirely.
+
+	Comparing the device's local time with the server's clock put every real
+	order hours "old", past the stale-tab cutoff, so the check never ran.
+	"""
+
+	def setUp(self):
+		patcher = patch(f"{MODULE}.frappe.log_error")
+		patcher.start()
+		self.addCleanup(patcher.stop)
+
+	def test_an_instant_utc_submission_is_refused(self):
+		with self.assertRaises(frappe.ValidationError):
+			check_order_honeypot(_order(checkout_started_at=_utc_ago(0)))
+
+	def test_a_human_paced_utc_submission_passes(self):
+		check_order_honeypot(_order(checkout_started_at=_utc_ago(MIN_CHECKOUT_SECONDS + 30)))
+
+	def test_a_canadian_offset_timestamp_is_understood(self):
+		with self.assertRaises(frappe.ValidationError):
+			check_order_honeypot(_order(checkout_started_at=_toronto_ago(0)))
+		check_order_honeypot(_order(checkout_started_at=_toronto_ago(MIN_CHECKOUT_SECONDS + 30)))
+
+	def test_a_timezone_aware_value_never_breaks_an_order(self):
+		# Subtracting aware from naive raises; that must never surface as a 500.
+		check_order_honeypot(_order(checkout_started_at="2026-09-21T10:00:00+99:00"))
