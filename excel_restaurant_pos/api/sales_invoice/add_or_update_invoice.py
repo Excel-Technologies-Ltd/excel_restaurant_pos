@@ -4,7 +4,7 @@ import json
 
 import frappe
 from frappe.utils import flt, now_datetime, get_time
-from .handlers.update_sales_invoice import _apply_docstatus, update_sales_invoice
+from .handlers.update_sales_invoice import update_sales_invoice
 from excel_restaurant_pos.shared.antispam import check_order_honeypot, verify_order_turnstile
 from excel_restaurant_pos.shared.sales_invoice import build_invoice_item_row
 from excel_restaurant_pos.shared.sales_invoice import idempotency
@@ -108,13 +108,11 @@ def _set_optional_fields(sales_invoice, data):
         "coupon_code",
         "custom_gift_cards_for",
         "custom_generated_gift_cards",
-        # `docstatus` is deliberately absent. Setting it here wrote it before
-        # the insert, and a document born submitted never runs on_submit --
-        # Frappe only treats a docstatus change as a submit when there is a
-        # previous version to compare against ("previous is None for new
-        # document insert", document.py). The invoice then showed as submitted
-        # while posting no GL entries at all. add_or_update_invoice submits
-        # through _apply_docstatus() after the save instead.
+        # Pay-at-restaurant orders arrive with docstatus 1. Setting it before the
+        # insert is correct: Frappe runs a new document's Draft -> Submitted
+        # transition as a real submit (check_if_latest -> check_docstatus_
+        # transition(0)), so on_submit runs and the ledger is posted in one pass.
+        "docstatus",
     ]
 
     for field in optional_fields:
@@ -260,10 +258,5 @@ def add_or_update_invoice():
     # sales_invoice.is_pos = 1
     idempotency.stamp(sales_invoice, idempotency_key)
     sales_invoice, _replayed = idempotency.save_once(sales_invoice, idempotency_key)
-
-    # Submit after the save and through submit(), so the on_submit hooks run:
-    # those are what post the ledger entries, redeem gift cards and queue the
-    # payment entry. Idempotent, so a replayed request does not re-submit.
-    _apply_docstatus(sales_invoice, data.get("docstatus"))
 
     return sales_invoice.as_dict()

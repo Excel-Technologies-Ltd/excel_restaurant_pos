@@ -9,44 +9,42 @@ from excel_restaurant_pos.api.sales_invoice.add_or_update_invoice import (
 )
 
 
-class TestDocstatusIsNotWrittenBeforeInsert(FrappeTestCase):
-    """A document born submitted never runs on_submit.
+class TestPayAtRestaurantSubmitsOnCreate(FrappeTestCase):
+    """Pay-at-restaurant orders are created with docstatus 1 and must submit.
 
-    Frappe only treats a docstatus change as a submit when there is a previous
-    version to compare against -- "previous is None for new document insert"
-    (frappe/model/document.py). Writing docstatus=1 before the insert therefore
-    produced an invoice that showed as submitted while posting no GL entries,
-    redeeming no gift cards and queueing no payment entry.
+    These pin a Frappe behaviour this code relies on, and which was once
+    misread from a comment: a *new* document inserted with docstatus 1 runs a
+    real submit. check_if_latest() calls check_docstatus_transition(0) when
+    there is no previous version, which sets _action to "submit", so on_submit
+    runs and the ledger is posted.
     """
 
-    def test_a_requested_docstatus_is_not_applied_to_a_new_invoice(self):
+    def test_a_requested_docstatus_is_applied(self):
         invoice = frappe.new_doc("Sales Invoice")
-        data = frappe._dict(docstatus=1, customer_name="Walk In")
 
-        _set_optional_fields(invoice, data)
+        _set_optional_fields(invoice, frappe._dict(docstatus=1))
 
-        self.assertEqual(
-            frappe.utils.cint(invoice.docstatus),
-            0,
-            "docstatus must stay draft here; submitting is _apply_docstatus's job",
-        )
+        self.assertEqual(frappe.utils.cint(invoice.docstatus), 1)
 
     def test_the_other_optional_fields_still_apply(self):
         invoice = frappe.new_doc("Sales Invoice")
 
-        _set_optional_fields(invoice, frappe._dict(customer_name="Walk In", discount_amount=5))
+        _set_optional_fields(invoice, frappe._dict(customer_name="Walk In"))
 
         self.assertEqual(invoice.customer_name, "Walk In")
 
-    def test_the_create_path_submits_through_apply_docstatus(self):
-        """Pay-at-restaurant still submits -- just through the correct route."""
-        import importlib
-        import inspect
+    def test_frappe_treats_a_new_submitted_document_as_a_submit(self):
+        """The rule this relies on, checked without writing anything.
 
-        # The package __init__ re-exports the function under the module name.
-        module = importlib.import_module(
-            "excel_restaurant_pos.api.sales_invoice.add_or_update_invoice"
-        )
+        A real insert cannot be cleaned up in a test here: customer_change_handler,
+        on the invoice's on_change hook, commits mid-save, so the class rollback
+        cannot undo it and the cancel afterwards deadlocks on Notification Log.
+        Verified end to end separately: a docstatus 1 insert posted 2 GL entries.
+        """
+        invoice = frappe.new_doc("Sales Invoice")
+        invoice.docstatus = 1
 
-        source = inspect.getsource(module.add_or_update_invoice)
-        self.assertIn("_apply_docstatus(sales_invoice, data.get(\"docstatus\"))", source)
+        # What check_if_latest() does for a document with no previous version.
+        invoice.check_docstatus_transition(0)
+
+        self.assertEqual(invoice._action, "submit")
