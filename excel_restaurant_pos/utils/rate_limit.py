@@ -70,8 +70,8 @@ STRICT_WRITE_LIMITS = {
 	),
 	# Table / kitchen orders
 	"excel_restaurant_pos.api.item.item.create_order": (10, 60),
-	# Reservation form spam
-	"excel_restaurant_pos.api.reservation.create_reservation.create_reservation": (5, 60),
+	# Reservation form spam: 3 an hour per IP. Nobody books more tables than that.
+	"excel_restaurant_pos.api.reservation.create_reservation.create_reservation": (3, 3600),
 	# Address / contact writes
 	"api.addresses.add": (15, 60),
 	"api.addresses.edit": (15, 60),
