@@ -60,13 +60,18 @@ def receipt_payment():
     # codes, so development tests the same path production runs.
     if success_result != "true" or receipt_result != "a":
         # What Moneris said, without card data -- the refusal alone does not
-        # tell a declined card from a QA ticket checked against production.
+        # tell a declined card from a QA ticket checked against production,
+        # or an amount decline from a failed CVV/address/3-D Secure check.
+        cc = (receipt_status.get("receipt") or {}).get("cc") or {}
         frappe.log_error(
             title="Payment not approved by Moneris",
             message=(
                 f"invoice={invoice_no} order_no={invoice_name} success={success_result!r} "
                 f"result={receipt_result!r} error={receipt_status.get('error')!r} "
-                f"environment={get_payment_config().get('environment')!r}"
+                f"environment={get_payment_config().get('environment')!r}\n"
+                f"amount={cc.get('amount')!r} response_code={cc.get('response_code')!r} "
+                f"iso_response_code={cc.get('iso_response_code')!r}\n"
+                f"fraud={cc.get('fraud')!r}"
             ),
         )
         frappe.throw("Invalid or expired payment ticket", frappe.ValidationError)
