@@ -29,7 +29,7 @@ def _get_format_key() -> str:
 	)
 
 
-@frappe.whitelist(allow_guest=True, methods=["GET", "POST"])
+@frappe.whitelist(methods=["GET", "POST"])
 def invoice_pdf():
 	"""
 	Download a Sales Invoice as a PDF, rendered with a configured print format.

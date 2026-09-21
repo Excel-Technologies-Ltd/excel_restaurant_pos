@@ -6,7 +6,7 @@ import frappe
 from frappe.utils import flt, today
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def get_next_available_offers():
     """
     Return the next applicable ArcPOS Offers for a reference amount.

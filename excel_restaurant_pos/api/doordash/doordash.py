@@ -2,7 +2,7 @@ import frappe
 import json
 from excel_restaurant_pos.shared.customer_access import is_staff, require_login
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def create_order():
     # Get raw request body
     # No storefront calls this, and it creates orders: staff only.

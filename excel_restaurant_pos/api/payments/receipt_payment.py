@@ -11,7 +11,7 @@ from excel_restaurant_pos.doc_event.sales_invoice.handlers.create_payment_entry 
 )
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def receipt_payment():
     """
     Receipt a payment ticket.

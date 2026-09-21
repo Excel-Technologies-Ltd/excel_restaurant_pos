@@ -3,7 +3,7 @@ import pymysql.cursors
 import frappe
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def get_sales_by_service_type(from_date, to_date):
     # Use dedicated connection for procedure call to avoid PyMySQL packet sequence errors
     conn = pymysql.connect(

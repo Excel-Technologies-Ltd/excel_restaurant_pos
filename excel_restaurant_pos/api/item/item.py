@@ -5,7 +5,7 @@ from frappe import _
 from excel_restaurant_pos.shared.customer_access import is_staff, require_login
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def get_category_list():
     query = """
         SELECT name, image
@@ -15,7 +15,7 @@ def get_category_list():
     return frappe.db.sql(query, as_dict=True)
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def get_food_item_list(category=None):
     # Set default category to "All" if not provided
     if not category:
@@ -90,7 +90,7 @@ def get_food_item_list(category=None):
     return item_list
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def get_single_food_item_details(item_code):
     item_details = frappe.get_doc("Item", item_code)
     item_name = item_details.item_name
@@ -160,7 +160,7 @@ def get_variant_item_list(item_code):
     return frappe.db.sql(query, (item_code,), as_dict=True)
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def make_as_ready_item(body):
     try:
         data = frappe.parse_json(body)
@@ -189,7 +189,7 @@ def make_as_ready_item(body):
         return {"status": "failure", "message": e}
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def make_as_accepted_item(body):
     try:
         data = frappe.parse_json(body)
@@ -221,7 +221,7 @@ def make_as_accepted_item(body):
         }
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def make_as_create_recipe_item(order_id=None, item_name=None):
     if not order_id or not item_name:
         return False
@@ -239,7 +239,7 @@ def make_as_create_recipe_item(order_id=None, item_name=None):
         return False
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def make_as_unready_recipe_item(
     order_id="Order-11-051", item_name="Beef Burger", remarks="Insufficient ingredients"
 ):
@@ -258,7 +258,7 @@ def make_as_unready_recipe_item(
         return False
 
 
-@frappe.whitelist(allow_guest=True)  # Makes the endpoint publicly accessible
+@frappe.whitelist()
 def create_order(data):
     """
     Public API endpoint to create or update a 'Table Order' in ERPNext.
@@ -400,7 +400,7 @@ def get_running_order_list():
     return order_list
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def get_running_order_item_list(table_id):
     print("table_id", table_id)
     if not table_id:
@@ -423,7 +423,7 @@ def get_running_order_item_list(table_id):
         return []
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def get_tax_rate():
     settings = frappe.get_doc("Restaurant Settings")
     return int(settings.tax_rate) / 100
@@ -550,7 +550,7 @@ def get_order_item_list(order_id):
     )
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def get_roles(user):
     roles = frappe.db.sql(
         """
@@ -566,7 +566,7 @@ def get_roles(user):
     return roles
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def check_coupon_code(data):
     # Ordering requires an account; see shared/customer_access.py.
     require_login()
@@ -605,14 +605,14 @@ def check_coupon_code(data):
         return "An error occurred while checking the coupon code."
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def get_logo_and_title():
     hostname = get_url()
     settings = frappe.get_doc("Restaurant Settings")
     return {"logo": f"{settings.logo}", "title": settings.title}
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def get_last_seven_days_sales():
     """
     Returns a list of dictionaries for the last 7 days (including today) with:
@@ -667,7 +667,7 @@ def get_last_seven_days_sales():
     return output
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def get_top_items_by_sales_period(period="weekly", item_count=5):
     """
     Fetch the Top N Items (default 5) by total sales amount
@@ -710,7 +710,7 @@ def get_top_items_by_sales_period(period="weekly", item_count=5):
     return data
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def get_top_item_groups_by_sales_period(period="weekly", group_count=5):
     """
     Fetch the Top N Item Groups (default 5) by total sales amount
@@ -776,7 +776,7 @@ def get_start_date_for_period(period):
         return add_days(today, -7)
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def dashboard_data():
     chef_orders_count = frappe.db.sql(
         """

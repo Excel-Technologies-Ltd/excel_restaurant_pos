@@ -5,7 +5,7 @@ import frappe
 from .handlers.add_address_with_link import add_address_with_link
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def add_customer_address():
     """
     Add a new customer address

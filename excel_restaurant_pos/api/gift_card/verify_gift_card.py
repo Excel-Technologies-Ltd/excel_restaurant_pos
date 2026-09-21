@@ -33,7 +33,7 @@ def _get_gift_card_code_from_request(data: dict) -> str:
 	return get_coupon_code_from_request(data)
 
 
-@frappe.whitelist(methods=["POST"], allow_guest=True)
+@frappe.whitelist(methods=["POST"])
 def verify_gift_card():
 	"""
 	Validate a gift card without applying it.

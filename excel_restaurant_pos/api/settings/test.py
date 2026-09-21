@@ -1,6 +1,6 @@
 import frappe
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def test():
     return "From Settings API"

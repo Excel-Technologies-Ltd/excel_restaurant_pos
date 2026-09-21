@@ -2,7 +2,7 @@ import frappe
 from excel_restaurant_pos.shared.delivery_charge.validate_delivery_charge import get_delivery_charge
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def test():
     sales_invoice = frappe.get_doc("Sales Invoice", "ORD-26-01294")
     quotes = sales_invoice.get("custom_quotes") or []

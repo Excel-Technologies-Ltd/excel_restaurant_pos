@@ -5,7 +5,7 @@ from .catalog_helpers.update_catalog_item import update_catalog_item
 from .catalog_helpers.delete_catalog_item import delete_catalog_item
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def create_catalog_item_api():
     item_code = frappe.form_dict.get("item_code", None)
     if not item_code:
@@ -13,7 +13,7 @@ def create_catalog_item_api():
     return create_catalog_item(item_code)
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def update_catalog_item_api():
     item_code = frappe.form_dict.get("item_code", None)
     if not item_code:
@@ -21,7 +21,7 @@ def update_catalog_item_api():
     return update_catalog_item(item_code)
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def delete_catalog_item_api():
     item_code = frappe.form_dict.get("item_code", None)
     if not item_code:

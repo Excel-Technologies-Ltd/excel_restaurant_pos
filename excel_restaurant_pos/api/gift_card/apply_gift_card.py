@@ -20,7 +20,7 @@ APPLY_RATE_LIMIT = 20
 APPLY_RATE_WINDOW = 60
 
 
-@frappe.whitelist(methods=["POST"], allow_guest=True)
+@frappe.whitelist(methods=["POST"])
 def apply_gift_card():
 	"""
 	Validate and apply gift card(s) to a draft Sales Invoice.

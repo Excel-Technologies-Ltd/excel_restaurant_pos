@@ -1,7 +1,7 @@
 import frappe
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def create_pos_invoice(data, method=None):
     frappe.msgprint("create_pos_invoice")
     if data.get("status") != "Completed":

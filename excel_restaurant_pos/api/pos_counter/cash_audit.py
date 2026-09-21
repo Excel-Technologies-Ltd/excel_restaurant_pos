@@ -3,7 +3,7 @@ from frappe import _
 from frappe.utils import flt, now_datetime
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def get_expected_cash():
     company = frappe.db.get_single_value("ArcPOS Settings", "company")
     if not company:

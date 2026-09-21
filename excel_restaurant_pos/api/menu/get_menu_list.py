@@ -2,7 +2,7 @@ import frappe
 from datetime import datetime
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def get_menu_list():
     """
     Get menu list

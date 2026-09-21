@@ -6,7 +6,7 @@ from .report_helper import (
 )
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def get_sales_summery():
     """
     Get sales summary report.

@@ -111,7 +111,7 @@ def clear_cache():
     return {"status": "cache cleared"}
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def test_connection():
     """Verify the stored token works by fetching merchant info."""
     from .clover_api import get_merchant

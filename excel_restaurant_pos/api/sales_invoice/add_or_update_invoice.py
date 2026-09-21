@@ -210,7 +210,7 @@ def _add_payments(sales_invoice, payments):
         )
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def add_or_update_invoice():
     """
     Create a new Sales Invoice from user-provided data

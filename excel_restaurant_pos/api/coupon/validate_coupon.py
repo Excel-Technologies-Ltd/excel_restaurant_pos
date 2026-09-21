@@ -8,7 +8,7 @@ from .helpers import get_coupon_code_from_request, get_request_data
 from excel_restaurant_pos.shared.customer_access import require_login
 
 
-@frappe.whitelist(methods=["POST"], allow_guest=True)
+@frappe.whitelist(methods=["POST"])
 def validate_coupon():
     """
     Validate a coupon without Sales Invoice context.

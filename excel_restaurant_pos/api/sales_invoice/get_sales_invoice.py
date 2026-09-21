@@ -2,7 +2,7 @@ import frappe
 
 from excel_restaurant_pos.shared.customer_access import access_level, as_seen_by
 
-@frappe.whitelist(allow_guest=True, methods=["GET"])
+@frappe.whitelist(methods=["GET"])
 def get_sales_invoice():
     """
     Get a sales invoice by name

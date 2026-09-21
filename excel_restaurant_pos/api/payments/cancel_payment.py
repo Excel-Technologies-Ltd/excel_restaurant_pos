@@ -4,7 +4,7 @@ from .helper.check_receipt import check_receipt
 from excel_restaurant_pos.shared.customer_access import access_level, require_login
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def cancel_payment():
     """
     Cancel a payment ticket.

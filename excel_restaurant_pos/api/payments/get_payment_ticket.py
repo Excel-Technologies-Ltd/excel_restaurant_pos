@@ -204,7 +204,7 @@ def _request_payment_ticket(payload: dict, payment_config: dict) -> str:
     return ticket
 
 
-@frappe.whitelist(allow_guest=True)
+@frappe.whitelist()
 def get_payment_ticket():
     """
     Get payment ticket for an invoice.
