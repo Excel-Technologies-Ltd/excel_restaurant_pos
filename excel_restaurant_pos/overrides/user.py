@@ -5,6 +5,7 @@ from jinja2 import Template
 import json
 from excel_restaurant_pos.shared.arcpos_settings.system_settings import default_system_settings
 from excel_restaurant_pos.shared.email_templates.get_template import template_by_name
+from excel_restaurant_pos.shared.web_customer import ensure_customer_for_user, web_customer_roles
 
 @frappe.whitelist(allow_guest=True)
 def sign_up(email, mobile_no, full_name, password, redirect_to=None):
@@ -151,46 +152,13 @@ def verify_otp(verification_key, otp):
         user.flags.no_welcome_mail = True
         user.insert()
 
-        # Set default role from Portal Settings
-        role_name = frappe.db.get_single_value("ArcPOS System Settings", "user_default_role") or "Customer"
-        user.add_roles(role_name, 'Sales User')
-        
-
-        selling_settings = frappe.get_single("Selling Settings")
-
-
-        # Check is customer exist or not, if not create a customer with the provided user information
-        if not frappe.db.exists("Customer", {"email_id": user.email}):
-            customer = frappe.get_doc({
-                "doctype": "Customer",
-                "customer_name": user.full_name,
-                "email_id": user.email,
-                "mobile_no": user_data.get("mobile_no"),
-                "customer_type": "Individual",
-                "customer_group": selling_settings.customer_group or "All Customer Groups",
-                "territory": selling_settings.territory or "All Territories"
-
-            })
-            customer.flags.ignore_permissions = True
-            details = customer.insert()
-            # set User Permission to restrict user to only see their own customer record
-            frappe.get_doc({
-                "doctype": "User Permission",
-                "user": user.name,
-                "allow": "Customer",
-                "for_value": details.name,
-                "is_default": 1,
-                "apply_to_all_doctypes": 1
-            }).insert(ignore_permissions=True)
-
-            frappe.get_doc({
-                "doctype": "User Permission",
-                "user": user.name,
-                "allow": "User",
-                "for_value": user.email,
-                "is_default": 1,
-                "apply_to_all_doctypes": 1
-            }).insert(ignore_permissions=True)
+        # Roles and Customer come from the same place as Google sign-up, so a
+        # web account is the same account however it was made. The Customer's
+        # User Permissions are now ensured even when a Customer with this email
+        # already existed -- they used to be skipped, leaving the account
+        # unrestricted.
+        user.add_roles(*web_customer_roles())
+        ensure_customer_for_user(user, mobile_no=user_data.get("mobile_no"))
 
         # Clear cache
         frappe.cache().delete_value(cache_key)
@@ -206,6 +174,11 @@ def verify_otp(verification_key, otp):
         }
 
     except Exception as e:
+        # Undo the User too. It is inserted, and given Sales User, before the
+        # Customer is created; without this, a failure there committed an account
+        # with a password, Sales User and no User Permission -- able to read
+        # every invoice. Rolled back first, so the log entry below survives.
+        frappe.db.rollback()
         frappe.log_error(f"User creation failed: {str(e)}", "OTP Verification Error")
         print(e)
         print("Error creating user", str(e))
