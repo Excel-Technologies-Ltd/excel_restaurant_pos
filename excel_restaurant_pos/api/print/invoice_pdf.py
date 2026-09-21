@@ -3,6 +3,7 @@
 import frappe
 
 from excel_restaurant_pos.shared.print_format.invoice_pdf import build_pdf_response
+from excel_restaurant_pos.shared.customer_access import access_level, require_login
 
 
 def _get_invoice_name() -> str:
@@ -37,8 +38,8 @@ def invoice_pdf():
 	available, so the storefront chooses between the restaurant's own formats
 	and cannot render an invoice through an arbitrary one.
 
-	Guest reachable, because the storefront is public and a customer has no
-	Frappe login. It exposes nothing `api.sales_invoices.get` does not already.
+	Owner or staff only (shared/customer_access.py). It used to be public, so
+	anyone could download any order's receipt by guessing its sequential number.
 	Throttled at 30 renders per caller per minute, since building a PDF is real
 	work.
 
@@ -58,10 +59,12 @@ def invoice_pdf():
 	rendered it and `X-Print-Format-Key` echoes the key it came from; both, and
 	`Content-Disposition`, are readable cross origin.
 
-	Because it is a plain GET with no header requirement, the browser can be
-	sent straight at it:
-
-	    window.location = `${API}/api/method/api.print.invoice_pdf`
-	      + `?invoice_name=${encodeURIComponent(invoiceName)}&format=delivery`;
+	It needs the caller's bearer token, so fetch it (order-web's
+	downloadInvoicePdf does) -- a plain `window.location` navigation cannot
+	carry the header and is refused.
 	"""
-	return build_pdf_response(_get_invoice_name(), _get_format_key())
+	require_login()
+	invoice_name = _get_invoice_name()
+	if invoice_name:
+		access_level(invoice_name)
+	return build_pdf_response(invoice_name, _get_format_key())

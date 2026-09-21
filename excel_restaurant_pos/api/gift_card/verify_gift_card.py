@@ -12,6 +12,7 @@ from excel_restaurant_pos.shared.gift_card.redemption import (
 	verify_gift_card_for_sales_invoice,
 )
 from excel_restaurant_pos.utils import rate_limit_by_caller
+from excel_restaurant_pos.shared.customer_access import require_login
 
 # A public gift card checker is a balance oracle for a bearer instrument, so
 # each caller gets a budget rather than an open door for code guessing.
@@ -37,8 +38,8 @@ def verify_gift_card():
 	"""
 	Validate a gift card without applying it.
 
-	Public, so an online-order customer can check a card before checkout --
-	matching api.coupons.validate. Throttled per caller (per IP for guests),
+	Needs an account, like every order step -- which also stops guests probing
+	for valid card codes. Throttled per account,
 	since a gift card is a bearer instrument and an unthrottled checker lets
 	someone hunt for live codes and their balances.
 
@@ -52,6 +53,9 @@ def verify_gift_card():
 	(channel, promo conflict, redeemable amount) are included; the invoice must
 	still be a draft, the same rule the guest-accessible invoice APIs follow.
 	"""
+
+	# Ordering requires an account; see shared/customer_access.py.
+	require_login()
 	rate_limit_by_caller(
 		"gift_card_verify", limit=VERIFY_RATE_LIMIT, seconds=VERIFY_RATE_WINDOW
 	)

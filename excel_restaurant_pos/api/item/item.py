@@ -2,6 +2,7 @@ from frappe.utils import get_url, nowdate, add_days
 import datetime
 import frappe
 from frappe import _
+from excel_restaurant_pos.shared.customer_access import is_staff, require_login
 
 
 @frappe.whitelist(allow_guest=True)
@@ -265,6 +266,10 @@ def create_order(data):
     :param data: JSON dictionary with required fields to create the order.
     :return: JSON response with success status or error message.
     """
+
+    # No storefront calls this, and it creates orders: staff only.
+    if not is_staff(require_login()):
+        frappe.throw(frappe._("Not permitted"), frappe.PermissionError)
     try:
         # Parse incoming data
         order_data = frappe.parse_json(data)
@@ -563,6 +568,9 @@ def get_roles(user):
 
 @frappe.whitelist(allow_guest=True)
 def check_coupon_code(data):
+    # Ordering requires an account; see shared/customer_access.py.
+    require_login()
+
     coupon_code = frappe.parse_json(data).get("coupon_code")
     if not coupon_code:
         return {"status": "error", "message": "Invalid"}

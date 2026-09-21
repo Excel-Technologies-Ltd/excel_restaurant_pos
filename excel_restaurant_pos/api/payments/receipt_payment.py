@@ -2,6 +2,7 @@ import frappe
 from frappe import _
 
 from .helper.check_receipt import check_receipt
+from excel_restaurant_pos.shared.customer_access import access_level, require_login
 from .helper.claim_ticket import claim_ticket, get_ticket
 from .helper.settlement import MISMATCH, settlement_payments, verify_charged_amount
 from excel_restaurant_pos.doc_event.sales_invoice.handlers.create_payment_entry import (
@@ -16,6 +17,7 @@ def receipt_payment():
     """
 
     # validate ticket
+    require_login()
     ticket = frappe.form_dict.get("ticket")
     invoice_name = frappe.form_dict.get("order_no")
     if not ticket or not invoice_name:
@@ -26,6 +28,8 @@ def receipt_payment():
     if not ticket_row or not ticket_row.invoice_no:
         frappe.throw("Ticket not found")
     invoice_no = ticket_row.invoice_no
+    # Only the order's owner (or staff) may settle it.
+    access_level(invoice_no)
 
     # Already settled. Answered as done rather than processed again: a real
     # customer retrying after a lost response should not see a payment failure

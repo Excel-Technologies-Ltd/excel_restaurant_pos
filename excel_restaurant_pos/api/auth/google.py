@@ -29,6 +29,7 @@ from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
 
 from excel_restaurant_pos.api.auth.login import issue_login_response
+from excel_restaurant_pos.shared.customer_access import is_staff
 from excel_restaurant_pos.shared.web_customer import ensure_customer_for_user, web_customer_roles
 from excel_restaurant_pos.utils.error_handler import ErrorCode, throw_error
 
@@ -39,10 +40,6 @@ GOOGLE_ISSUERS = {"accounts.google.com", "https://accounts.google.com"}
 
 # Tolerate small clock differences between Google and this server.
 CLOCK_SKEW_SECONDS = 10
-
-# Roles every account carries automatically; they say nothing about staff.
-AUTOMATIC_ROLES = {"All", "Guest", "Desk User"}
-
 
 def client_ids():
 	"""The OAuth client IDs whose tokens this site accepts. Empty means off."""
@@ -95,14 +92,6 @@ def verify_credential(credential):
 	return claims
 
 
-def _is_staff(user):
-	if user == "Administrator":
-		return True
-
-	extra = set(frappe.get_roles(user)) - set(web_customer_roles()) - AUTOMATIC_ROLES
-	return bool(extra)
-
-
 def _create_web_user(claims):
 	"""A storefront account for a Google identity seen for the first time."""
 	user = frappe.get_doc(
@@ -139,7 +128,7 @@ def google_login(credential=None):
 				_("User is disabled. Please contact your System Manager."),
 				http_status_code=403,
 			)
-		if _is_staff(user_name) and not cint(frappe.conf.get(ALLOW_STAFF_CONFIG_KEY)):
+		if is_staff(user_name) and not cint(frappe.conf.get(ALLOW_STAFF_CONFIG_KEY)):
 			_refuse(
 				_("Please sign in with your password."),
 				f"staff account {user_name}: Google sign-in is for storefront accounts only",

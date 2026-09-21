@@ -252,6 +252,27 @@ def _ensure_jwt_session_if_present():
 	validate_jwt()
 
 
+def _limit_signed_in_customer(method_name):
+	"""The strict per-method budgets, for a signed-in customer.
+
+	Ordering, paying and gift cards now need an account, so the guest budgets
+	never see those calls -- without this a signed-in customer could place orders
+	as fast as they liked. The same limits apply, keyed on the account instead of
+	the IP. Staff are exempt: a POS terminal places orders all day.
+	"""
+	limits = STRICT_WRITE_LIMITS.get(method_name)
+	if not limits:
+		return
+
+	from excel_restaurant_pos.shared.customer_access import is_staff
+
+	if is_staff(frappe.session.user):
+		return
+
+	limit, seconds = limits
+	rate_limit_by_caller(f"customer_api:{method_name}", limit=limit, seconds=seconds)
+
+
 def limit_guest_api_requests():
 	"""before_request hook: rate-limit Guest calls to public API methods.
 
@@ -268,11 +289,12 @@ def limit_guest_api_requests():
 
 	_ensure_jwt_session_if_present()
 
-	if not frappe.session or frappe.session.user != "Guest":
-		return
-
 	method_name = _guest_api_method_name()
 	if not method_name or method_name in EXEMPT_GUEST_METHODS:
+		return
+
+	if frappe.session and frappe.session.user != "Guest":
+		_limit_signed_in_customer(method_name)
 		return
 
 	# Global flood budget first (route scanning across many methods).

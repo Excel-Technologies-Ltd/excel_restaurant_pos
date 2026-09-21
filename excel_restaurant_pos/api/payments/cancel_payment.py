@@ -1,6 +1,7 @@
 import frappe
 from excel_restaurant_pos.shared.sales_invoice import delete_invoice_from_db
 from .helper.check_receipt import check_receipt
+from excel_restaurant_pos.shared.customer_access import access_level, require_login
 
 
 @frappe.whitelist(allow_guest=True)
@@ -10,6 +11,7 @@ def cancel_payment():
     """
 
     # validate ticket
+    require_login()
     ticket = frappe.form_dict.get("ticket")
     invoice_name = frappe.form_dict.get("order_no")
     if not ticket or not invoice_name:
@@ -19,6 +21,8 @@ def cancel_payment():
     invoice_no = frappe.db.get_value("Payment Ticket", {"ticket": ticket}, "invoice_no")
     if not invoice_no:
         frappe.throw("Invoice not found")
+    # Cancelling deletes the draft order, so only its owner (or staff) may.
+    access_level(invoice_no)
 
     # check if payment is alredy recipt or not
     receipt_status = check_receipt(ticket)

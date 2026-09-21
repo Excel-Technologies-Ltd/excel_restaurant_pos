@@ -3,9 +3,18 @@
 import json
 
 import frappe
+from frappe import _
 from frappe.utils import flt, now_datetime, get_time
 from .handlers.update_sales_invoice import update_sales_invoice
 from excel_restaurant_pos.shared.antispam import check_order_honeypot, verify_order_turnstile
+from excel_restaurant_pos.shared.customer_access import (
+    TABLE,
+    access_level,
+    as_seen_by,
+    is_staff,
+    own_customer_or_refuse,
+    require_login,
+)
 from excel_restaurant_pos.shared.sales_invoice import build_invoice_item_row
 from excel_restaurant_pos.shared.sales_invoice import idempotency
 from excel_restaurant_pos.utils import iso_to_frappe_datetime
@@ -213,6 +222,14 @@ def add_or_update_invoice():
 
     invoice_name = data.get("invoice_name")
     if invoice_name:
+        # The caller's own order, or the running order of a table they are at --
+        # a table's order is shared, so any signed-in diner may add to it. They
+        # get it back without the owner's personal details, and may not submit
+        # it: only its owner or staff can.
+        level = access_level(invoice_name, allow_table=True)
+        if level == TABLE and data.get("docstatus") not in (None, "", 0, "0"):
+            frappe.throw(_("Only the person who opened this table's order can submit it."), frappe.PermissionError)
+
         # docstatus is forwarded so an existing draft can be submitted here.
         # Without it the request re-saved the draft and returned it unchanged,
         # which looked like the submit had silently done nothing.
@@ -221,7 +238,14 @@ def add_or_update_invoice():
             items=data.get("items", []),
             docstatus=data.get("docstatus"),
         )
-        return updated.as_dict()
+        return as_seen_by(updated, level)
+
+    # A new order needs an account, and is placed for that account's own
+    # Customer whatever the request says -- the storefront used to choose, so
+    # anyone could order as anyone. Staff may still name a customer.
+    user = require_login()
+    if not is_staff(user):
+        data["customer"] = own_customer_or_refuse(user)
 
     # From here on a new order is being created. The guards belong on this path
     # only: the branch above names an existing invoice, so it cannot produce a
@@ -235,8 +259,8 @@ def add_or_update_invoice():
     already_placed = idempotency.find_invoice(idempotency_key)
     if already_placed:
         # A retry of a checkout that already went through. Hand back the order
-        # it made rather than making another one.
-        return already_placed.as_dict()
+        # it made rather than making another one -- to its owner only.
+        return as_seen_by(already_placed, access_level(already_placed))
 
     check_order_honeypot(data)
     verify_order_turnstile(data)

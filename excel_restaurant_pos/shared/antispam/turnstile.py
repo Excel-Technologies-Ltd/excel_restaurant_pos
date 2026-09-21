@@ -19,9 +19,9 @@ Three decisions worth keeping in mind before changing anything here:
   wrong, and fails closed only on a token Cloudflare actively rejected. A
   restaurant should not stop taking orders because somebody else is having an
   outage.
-- Guests only. Staff on a POS terminal hit the same endpoint and must not be
-  challenged. That is keyed off the session user, which the server knows, not
-  `custom_order_from`, which the caller can set to anything.
+- Everyone but staff. A POS terminal must not be challenged; that is decided
+  by the account's roles (shared/customer_access.is_staff), which the server
+  knows, not `custom_order_from`, which the caller can set to anything.
 
 The widget lives on the storefront domain and this runs on the API domain, which
 is the normal arrangement: the sitekey is bound to wherever the widget renders,
@@ -34,6 +34,8 @@ import frappe
 import requests
 from frappe import _
 from frappe.utils import cint
+
+from excel_restaurant_pos.shared.customer_access import is_staff
 
 VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
 
@@ -173,9 +175,11 @@ def verify_order_turnstile(data=None):
 	if not configured():
 		return
 
-	# Staff on a POS terminal are already authenticated; challenging them would
-	# break phone orders.
-	if frappe.session and frappe.session.user != "Guest":
+	# Staff are not challenged: a POS terminal must not hit a captcha. Everyone
+	# else is, signed in or not. This used to skip every signed-in caller, which
+	# was only staff while guests could order -- now that ordering needs an
+	# account, it would have skipped every order.
+	if is_staff():
 		return
 
 	data = frappe.form_dict if data is None else data

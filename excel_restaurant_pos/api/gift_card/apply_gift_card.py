@@ -12,6 +12,7 @@ from excel_restaurant_pos.shared.gift_card.redemption import (
 	parse_gift_card_codes,
 )
 from excel_restaurant_pos.utils import rate_limit_by_caller
+from excel_restaurant_pos.shared.customer_access import access_level, require_login
 
 # Applying is a code oracle in the same way verifying is -- an invalid code
 # throws and a valid one succeeds -- so a public caller gets a budget.
@@ -24,10 +25,10 @@ def apply_gift_card():
 	"""
 	Validate and apply gift card(s) to a draft Sales Invoice.
 
-	Public, so a website customer can pay with a gift card without signing in.
+	Needs an account, and the invoice must be the caller's own (or staff).
 	The invoice must still be a draft, which is the same rule the already public
 	invoice APIs follow, and no balance moves here -- it is reduced on submit.
-	Throttled per caller (per IP for guests).
+	Throttled per account.
 
 	Request
 	-------
@@ -48,7 +49,12 @@ def apply_gift_card():
 	)
 
 	data = get_request_data()
+	# Before anything reads the order, so a guest cannot learn whether an order
+	# number exists.
+	require_login()
 	sales_invoice = get_sales_invoice_name(data, required=True)
+	# Only the order's owner (or staff) may put a gift card against it.
+	access_level(sales_invoice)
 
 	codes = parse_gift_card_codes(
 		data.get("gift_card_codes"),

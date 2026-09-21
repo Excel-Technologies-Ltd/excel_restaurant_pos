@@ -1,5 +1,7 @@
 import requests
 import frappe
+
+from excel_restaurant_pos.shared.customer_access import access_level, require_login
 from frappe.utils import now_datetime, get_datetime
 
 from excel_restaurant_pos.shared.sales_invoice import delete_delivery_draft_invoice
@@ -219,7 +221,10 @@ def get_payment_ticket():
         dict: {"ticket": ticket_string}, or the settled-order payload above.
     """
     # Validate and get invoice number
+    require_login()
     invoice_number = _validate_invoice_number()
+    # Only the order's owner (or staff) may pay for it.
+    access_level(invoice_number)
 
     # Get and validate invoice
     invoice = _get_invoice(invoice_number)
