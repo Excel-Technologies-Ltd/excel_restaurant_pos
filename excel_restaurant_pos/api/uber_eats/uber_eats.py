@@ -13,6 +13,8 @@ import frappe
 from frappe.utils import now_datetime
 from datetime import datetime as _dt, timezone as _tz
 
+from excel_restaurant_pos.shared.order_alarm import order_alarm_push
+
 from .uber_eats_api import (
     verify_webhook_signature,
     _api_headers,
@@ -274,7 +276,7 @@ def _notify_staff_new_order(order_id, is_scheduled=False, channel_order_name=Non
         # 3. Send Expo push notifications (if SDK available)
         try:
             from exponent_server_sdk import (
-                PushClient, PushMessage, PushServerError,
+                PushClient, PushServerError,
                 PushTicketError, DeviceNotRegisteredError,
             )
 
@@ -289,19 +291,19 @@ def _notify_staff_new_order(order_id, is_scheduled=False, channel_order_name=Non
                 token_doc = frappe.get_doc("ArcPOS Notification Token", token_doc_ref.name)
                 for token_row in (token_doc.token_list or []):
                     if token_row.token and PushClient.is_exponent_push_token(token_row.token):
+                        # Every Uber Eats notification here is a new order: ring the alarm.
                         push_messages.append(
-                            PushMessage(
-                                to=token_row.token,
+                            order_alarm_push(
+                                token_row.token,
+                                channel_order_name or order_id,
+                                body,
                                 title=title,
-                                body=body,
-                                data={
+                                extra_data={
                                     "order_id": order_id,
                                     "channel_order_name": channel_order_name,
                                     "notification_type": "new_uber_eats_order",
                                     "is_scheduled": is_scheduled,
                                 },
-                                sound="default",
-                                priority="high",
                             )
                         )
 
