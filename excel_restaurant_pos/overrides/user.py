@@ -5,11 +5,18 @@ from jinja2 import Template
 import json
 from excel_restaurant_pos.shared.arcpos_settings.system_settings import default_system_settings
 from excel_restaurant_pos.shared.email_templates.get_template import template_by_name
+from excel_restaurant_pos.shared.antispam import check_honeypot, verify_turnstile
+from excel_restaurant_pos.shared.antispam.forms import SIGNUP
 from excel_restaurant_pos.shared.web_customer import ensure_customer_for_user, web_customer_roles
 
 @frappe.whitelist(allow_guest=True)
-def sign_up(email, mobile_no, full_name, password, redirect_to=None):
+def sign_up(email, mobile_no, full_name, password, redirect_to=None, **guards):
     """Register user with OTP verification"""
+
+    # Bots first, before anything that reveals whether the email is registered
+    # or sends a mail. `guards` takes the widget token and honeypot fields.
+    check_honeypot(guards, SIGNUP)
+    verify_turnstile(guards, SIGNUP)
 
     # Check if user already exists
     if frappe.db.exists("User", email):

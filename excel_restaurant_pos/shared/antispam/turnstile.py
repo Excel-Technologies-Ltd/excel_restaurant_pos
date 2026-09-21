@@ -1,4 +1,4 @@
-"""Cloudflare Turnstile verification for the public order endpoint.
+"""Cloudflare Turnstile verification for the public forms: checkout, sign-up, login.
 
 Unlike the honeypot next door, this one survives contact with a real attacker:
 a Turnstile token is single use and short lived, so copying the checkout request
@@ -32,9 +32,9 @@ is the `hostname` Cloudflare returns, so pin it -- see `arcpos_turnstile_hostnam
 
 import frappe
 import requests
-from frappe import _
 from frappe.utils import cint
 
+from excel_restaurant_pos.shared.antispam.forms import CHECKOUT, log_title, refusal_message
 from excel_restaurant_pos.shared.customer_access import is_staff
 
 VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
@@ -63,19 +63,17 @@ def _client_ip():
 	return getattr(frappe.local, "request_ip", None) or None
 
 
-def _reject(detail):
+def _reject(detail, form=CHECKOUT):
 	"""Log the real reason, tell the caller nothing.
 
 	The message is deliberately the same one the honeypot uses: which guard
 	fired is not the caller's business.
 	"""
 	frappe.log_error(
-		title="Order rejected: turnstile",
+		title=log_title(form, "turnstile"),
 		message=f"ip={_client_ip() or 'unknown'} {detail}",
 	)
-	frappe.throw(
-		_("This order could not be placed. Please try again."), frappe.ValidationError
-	)
+	frappe.throw(refusal_message(form), frappe.ValidationError)
 
 
 def configured():
@@ -88,6 +86,11 @@ def configured():
 		return False
 
 	return bool(frappe.conf.get(SECRET_CONFIG_KEY))
+
+
+def has_token(data=None):
+	data = frappe.form_dict if data is None else data
+	return bool(_read_token(data))
 
 
 def _read_token(data):
@@ -115,7 +118,7 @@ def _siteverify(secret, token):
 		if response.status_code >= 500:
 			frappe.log_error(
 				title="Turnstile unavailable",
-				message=f"siteverify returned {response.status_code}; order allowed through",
+				message=f"siteverify returned {response.status_code}; request allowed through",
 			)
 			return None
 
@@ -123,7 +126,7 @@ def _siteverify(secret, token):
 	except Exception:
 		frappe.log_error(
 			title="Turnstile unavailable",
-			message=f"{frappe.get_traceback()}\norder allowed through",
+			message=f"{frappe.get_traceback()}\nrequest allowed through",
 		)
 		return None
 
@@ -142,7 +145,26 @@ def _allowed_hostnames():
 	return [str(host).strip().lower() for host in configured_hosts if str(host).strip()]
 
 
-def _check_origin(outcome):
+def _expected_action(form):
+	"""The `action` the widget for `form` sets, or None when actions are not pinned.
+
+	`arcpos_turnstile_action` switches the check on. A dict names each form's
+	action; any other value pins every form to its own name (checkout, signup,
+	login). A plain string is the checkout widget's action -- what the setting
+	meant before sign-up and login had widgets -- and pins the others too.
+	"""
+	configured_action = frappe.conf.get(ACTION_CONFIG_KEY)
+	if not configured_action:
+		return None
+	if isinstance(configured_action, dict):
+		return configured_action.get(form)
+	if form == CHECKOUT and isinstance(configured_action, str) and configured_action not in ("1", "true"):
+		return configured_action
+
+	return form
+
+
+def _check_origin(outcome, form=CHECKOUT):
 	"""Pin the token to the widget it was supposed to come from.
 
 	`action` says which widget on the page, `hostname` says which site. With the
@@ -153,24 +175,29 @@ def _check_origin(outcome):
 	Both checks are off unless configured, so a site that has not set them keeps
 	taking orders.
 	"""
-	expected_action = frappe.conf.get(ACTION_CONFIG_KEY)
+	expected_action = _expected_action(form)
 	action = outcome.get("action")
 	if expected_action and action != expected_action:
-		# A token minted by another widget on the site, replayed here.
-		_reject(f"action={action!r} expected={expected_action!r}")
+		# A token minted by another widget on the site -- the login form's, say
+		# -- replayed here.
+		_reject(f"action={action!r} expected={expected_action!r}", form)
 
 	allowed = _allowed_hostnames()
 	hostname = (outcome.get("hostname") or "").lower()
 	if allowed and hostname not in allowed:
 		# A token minted on some other site that shares this widget.
-		_reject(f"hostname={hostname!r} allowed={allowed!r}")
+		_reject(f"hostname={hostname!r} allowed={allowed!r}", form)
 
 
 def verify_order_turnstile(data=None):
-	"""Verify the Turnstile token on an incoming order.
+	verify_turnstile(data, CHECKOUT)
 
-	Does nothing when Turnstile is not configured, or when the caller is signed
-	in. Raises ValidationError when a token is missing or Cloudflare rejects it.
+
+def verify_turnstile(data=None, form=CHECKOUT):
+	"""Verify the Turnstile token on a submitted public form.
+
+	Does nothing when Turnstile is not configured, or when the caller is staff.
+	Raises ValidationError when a token is missing or Cloudflare rejects it.
 	"""
 	if not configured():
 		return
@@ -186,15 +213,15 @@ def verify_order_turnstile(data=None):
 
 	token = _read_token(data)
 	if not token:
-		_reject("no token supplied")
+		_reject("no token supplied", form)
 
 	outcome = _siteverify(frappe.conf.get(SECRET_CONFIG_KEY), token)
 	if outcome is None:
-		# Cloudflare had no answer for us. Take the order.
+		# Cloudflare had no answer for us. Let it through.
 		return
 
 	if outcome.get("success"):
-		_check_origin(outcome)
+		_check_origin(outcome, form)
 		return
 
 	codes = outcome.get("error-codes") or []
@@ -202,9 +229,9 @@ def verify_order_turnstile(data=None):
 		# Our keys are wrong. That is an operations problem, not a spam order.
 		frappe.log_error(
 			title="Turnstile misconfigured",
-			message=f"siteverify rejected our own credentials: {codes}; order allowed through",
+			message=f"siteverify rejected our own credentials: {codes}; request allowed through",
 		)
 		return
 
 	# timeout-or-duplicate is the interesting one: a replayed or expired token.
-	_reject(f"rejected by cloudflare: {codes}")
+	_reject(f"rejected by cloudflare: {codes}", form)

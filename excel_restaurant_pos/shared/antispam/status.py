@@ -15,6 +15,7 @@ from excel_restaurant_pos.api.auth import google
 from excel_restaurant_pos.api.payment_entry.create_payment import allowed_roles
 from excel_restaurant_pos.api.payments.helper.claim_ticket import claims_supported
 from excel_restaurant_pos.shared.antispam import turnstile
+from excel_restaurant_pos.shared.antispam.forms import CHECKOUT, LOGIN, SIGNUP
 from excel_restaurant_pos.shared.sales_invoice import idempotency
 
 
@@ -25,7 +26,9 @@ def report():
 			"enabled": turnstile.configured(),
 			"secret_set": bool(conf.get(turnstile.SECRET_CONFIG_KEY)),
 			"kill_switch_on": bool(cint(conf.get(turnstile.DISABLE_CONFIG_KEY))),
-			"action": conf.get(turnstile.ACTION_CONFIG_KEY) or "(not pinned)",
+			"actions": {
+				form: turnstile._expected_action(form) or "(not pinned)" for form in (CHECKOUT, SIGNUP, LOGIN)
+			},
 			"hostnames": turnstile._allowed_hostnames() or "(not pinned)",
 		},
 		"honeypot_enabled": not cint(conf.get("arcpos_disable_order_honeypot")),

@@ -1,4 +1,4 @@
-"""Honeypot checks for the public order endpoint.
+"""Honeypot checks for the public forms: checkout, sign-up and login.
 
 What this does and does not do, so nobody mistakes it for an access control:
 
@@ -16,10 +16,11 @@ route. Keep it in that order of importance.
 """
 
 import frappe
-from frappe import _
 from zoneinfo import ZoneInfo
 
 from frappe.utils import cint, get_datetime, get_system_timezone, now_datetime
+
+from excel_restaurant_pos.shared.antispam.forms import CHECKOUT, LOGIN, SIGNUP, log_title, refusal_message
 
 # Fields the checkout renders out of sight. A real customer never fills one, so
 # any value at all means the request was machine generated. They are named after
@@ -31,6 +32,14 @@ HONEYPOT_FIELDS = ("website", "fax_number", "company_website")
 # client stamps `checkout_started_at` when the checkout screen opens.
 MIN_CHECKOUT_SECONDS = 3
 
+# Fastest believable submission per form, in seconds; None skips the timing
+# check. Sign-up is a real form to type into. Login is not timed: a password
+# manager fills it and a person submits it well inside a second.
+MIN_SECONDS = {CHECKOUT: MIN_CHECKOUT_SECONDS, SIGNUP: MIN_CHECKOUT_SECONDS, LOGIN: None}
+
+# When the form was opened. Checkout keeps its original name.
+STARTED_AT_FIELDS = ("form_started_at", "checkout_started_at")
+
 # Anything older than this is a stale tab rather than a real checkout, and is
 # left alone -- rejecting it would punish someone who wandered off mid order.
 MAX_CHECKOUT_SECONDS = 6 * 60 * 60
@@ -40,26 +49,24 @@ def _client_ip():
 	return getattr(frappe.local, "request_ip", None) or "unknown"
 
 
-def _reject(reason, detail):
+def _reject(reason, detail, form=CHECKOUT):
 	"""Log loudly, refuse blandly.
 
 	The caller is told nothing about which guard fired. A message naming the
 	honeypot field is a free tutorial on how to get past it.
 	"""
 	frappe.log_error(
-		title=f"Order rejected: {reason}",
+		title=log_title(form, reason),
 		message=f"ip={_client_ip()} {detail}",
 	)
-	frappe.throw(
-		_("This order could not be placed. Please try again."), frappe.ValidationError
-	)
+	frappe.throw(refusal_message(form), frappe.ValidationError)
 
 
-def _check_hidden_fields(data):
+def _check_hidden_fields(data, form):
 	for fieldname in HONEYPOT_FIELDS:
 		value = data.get(fieldname)
 		if value is not None and str(value).strip():
-			_reject("honeypot", f"field={fieldname!r} value={str(value)[:80]!r}")
+			_reject("honeypot", f"field={fieldname!r} value={str(value)[:80]!r}", form)
 
 
 def _as_server_time(started):
@@ -79,17 +86,18 @@ def _as_server_time(started):
 	return started.astimezone(ZoneInfo(get_system_timezone())).replace(tzinfo=None)
 
 
-def _check_elapsed_time(data):
-	"""Reject an order submitted faster than a person could fill the form.
+def _check_elapsed_time(data, form):
+	"""Reject a form submitted faster than a person could fill it.
 
 	Optional and backward compatible: a client that does not send
-	`checkout_started_at` is not checked. The timestamp is client supplied, so
+	`form_started_at` (or `checkout_started_at`) is not checked. The timestamp is client supplied, so
 	this is a speed bump for scripted orders, not a gate -- a determined caller
 	just sends an older one. Making it a real gate means signing it server side;
 	see docs/order-antispam.md.
 	"""
-	raw = data.get("checkout_started_at")
-	if not raw:
+	minimum = MIN_SECONDS[form]
+	raw = next((data.get(f) for f in STARTED_AT_FIELDS if data.get(f)), None)
+	if minimum is None or not raw:
 		return
 
 	try:
@@ -104,20 +112,24 @@ def _check_elapsed_time(data):
 		# Clock skew, or a tab left open since this morning.
 		return
 
-	if elapsed < MIN_CHECKOUT_SECONDS:
-		_reject("too fast", f"elapsed={elapsed:.2f}s min={MIN_CHECKOUT_SECONDS}s")
+	if elapsed < minimum:
+		_reject("too fast", f"elapsed={elapsed:.2f}s min={minimum}s", form)
 
 
-def check_order_honeypot(data=None):
-	"""Run the cheap bot checks over an incoming order.
+def check_honeypot(data=None, form=CHECKOUT):
+	"""Run the cheap bot checks over a submitted public form.
 
-	Disabled by setting `arcpos_disable_order_honeypot` in site_config.json,
-	which exists so a broken client cannot take ordering down at 7pm on a
-	Friday.
+	Disabled everywhere by setting `arcpos_disable_order_honeypot` in
+	site_config.json, which exists so a broken client cannot take ordering (or
+	signing in) down at 7pm on a Friday. The name predates the other forms.
 	"""
 	if cint(frappe.conf.get("arcpos_disable_order_honeypot")):
 		return
 
 	data = frappe.form_dict if data is None else data
-	_check_hidden_fields(data)
-	_check_elapsed_time(data)
+	_check_hidden_fields(data, form)
+	_check_elapsed_time(data, form)
+
+
+def check_order_honeypot(data=None):
+	check_honeypot(data, CHECKOUT)

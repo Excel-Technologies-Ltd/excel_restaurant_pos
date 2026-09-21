@@ -6,14 +6,38 @@ from frappe.sessions import clear_sessions
 from excel_restaurant_pos.utils.jwt_auth import generate_access_token, generate_refresh_token, revoke_all_user_tokens, add_user_session
 from excel_restaurant_pos.utils.error_handler import throw_error, ErrorCode, success_response
 from excel_restaurant_pos.shared.arcpos_settings.system_settings import default_system_settings
+from excel_restaurant_pos.shared.antispam import check_honeypot, turnstile
+from excel_restaurant_pos.shared.antispam.forms import LOGIN
+from excel_restaurant_pos.shared.customer_access import is_staff
+
+
+def _refuse_bad_credentials():
+	throw_error(
+		ErrorCode.INVALID_CREDENTIALS,
+		_("Invalid username or password"),
+		http_status_code=401
+	)
 
 
 @frappe.whitelist(allow_guest=True)
-def login(user, pwd):
-	"""Authenticate user with email/username and password using JWT tokens"""
+def login(user, pwd, **guards):
+	"""Authenticate user with email/username and password using JWT tokens
+
+	Storefront accounts must also pass Turnstile; staff clients (pos-web, the
+	mobile app) have no widget and are not asked. The storefront sends its token,
+	which is checked before the password. A caller that sends none has the
+	password checked first, and a storefront account is then refused with the
+	very same wrong-password error -- so skipping the widget never tells a bot
+	whose password it just guessed right.
+	"""
 
 	# Set user to Guest to avoid session resumption issues
 	frappe.set_user("Guest")
+
+	check_honeypot(guards, LOGIN)
+	sent_token = turnstile.has_token(guards)
+	if sent_token:
+		turnstile.verify_turnstile(guards, LOGIN)
 
 	# Use Frappe's find_by_credentials method which respects System Settings
 	# This handles: allow_login_using_mobile_number, allow_login_using_user_name
@@ -21,14 +45,14 @@ def login(user, pwd):
 	user_info = User.find_by_credentials(user, pwd, validate_password=True)
 
 	if not user_info or not user_info.get("is_authenticated"):
-		throw_error(
-			ErrorCode.INVALID_CREDENTIALS,
-			_("Invalid username or password"),
-			http_status_code=401
-		)
+		_refuse_bad_credentials()
 
 	# Get the actual user email
 	user = user_info.get("name")
+
+	if turnstile.configured() and not sent_token and not is_staff(user):
+		frappe.log_error(title="Login rejected: turnstile", message=f"no token supplied for storefront account {user}")
+		_refuse_bad_credentials()
 
 	# Get user document
 	user_doc = frappe.get_doc("User", user)

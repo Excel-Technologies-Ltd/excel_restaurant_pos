@@ -42,6 +42,34 @@ fake order by hand through the real checkout passes it every time.
 }
 ```
 
+### Sign-up and login
+
+The same guards cover `overrides.user.sign_up` and `api.auth.login.login`. One
+secret, one sitekey; each form's widget sets its own `data-action`:
+`checkout`, `signup`, `login`. With `arcpos_turnstile_action` set, a token
+minted by one form is refused by the others. (A plain string there is still the
+checkout action; every other form is pinned to its own name. A dict such as
+`{"login": "sign-in"}` names them explicitly.)
+
+- **Sign-up** — honeypot, a 3-second minimum from `form_started_at`, and
+  Turnstile, all before anything reveals whether the email is registered or
+  sends a mail.
+- **Login** — hidden fields only; it is not timed, because a password manager
+  submits it inside a second. Turnstile applies to storefront accounts only:
+  pos-web and the mobile app share the endpoint and have no widget.
+  - A token that is sent is checked *before* the password.
+  - With no token, the password is checked, and a storefront account is then
+    refused with the exact wrong-password 401. A bot skipping the widget
+    cannot tell a correct guess from a wrong one.
+  - Staff are not challenged; the per-IP rate limit is their protection.
+- **Google sign-in** — no Turnstile; Google's signed ID token already proves
+  the sign-in came through Google's own flow.
+
+Deploy order matters more here than for checkout: once the secret is set, a
+storefront whose login form sends no token cannot sign customers in, and they
+see "Invalid username or password". Ship the widget first. The Error Log title
+`Login rejected: turnstile` is the tell.
+
 ### The widget and the API are on different domains
 
 That is the normal arrangement and needs no special handling. **The sitekey is
@@ -169,8 +197,8 @@ and log the real reason server-side. Naming the field that fired would be a free
 tutorial on evading it.
 
 **Kill switch.** `arcpos_disable_order_honeypot: 1` in `site_config.json`
-disables both checks, so a broken client release cannot take ordering down at
-7pm on a Friday.
+disables both checks on every form (checkout, sign-up, login), so a broken
+client release cannot take ordering down at 7pm on a Friday.
 
 ### What the honeypot does not do
 
