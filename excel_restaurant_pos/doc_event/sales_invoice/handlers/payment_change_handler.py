@@ -31,8 +31,10 @@ def payment_change_handler(invoice_name: str):
     # table realease logic here
     s_type = invoice.get("custom_service_type", None)
     o_type = invoice.get("custom_order_type", None)
-    o_from = invoice.get("custom_order_from", "").lower()
-    schedule_type = invoice.get("custom_order_schedule_type", "").lower()
+    # `or ""`: a field that exists but is empty comes back as None, not the
+    # default -- dine-in orders never set a schedule type.
+    o_from = (invoice.get("custom_order_from") or "").lower()
+    schedule_type = (invoice.get("custom_order_schedule_type") or "").lower()
 
     # status update logic
     if s_type in ["Dine-in", "Takeout"]:
