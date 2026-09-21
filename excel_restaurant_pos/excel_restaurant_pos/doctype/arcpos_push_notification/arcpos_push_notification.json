@@ -14,8 +14,7 @@
   "if_order_type",
   "if_order_schedule_type",
   "item_is_new_order_item",
-  "if_delivery_partner_status",
-  "ring_as_alarm"
+  "if_delivery_partner_status"
  ],
  "fields": [
   {
@@ -68,20 +67,12 @@
    "fieldname": "if_delivery_partner_status",
    "fieldtype": "Data",
    "label": "If 'Delivery Partner Status\""
-  },
-  {
-   "default": "0",
-   "description": "Send as the staff app's new-order alarm (channel arcpos_order_alarm_v2) instead of an ordinary notification. Tick it on rules that mean a new order.",
-   "fieldname": "ring_as_alarm",
-   "fieldtype": "Check",
-   "in_list_view": 1,
-   "label": "Ring as Alarm"
   }
  ],
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-09-21 17:18:58.503553",
+ "modified": "2026-09-21 21:20:02.368278",
  "modified_by": "Administrator",
  "module": "Excel Restaurant Pos",
  "name": "ArcPOS Push Notification",

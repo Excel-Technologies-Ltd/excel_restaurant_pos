@@ -12,9 +12,16 @@ ORDER_ALARM_TYPE = "ORDER_ALARM"
 # What the staff app routes on. Not the doctype -- orders are Sales Invoices.
 ORDER_ALARM_DOCUMENT_TYPE = "Restaurant Order"
 
+# Statuses in which an order is arriving for staff: a table order just opened,
+# a website order waiting, or one sent to the kitchen or scheduled. Any other
+# status is a change to an order staff already have.
+NEW_ORDER_STATUSES = ("Open", "Waiting", "In kitchen", "Scheduled")
 
-def order_alarm_title(document_name):
-	return f"New Order #{document_name}"
+
+def order_alarm_title(document_name, status=None):
+	if not status or status in NEW_ORDER_STATUSES:
+		return f"New Order #{document_name}"
+	return f"Order #{document_name} {status}"
 
 
 def order_alarm_message(doc):

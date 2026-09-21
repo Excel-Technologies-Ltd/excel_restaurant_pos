@@ -121,7 +121,6 @@ def on_update_sales_invoice(doc, method: str):
                         "if_order_schedule_type": rule.if_order_schedule_type,
                         "if_delivery_partner_status": rule.if_delivery_partner_status,
                         "item_is_new_order_item": rule.item_is_new_order_item,
-                        "ring_as_alarm": rule.get("ring_as_alarm"),
                         "doc_delivery_partner_status": frappe.db.get_value("Sales Invoice", doc.name, "custom_delivery_partner_status") or "",
                     }
                 )
@@ -344,15 +343,13 @@ def send_notification_to_role(doc, rule):
         user_emails = [user.user for user in users]
         print(f"Found {len(user_emails)} users with role {if_role}: {user_emails}")
 
-        # Prepare notification content
-        # Rules ticked "Ring as Alarm" send the staff app's new-order alarm.
-        ring_as_alarm = rule.get("ring_as_alarm")
-        if ring_as_alarm:
-            title = order_alarm_title(doc.name)
-            body = order_alarm_message(doc)
-        else:
-            title = get_notification_title(doc, rule)
-            body = get_notification_body(doc, rule)
+        # Prepare notification content. The Notification Log and realtime event
+        # keep their own wording; only the push uses the staff app's alarm
+        # format (shared/order_alarm.py).
+        title = get_notification_title(doc, rule)
+        body = get_notification_body(doc, rule)
+        alarm_title = order_alarm_title(doc.name, doc.get("custom_order_status"))
+        alarm_message = order_alarm_message(doc)
         print(f"Notification Title: {title}")
         print(f"Notification Body: {body}")
 
@@ -424,7 +421,6 @@ def send_notification_to_role(doc, rule):
             from exponent_server_sdk import (
                 DeviceNotRegisteredError,
                 PushClient,
-                PushMessage,
                 PushServerError,
                 PushTicketError,
             )
@@ -494,24 +490,7 @@ def send_notification_to_role(doc, rule):
                         continue
 
                     # Create push message
-                    if ring_as_alarm:
-                        push_message = order_alarm_push(token_row.token, doc.name, body, title=title)
-                    else:
-                        push_message = PushMessage(
-                            to=token_row.token,
-                            title=title,
-                            body=body,
-                            data={
-                                "document_type": "Sales Invoice",
-                                "document_name": doc.name,
-                                "order_status": doc.get("custom_order_status") or "",
-                                "order_from": doc.get("custom_order_from") or "",
-                                "service_type": doc.get("custom_service_type") or "",
-                                "order_type": doc.get("custom_order_type") or "",
-                            },
-                            sound="default",
-                            priority="high"
-                        )
+                    push_message = order_alarm_push(token_row.token, doc.name, alarm_message, title=alarm_title)
 
                     push_messages.append(push_message)
                     token_to_user_map[token_row.token] = token_doc.user

@@ -43,7 +43,7 @@ class TestOrderAlarm(FrappeTestCase):
 		self.assertEqual(order_alarm_message(frappe._dict()), "A new order was placed")
 
 
-class TestRulesTickedRingAsAlarm(FrappeTestCase):
+class TestEveryRuleNotificationIsAnAlarm(FrappeTestCase):
 	"""send_notification_to_role against real users and tokens, Expo mocked."""
 
 	ROLE, USER = "_Test Alarm Role", "alarm.waiter@example.com"
@@ -62,7 +62,7 @@ class TestRulesTickedRingAsAlarm(FrappeTestCase):
 			"token_list": [{"token": TOKEN}],
 		}).insert(ignore_permissions=True)
 
-	def sent(self, rule, name):
+	def sent(self, rule, name, status="In kitchen"):
 		from unittest.mock import MagicMock, patch
 
 		import importlib
@@ -71,21 +71,41 @@ class TestRulesTickedRingAsAlarm(FrappeTestCase):
 		module = importlib.import_module("excel_restaurant_pos.doc_event.sales_invoice.on_update_sales_invoice")
 
 		doc = frappe._dict(name=name, customer="C", custom_customer_full_name="Anamul Haque",
-		                   custom_service_type="Pickup", custom_order_status="In kitchen", grand_total=0, currency="CAD")
+		                   custom_service_type="Pickup", custom_order_status=status, grand_total=0, currency="CAD")
 		client = MagicMock()
 		client.publish_multiple.side_effect = lambda chunk: [MagicMock() for _ in chunk]
 		with patch("exponent_server_sdk.PushClient", return_value=client), \
-		     patch(f"{module.__name__}.frappe.publish_realtime"):
+		     patch(f"{module.__name__}.frappe.publish_realtime") as realtime:
 			module.send_notification_to_role(doc, {"if_role": self.ROLE, **rule})
+		self.realtime = realtime
 		return [m.get_payload() for call in client.publish_multiple.call_args_list for m in call.args[0]]
 
-	def test_a_ticked_rule_rings_the_alarm(self):
-		(payload,) = self.sent({"ring_as_alarm": 1}, "WEB-TEST-ALARM")
+	def test_a_new_order_rings_the_alarm(self):
+		(payload,) = self.sent({}, "WEB-TEST-NEW")
 		self.assertEqual(payload["channelId"], "arcpos_order_alarm_v2")
+		self.assertIs(payload["_displayInForeground"], True)
 		self.assertEqual(payload["data"]["type"], "ORDER_ALARM")
+		self.assertIs(payload["data"]["is_alarm"], True)
+		self.assertEqual(payload["data"]["document_type"], "Restaurant Order")
+		self.assertEqual(payload["data"]["title"], "New Order #WEB-TEST-NEW")
 		self.assertEqual(payload["data"]["message"], "Pickup order from Anamul Haque")
+		self.assertEqual(payload["title"], payload["data"]["title"])
 
-	def test_an_unticked_rule_is_unchanged(self):
-		(payload,) = self.sent({"ring_as_alarm": 0}, "WEB-TEST-PLAIN")
-		self.assertNotIn("channelId", payload)
-		self.assertEqual(payload["data"]["document_type"], "Sales Invoice")
+	def test_a_status_update_rings_too_and_says_what_changed(self):
+		(payload,) = self.sent({}, "WEB-TEST-UPDATE", status="Picked Up")
+		self.assertEqual(payload["channelId"], "arcpos_order_alarm_v2")
+		self.assertEqual(payload["data"]["title"], "Order #WEB-TEST-UPDATE Picked Up")
+
+	def test_only_the_push_uses_the_alarm_format(self):
+		"""The bell (Notification Log) and pos-web's realtime event keep their wording."""
+		self.sent({}, "WEB-TEST-BELL")
+
+		subject = frappe.get_all(
+			"Notification Log", filters={"for_user": self.USER}, pluck="subject",
+			order_by="creation desc", limit=1,
+		)[0]
+		self.assertEqual(subject, "Order In kitchen : WEB-TEST-BELL")
+
+		realtime_payload = self.realtime.call_args.kwargs.get("data") or self.realtime.call_args.args[1]
+		self.assertEqual(realtime_payload["title"], "Order In kitchen : WEB-TEST-BELL")
+		self.assertNotIn("is_alarm", realtime_payload)
