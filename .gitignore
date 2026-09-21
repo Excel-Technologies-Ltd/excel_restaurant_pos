@@ -6,3 +6,5 @@ tags
 excel_restaurant_pos/docs/current
 node_modules/
 *.env
+*.log
+.ecc
