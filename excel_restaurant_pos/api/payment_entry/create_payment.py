@@ -19,6 +19,13 @@ from excel_restaurant_pos.doc_event.sales_invoice.handlers.create_payment_entry 
 # check at all, so any authenticated user -- including an account self
 # registered through the guest sign_up/verify_otp pair -- could mark any invoice
 # paid for any amount without money moving.
+#
+# Must include every role pos-web lets reach that dialog, or those staff are
+# refused mid-service. The dialog sits on the order-details and edit-order
+# routes, both behind `canAccessDiningOrders` in pos-web's
+# hooks/permission/useGetPermissions.ts: System Manager, Restaurant Manager,
+# ArcPOS Manager, Restaurant Waiter and Restaurant Cashier. Change one, change
+# the other. (A waiter closing a table is the case that was missed first.)
 PAYMENT_ROLES = (
     "System Manager",
     "Accounts Manager",
@@ -27,6 +34,7 @@ PAYMENT_ROLES = (
     "ArcPOS Register User",
     "Restaurant Manager",
     "Restaurant Cashier",
+    "Restaurant Waiter",
 )
 
 # site_config override, so a site with its own role names can add to the list

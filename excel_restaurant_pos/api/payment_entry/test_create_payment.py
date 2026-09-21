@@ -102,3 +102,20 @@ class TestNoPrivilegeEscalation(FrappeTestCase):
             line for line in source.splitlines() if not line.strip().startswith("#")
         )
         self.assertNotIn("set_user", code)
+
+
+class TestMatchesThePosPermissions(FrappeTestCase):
+    def test_every_role_pos_web_lets_take_payment_is_allowed(self):
+        """pos-web's canAccessDiningOrders guards the payment dialog."""
+        pos_web_dining_roles = {
+            "System Manager",
+            "Restaurant Manager",
+            "ArcPOS Manager",
+            "Restaurant Waiter",
+            "Restaurant Cashier",
+        }
+        self.assertTrue(pos_web_dining_roles.issubset(set(PAYMENT_ROLES)))
+
+    def test_a_self_registered_customer_role_is_still_not_allowed(self):
+        self.assertNotIn("Customer", PAYMENT_ROLES)
+        self.assertNotIn("Sales User", PAYMENT_ROLES)
