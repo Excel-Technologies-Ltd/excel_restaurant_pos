@@ -6,6 +6,11 @@ from excel_restaurant_pos.doc_event.sales_invoice.handlers.create_payment_entry 
     create_payment_entry,
 )
 from excel_restaurant_pos.api.payments.helper.claim_ticket import claim_ticket
+from excel_restaurant_pos.api.payments.helper.settlement import (
+    MISMATCH,
+    settlement_payments,
+    verify_charged_amount,
+)
 
 STALE_ORDER_SAVEPOINT = "arcpos_stale_order_settle"
 from excel_restaurant_pos.doc_event.sales_invoice.handlers.payment_change_handler import (
@@ -146,6 +151,13 @@ def delete_stale_website_orders():
             _delete_sales_invoice(invoice_name)
             continue
 
+        # Moneris charged a different amount from this invoice's total -- the
+        # cart grew after its ticket was issued. Neither settled nor deleted:
+        # the customer did pay something, so it is left for staff to review and
+        # refund. verify_charged_amount has already logged it.
+        if verify_charged_amount(receipt_status, invoice) == MISMATCH:
+            continue
+
         # Claim the ticket first: api.payments.receipt_payment may be settling
         # this very ticket right now, and either of them alone would make a
         # Payment Entry. Inside a savepoint because the except below swallows
@@ -161,27 +173,9 @@ def delete_stale_website_orders():
             invoice.docstatus = 1
             invoice.save(ignore_permissions=True)
 
-            # get mode of payment configured for website (get first record)
-            filters = {"custom_default_website": 1}
-            mode_of_payment_names = frappe.get_all(
-                "Mode of Payment", filters=filters, limit=1, pluck="mode_of_payment"
-            )
-            mode_of_payment = (
-                mode_of_payment_names[0] if len(mode_of_payment_names) > 0 else None
-            )
-
-            # if mode of payment is no configured
-            if not mode_of_payment:
-                msg = "No mode of payment configured for website"
-                frappe.log_error("No Mode Of payment", msg)
-
-            # create payment entry manually
-            payments = [
-                {
-                    "mode_of_payment": mode_of_payment or "Cash",
-                    "amount": invoice.grand_total,
-                }
-            ]
+            # Booked at the invoice's grand_total in the website mode of payment
+            # -- the same rule receipt_payment uses, from the same helper.
+            payments = settlement_payments(invoice)
 
             # enqueue payment entry creation
             args = {"sales_invoice": invoice.name, "payments": payments}

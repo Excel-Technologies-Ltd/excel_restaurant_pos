@@ -1,7 +1,9 @@
 import frappe
+from frappe import _
 
 from .helper.check_receipt import check_receipt
 from .helper.claim_ticket import claim_ticket, get_ticket
+from .helper.settlement import MISMATCH, settlement_payments, verify_charged_amount
 from excel_restaurant_pos.doc_event.sales_invoice.handlers.create_payment_entry import (
     create_payment_entry,
 )
@@ -64,10 +66,21 @@ def receipt_payment():
     if not invoice:
         frappe.throw("Invoice not found")
 
-    # check receipt payment
-    payments = frappe.form_dict.get("payments", None)
-    if not payments:
-        frappe.throw("Payments are required")
+    # The Payment Entry is booked at the invoice's own grand_total. It used to
+    # take `payments[].amount` from the request, so a $5 payment could be booked
+    # as $500 -- and since a draft can still be edited after its ticket is
+    # issued, a cart preloaded at $1 could be grown before paying that $1 ticket.
+    # Checked against what Moneris charged before anything is claimed, so a
+    # mismatch leaves the ticket unspent for staff to review.
+    if verify_charged_amount(receipt_status, invoice) == MISMATCH:
+        frappe.throw(
+            _("The amount paid does not match this order. Please contact the restaurant."),
+            frappe.ValidationError,
+        )
+
+    # The request's `payments` is no longer trusted for anything but a fallback
+    # mode of payment, used only when no website mode is configured.
+    payments = settlement_payments(invoice, fallback_mode=_requested_mode())
 
     # Claim the ticket before any Payment Entry exists. A concurrent request for
     # the same ticket waits on the row lock here and then backs off; if anything
@@ -94,3 +107,18 @@ def _already_processed(ticket_row, invoice_name):
         frappe.throw("Order number mismatch", frappe.ValidationError)
 
     return {"success": True, "already_processed": True}
+
+
+def _requested_mode():
+    """The mode of payment the client asked for, if it sent one."""
+    payments = frappe.form_dict.get("payments")
+    if isinstance(payments, str):
+        try:
+            payments = frappe.parse_json(payments)
+        except Exception:
+            return None
+
+    if isinstance(payments, list) and payments and isinstance(payments[0], dict):
+        return payments[0].get("mode_of_payment")
+
+    return None
