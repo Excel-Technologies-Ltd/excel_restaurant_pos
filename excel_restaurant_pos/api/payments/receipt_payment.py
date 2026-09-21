@@ -2,6 +2,7 @@ import frappe
 from frappe import _
 
 from .helper.check_receipt import check_receipt
+from .helper.get_payment_config import get_payment_config
 from excel_restaurant_pos.shared.customer_access import access_level, require_login
 from .helper.claim_ticket import claim_ticket, get_ticket
 from .helper.settlement import MISMATCH, settlement_payments, verify_charged_amount
@@ -58,6 +59,16 @@ def receipt_payment():
     # site at the Moneris QA store, which issues real tickets and real approval
     # codes, so development tests the same path production runs.
     if success_result != "true" or receipt_result != "a":
+        # What Moneris said, without card data -- the refusal alone does not
+        # tell a declined card from a QA ticket checked against production.
+        frappe.log_error(
+            title="Payment not approved by Moneris",
+            message=(
+                f"invoice={invoice_no} order_no={invoice_name} success={success_result!r} "
+                f"result={receipt_result!r} error={receipt_status.get('error')!r} "
+                f"environment={get_payment_config().get('environment')!r}"
+            ),
+        )
         frappe.throw("Invalid or expired payment ticket", frappe.ValidationError)
 
     # # validate order number
