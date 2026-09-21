@@ -7,12 +7,20 @@ account however it was made. Deciding roles in two places is how they drift.
 
 import frappe
 
-# order-web reads a customer's own invoices through the generic document API
-# (My Orders -> useGetFrappeDocListQuery on Sales Invoice), and today that read
-# comes from Sales User. Sales User also grants create/submit on Sales Invoice on
-# this site, which is a known hole; narrowing it belongs here, once, for both
-# sign-up paths.
-EXTRA_WEB_ROLES = ("Sales User",)
+# The one role a storefront account gets beyond the default. It replaces Sales
+# User, which web accounts used to be given: Sales User can create and submit
+# Sales Invoices through Frappe's generic API (/api/resource/Sales Invoice) --
+# bypassing every check on api.sales_invoices.add, prices and rate limits
+# included -- and it is a Desk role, which made every customer a System User able
+# to open /app.
+WEB_CUSTOMER_ROLE = "ArcPOS Web Customer"
+EXTRA_WEB_ROLES = (WEB_CUSTOMER_ROLE,)
+
+# Everything order-web reads through the generic document API as a signed-in
+# customer, and nothing more -- read only. My Orders and Order Details list and
+# get Sales Invoice; the storefront fetches Territory with frappe.client.get. The
+# customer's User Permission still limits Sales Invoice to their own.
+WEB_CUSTOMER_READS = ("Sales Invoice", "Territory")
 
 # Values for Customer fields other apps make mandatory, as a dict in
 # site_config -- e.g. {"custom_zone": "Web"}. excel_erpnext requires
@@ -105,3 +113,31 @@ def ensure_customer_for_user(user_doc, mobile_no=None):
 	_ensure_user_permission(user_doc.name, "Customer", customer)
 	_ensure_user_permission(user_doc.name, "User", user_doc.email)
 	return customer
+
+
+def ensure_web_customer_role():
+	"""The storefront role, and exactly what it may read. Runs after every migrate.
+
+	Idempotent. The role has no Desk access, so accounts holding it stay Website
+	Users. Permissions go through frappe.permissions.add_permission, which copies
+	a doctype's standard permissions into Custom DocPerm first -- adding a custom
+	row on its own would make Frappe ignore the standard ones and lock everyone
+	else out of the doctype.
+	"""
+	from frappe.permissions import add_permission, update_permission_property
+
+	if not frappe.db.exists("Role", WEB_CUSTOMER_ROLE):
+		frappe.get_doc(
+			{"doctype": "Role", "role_name": WEB_CUSTOMER_ROLE, "desk_access": 0}
+		).insert(ignore_permissions=True)
+	elif frappe.db.get_value("Role", WEB_CUSTOMER_ROLE, "desk_access"):
+		frappe.db.set_value("Role", WEB_CUSTOMER_ROLE, "desk_access", 0)
+
+	for doctype in WEB_CUSTOMER_READS:
+		add_permission(doctype, WEB_CUSTOMER_ROLE, 0)
+		# Read only, whatever an earlier run or a person in Desk may have ticked.
+		for ptype in ("write", "create", "submit", "cancel", "delete", "amend"):
+			if frappe.db.get_value(
+				"Custom DocPerm", {"parent": doctype, "role": WEB_CUSTOMER_ROLE, "permlevel": 0}, ptype
+			):
+				update_permission_property(doctype, WEB_CUSTOMER_ROLE, 0, ptype, 0)

@@ -174,10 +174,11 @@ def verify_otp(verification_key, otp):
         }
 
     except Exception as e:
-        # Undo the User too. It is inserted, and given Sales User, before the
-        # Customer is created; without this, a failure there committed an account
-        # with a password, Sales User and no User Permission -- able to read
-        # every invoice. Rolled back first, so the log entry below survives.
+        # Undo the User too. It is inserted, and given the storefront roles,
+        # before the Customer is created; without this, a failure there committed
+        # an account with a password, a Sales Invoice read role and no User
+        # Permission -- able to read every invoice. Rolled back first, so the log
+        # entry below survives.
         frappe.db.rollback()
         frappe.log_error(f"User creation failed: {str(e)}", "OTP Verification Error")
         print(e)

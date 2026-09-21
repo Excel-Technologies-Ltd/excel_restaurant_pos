@@ -176,6 +176,8 @@ doc_events = {
 
 after_migrate = [
     "excel_restaurant_pos.shared.coupon.codes.backfill_coupon_codes",
+    # The storefront role and its read-only permissions (shared/web_customer.py).
+    "excel_restaurant_pos.shared.web_customer.ensure_web_customer_role",
     # Installs every report_sql/*.sql file, so a new stored procedure only needs
     # the file -- no patch entry per report.
     "excel_restaurant_pos.shared.sql_procedures.sync.sync_sql_objects",

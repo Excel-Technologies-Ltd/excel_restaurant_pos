@@ -118,11 +118,10 @@ class TestAccounts(_GoogleCase):
 		self.assertEqual(data["user"]["email"], email)
 
 		user = frappe.get_doc("User", {"email": email})
-		# Created as a Website User, but Frappe makes it a System User the moment
-		# Sales User (a Desk role) is added -- exactly as email sign-up does. The
-		# two paths must match; that Sales User gives web customers Desk access is
-		# the reason it needs replacing, in shared/web_customer.py, for both.
+		# The same roles email sign-up gives, and none of them opens Desk.
 		self.assertTrue(set(web_customer_roles()).issubset(set(frappe.get_roles(user.name))))
+		self.assertNotIn("Sales User", frappe.get_roles(user.name))
+		self.assertEqual(user.user_type, "Website User")
 
 		customer = frappe.db.get_value("Customer", {"email_id": email}, "name")
 		self.assertTrue(customer)

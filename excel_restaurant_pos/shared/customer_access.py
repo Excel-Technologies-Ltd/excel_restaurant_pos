@@ -33,6 +33,11 @@ INVOICE_DOCTYPE = "Sales Invoice"
 # Roles every account carries automatically; they say nothing about staff.
 AUTOMATIC_ROLES = {"All", "Guest", "Desk User"}
 
+# What storefront accounts used to be given. Never evidence of staff: without
+# this, every customer not yet moved to the narrow role would count as staff --
+# full access to every order, no Turnstile, no rate limit.
+LEGACY_WEB_ROLES = {"Sales User"}
+
 FULL, TABLE = "full", "table"
 
 # Blanked for a diner reading someone else's table order. Personal details of
@@ -76,7 +81,7 @@ def is_staff(user=None):
 	if user == "Administrator":
 		return True
 
-	extra = set(frappe.get_roles(user)) - set(web_customer_roles()) - AUTOMATIC_ROLES
+	extra = set(frappe.get_roles(user)) - set(web_customer_roles()) - LEGACY_WEB_ROLES - AUTOMATIC_ROLES
 	return bool(extra)
 
 
