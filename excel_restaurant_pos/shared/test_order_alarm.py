@@ -15,19 +15,23 @@ class TestOrderAlarm(FrappeTestCase):
 
 		self.assertEqual(payload["to"], TOKEN)
 		self.assertEqual(payload["priority"], "high")
-		self.assertEqual(payload["channelId"], "arcpos_order_alarm_v2")
-		self.assertIs(payload["_displayInForeground"], True)
+
+		# Data-only: no root notification fields — Android must call onMessageReceived
+		# while the app is backgrounded so OrderAlarmService can start.
+		self.assertNotIn("title", payload)
+		self.assertNotIn("body", payload)
+		self.assertNotIn("sound", payload)
+		self.assertNotIn("channelId", payload)
+		self.assertNotIn("_displayInForeground", payload)
+
 		self.assertEqual(payload["data"], {
-			"is_alarm": True,
+			"is_alarm": "true",
 			"type": "ORDER_ALARM",
 			"document_name": "ACC-SINV-2026-0001",
 			"document_type": "Restaurant Order",
 			"title": "New Order #ACC-SINV-2026-0001",
 			"message": "Table 5 placed an order",
 		})
-		# Also shown by app builds that do not know the alarm yet.
-		self.assertEqual(payload["title"], "New Order #ACC-SINV-2026-0001")
-		self.assertEqual(payload["body"], "Table 5 placed an order")
 
 	def test_extra_data_never_overrides_the_alarm_fields(self):
 		payload = order_alarm_push(TOKEN, "X", "m", extra_data={"type": "other", "order_id": "u-1"}).get_payload()
@@ -82,18 +86,22 @@ class TestEveryRuleNotificationIsAnAlarm(FrappeTestCase):
 
 	def test_a_new_order_rings_the_alarm(self):
 		(payload,) = self.sent({}, "WEB-TEST-NEW")
-		self.assertEqual(payload["channelId"], "arcpos_order_alarm_v2")
-		self.assertIs(payload["_displayInForeground"], True)
+		# Data-only — no root notification block
+		self.assertNotIn("channelId", payload)
+		self.assertNotIn("_displayInForeground", payload)
+		self.assertNotIn("title", payload)
+		self.assertNotIn("body", payload)
+		# Alarm fields live entirely in data
 		self.assertEqual(payload["data"]["type"], "ORDER_ALARM")
-		self.assertIs(payload["data"]["is_alarm"], True)
+		self.assertEqual(payload["data"]["is_alarm"], "true")
 		self.assertEqual(payload["data"]["document_type"], "Restaurant Order")
 		self.assertEqual(payload["data"]["title"], "New Order #WEB-TEST-NEW")
 		self.assertEqual(payload["data"]["message"], "Pickup order from Anamul Haque")
-		self.assertEqual(payload["title"], payload["data"]["title"])
 
 	def test_a_status_update_rings_too_and_says_what_changed(self):
 		(payload,) = self.sent({}, "WEB-TEST-UPDATE", status="Picked Up")
-		self.assertEqual(payload["channelId"], "arcpos_order_alarm_v2")
+		# Data-only
+		self.assertNotIn("channelId", payload)
 		self.assertEqual(payload["data"]["title"], "Order #WEB-TEST-UPDATE Picked Up")
 
 	def test_only_the_push_uses_the_alarm_format(self):

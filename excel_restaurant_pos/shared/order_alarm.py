@@ -1,10 +1,17 @@
 """The push notification that rings the staff app's new-order alarm.
 
-The mobile app plays its alarm for a message on the `arcpos_order_alarm_v2`
-Android channel whose `data.type` is ORDER_ALARM. The title and message are
-sent twice: at the top level, so an app build that does not know the alarm yet
-still shows an ordinary notification, and inside `data`, which is what the
-alarm screen reads.
+Alarm display and audio are owned by the native Android layer
+(``OrderAlarmService`` via ``ArcPosMessagingService``).  The backend must
+deliver a **high-priority data-only** message so that ``onMessageReceived``
+is called while the app is backgrounded or killed.
+
+Android constraint: if the Expo/FCM message contains a root ``title``,
+``body``, or ``sound`` the OS intercepts it and shows a tray notification
+without calling ``onMessageReceived`` — the native alarm path never starts.
+
+The mobile app plays its alarm for a message whose ``data.type`` is
+ORDER_ALARM.  The ``title`` and ``message`` are carried inside ``data`` only;
+the alarm screen reads them from there.
 """
 
 ORDER_ALARM_CHANNEL = "arcpos_order_alarm_v2"
@@ -40,21 +47,24 @@ def order_alarm_message(doc):
 
 
 def order_alarm_push(token, document_name, message, title=None, extra_data=None):
-	"""An Expo PushMessage in the alarm format."""
+	"""A high-priority data-only Expo PushMessage that triggers the native alarm.
+
+	No root title/body/sound/channelId — those would make Android intercept the
+	message as a display notification and skip onMessageReceived, preventing
+	OrderAlarmService from starting while the app is backgrounded.
+	"""
 	from exponent_server_sdk import PushMessage
 
 	title = title or order_alarm_title(document_name)
 	return PushMessage(
 		to=token,
-		title=title,
-		body=message,
-		sound="default",
 		priority="high",
-		channel_id=ORDER_ALARM_CHANNEL,
-		display_in_foreground=True,
+		# No title / body / sound / channel_id / display_in_foreground at root.
+		# Android FCM delivers data-only messages to onMessageReceived regardless
+		# of app state (foreground / background / killed).
 		data={
 			**(extra_data or {}),
-			"is_alarm": True,
+			"is_alarm": "true",
 			"type": ORDER_ALARM_TYPE,
 			"document_name": document_name,
 			"document_type": ORDER_ALARM_DOCUMENT_TYPE,
