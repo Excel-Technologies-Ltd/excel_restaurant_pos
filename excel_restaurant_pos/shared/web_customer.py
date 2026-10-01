@@ -1,7 +1,7 @@
 """Roles and Customer records for accounts created from the storefront.
 
-Both ways of signing up -- email with an OTP (overrides/user.verify_otp) and
-Google (api/auth/google) -- go through here, so a web account is the same
+Every way of signing up -- email with an OTP (overrides/user.verify_otp), Google
+and Apple (api/auth/social) -- goes through here, so a web account is the same
 account however it was made. Deciding roles in two places is how they drift.
 """
 

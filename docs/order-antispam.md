@@ -62,8 +62,8 @@ checkout action; every other form is pinned to its own name. A dict such as
     refused with the exact wrong-password 401. A bot skipping the widget
     cannot tell a correct guess from a wrong one.
   - Staff are not challenged; the per-IP rate limit is their protection.
-- **Google sign-in** — no Turnstile; Google's signed ID token already proves
-  the sign-in came through Google's own flow.
+- **Google and Apple sign-in** — no Turnstile; the provider's signed ID token
+  already proves the sign-in came through its own flow.
 
 Deploy order matters more here than for checkout: once the secret is set, a
 storefront whose login form sends no token cannot sign customers in, and they

@@ -16,10 +16,8 @@ What is checked, and why each matters:
 - Issuer is Google, and the token has not expired.
 - email_verified. An unverified address proves nothing about who is signing in.
 
-Staff accounts are refused. An account with more than storefront roles is
-protected by a password and possibly 2FA; letting a Google account with the
-same address in would sidestep both. `google_login_allow_staff` in site_config
-turns that off, deliberately.
+Staff accounts are refused (see api.auth.social). `google_login_allow_staff` in
+site_config turns that off, deliberately.
 """
 
 import frappe
@@ -28,9 +26,7 @@ from frappe.utils import cint
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
 
-from excel_restaurant_pos.api.auth.login import issue_login_response
-from excel_restaurant_pos.shared.customer_access import is_staff
-from excel_restaurant_pos.shared.web_customer import ensure_customer_for_user, web_customer_roles
+from excel_restaurant_pos.api.auth.social import sign_in_verified_email
 from excel_restaurant_pos.utils.error_handler import ErrorCode, throw_error
 
 CLIENT_IDS_CONFIG_KEY = "google_oauth_client_ids"
@@ -92,50 +88,16 @@ def verify_credential(credential):
 	return claims
 
 
-def _create_web_user(claims):
-	"""A storefront account for a Google identity seen for the first time."""
-	user = frappe.get_doc(
-		{
-			"doctype": "User",
-			"email": claims["email"],
-			"first_name": claims.get("given_name") or claims.get("name") or claims["email"],
-			"last_name": claims.get("family_name") or "",
-			"enabled": 1,
-			"user_type": "Website User",
-		}
-	)
-	user.flags.ignore_permissions = True
-	user.flags.no_welcome_mail = True
-	user.insert()
-	user.add_roles(*web_customer_roles())
-	return user
-
-
 @frappe.whitelist(allow_guest=True, methods=["POST"])
 def google_login(credential=None):
 	"""Sign in with a Google ID token. Returns what api.auth.login returns."""
 	frappe.set_user("Guest")
 
 	claims = verify_credential(credential)
-	email = claims["email"]
-
-	user_name = frappe.db.get_value("User", {"email": email}, "name")
-	if user_name:
-		user_doc = frappe.get_doc("User", user_name)
-		if not cint(user_doc.enabled):
-			throw_error(
-				ErrorCode.UNAUTHORIZED,
-				_("User is disabled. Please contact your System Manager."),
-				http_status_code=403,
-			)
-		if is_staff(user_name) and not cint(frappe.conf.get(ALLOW_STAFF_CONFIG_KEY)):
-			_refuse(
-				_("Please sign in with your password."),
-				f"staff account {user_name}: Google sign-in is for storefront accounts only",
-				status=403,
-			)
-	else:
-		user_doc = _create_web_user(claims)
-
-	ensure_customer_for_user(user_doc)
-	return issue_login_response(user_doc.name, user_doc)
+	return sign_in_verified_email(
+		claims["email"],
+		provider="Google",
+		allow_staff=cint(frappe.conf.get(ALLOW_STAFF_CONFIG_KEY)),
+		first_name=claims.get("given_name") or claims.get("name"),
+		last_name=claims.get("family_name"),
+	)

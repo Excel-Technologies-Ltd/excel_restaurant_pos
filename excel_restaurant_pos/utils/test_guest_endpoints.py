@@ -21,7 +21,7 @@ APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PUBLIC = {
 	# auth
 	"api.auth.login.login", "api.auth.login.verify_2fa_and_login", "api.auth.token.refresh",
-	"api.auth.google.google_login", "api.auth.forgot.send_forgot_password_otp",
+	"api.auth.google.google_login", "api.auth.apple.apple_login", "api.auth.forgot.send_forgot_password_otp",
 	"api.auth.forgot.verify_forgot_password_otp", "api.auth.forgot.reset_password_with_otp",
 	"api.auth.forgot.resend_forgot_password_otp",
 	"overrides.user.sign_up", "overrides.user.verify_otp", "overrides.user.resend_otp",

@@ -11,7 +11,7 @@ its value.
 import frappe
 from frappe.utils import cint, get_system_timezone
 
-from excel_restaurant_pos.api.auth import google
+from excel_restaurant_pos.api.auth import apple, google
 from excel_restaurant_pos.api.payment_entry.create_payment import allowed_roles
 from excel_restaurant_pos.api.payments.helper.claim_ticket import claims_supported
 from excel_restaurant_pos.shared.antispam import turnstile
@@ -37,6 +37,11 @@ def report():
 			"client_ids": len(google.client_ids()),
 			"staff_allowed": bool(cint(conf.get(google.ALLOW_STAFF_CONFIG_KEY))),
 			"web_customer_defaults": conf.get("arcpos_web_customer_defaults") or "(none)",
+		},
+		"apple_sign_in": {
+			"enabled": bool(apple.client_ids()),
+			"client_ids": len(apple.client_ids()),
+			"staff_allowed": bool(cint(conf.get(apple.ALLOW_STAFF_CONFIG_KEY))),
 		},
 		"migrated": {
 			"idempotency_column": idempotency.supported(),

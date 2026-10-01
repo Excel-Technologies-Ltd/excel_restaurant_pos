@@ -91,7 +91,7 @@ def login(user, pwd, **guards):
 def issue_login_response(user, user_doc=None):
 	"""Tokens and the login response for a user whose identity is established.
 
-	Shared by password login and Google sign-in, so both return the same shape
+	Shared by password login and Google and Apple sign-in, so all return the same shape
 	and enforce the same session limits.
 	"""
 	user_doc = user_doc or frappe.get_doc("User", user)
