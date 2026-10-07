@@ -14,10 +14,18 @@ import json
 from datetime import datetime
 
 # Configuration
-BASE_URL = os.getenv("SOCKET_URL", "https://arcpos.aninda.me")
-SITE_NAME = os.getenv("SITE_NAME", "arcpos.aninda.me")
-BEARER_TOKEN = os.getenv("BEARER_TOKEN", "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyIjoiYXptaW5AZXhjZWxiZC5jb20iLCJleHAiOjE3Njk1OTA1NjcsImlhdCI6MTc2OTU4Njk2NywidHlwZSI6ImFjY2VzcyJ9.KHYmGAHvyDgEn2bAV_gG_D1Ubbrw_LAQcjmYIrLS4Vw")
-USER_EMAIL = os.getenv("USER_EMAIL", "azmin@excelbd.com")
+BASE_URL = os.getenv("SOCKET_URL", "http://localhost:8000")
+SITE_NAME = os.getenv("SITE_NAME", "localhost")
+def _required(name, hint):
+    """Scripts carried a developer's own token, password and address; they are
+    read from the environment now, so nothing personal lives in the repository."""
+    value = os.getenv(name)
+    if not value:
+        raise SystemExit(f"Set {name}=... ({hint})")
+    return value
+
+BEARER_TOKEN = _required("BEARER_TOKEN", "an access token from api.auth.login")
+USER_EMAIL = _required("USER_EMAIL", "the account whose notifications to watch")
 NAMESPACE = f"/{SITE_NAME}"
 
 print("=" * 60)

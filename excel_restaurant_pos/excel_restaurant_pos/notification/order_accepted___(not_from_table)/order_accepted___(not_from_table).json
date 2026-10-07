@@ -28,8 +28,6 @@
  ],
  "send_system_notification": 0,
  "send_to_all_assignees": 0,
- "sender": "ArcPOS Notification",
- "sender_email": "notifications@excelbd.com",
  "subject": "Your order {{ doc.name }} is accepted",
  "value_changed": "custom_order_status"
 }

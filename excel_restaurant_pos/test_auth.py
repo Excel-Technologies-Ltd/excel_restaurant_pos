@@ -2,14 +2,27 @@
 """
 Quick test script to verify JWT authentication endpoint
 """
+import os
+
 import requests
 import json
 
 # Configuration
-BASE_URL = "https://arcpos.aninda.me"
-SITE_NAME = "arcpos.aninda.me"
-USERNAME = "azmin@excelbd.com"
-PASSWORD = "Azmin@123#"
+BASE_URL = os.getenv("SOCKET_URL", "http://localhost:8000")
+SITE_NAME = os.getenv("SITE_NAME", "localhost")
+
+
+def _required(name, hint):
+    """Scripts carried a developer's own token, password and address; they are
+    read from the environment now, so nothing personal lives in the repository."""
+    value = os.getenv(name)
+    if not value:
+        raise SystemExit(f"Set {name}=... ({hint})")
+    return value
+
+
+USERNAME = _required("USERNAME", "the account to sign in as")
+PASSWORD = _required("PASSWORD", "that account's password")
 
 print("=" * 60)
 print("JWT Authentication Test")
