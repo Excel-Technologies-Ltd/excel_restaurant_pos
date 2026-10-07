@@ -4,21 +4,11 @@ import requests
 
 # Configuration
 ENVIRONMENT = os.getenv("ENV", "production")
-BASE_URL = os.getenv("SOCKET_URL", "http://localhost:8000")
-SITE_NAME = os.getenv("SITE_NAME", "localhost")
+BASE_URL = "https://arcpos.aninda.me"
+SITE_NAME = "arcpos.aninda.me"
 
-
-def _required(name, hint):
-    """Scripts carried a developer's own token, password and address; they are
-    read from the environment now, so nothing personal lives in the repository."""
-    value = os.getenv(name)
-    if not value:
-        raise SystemExit(f"Set {name}=... ({hint})")
-    return value
-
-
-BEARER_TOKEN = _required("BEARER_TOKEN", "an access token from api.auth.login")
-USER_EMAIL = _required("USER_EMAIL", "the account whose notifications to watch")
+# Bearer Token - Replace with your actual token
+BEARER_TOKEN = os.getenv("BEARER_TOKEN", "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyIjoiYXptaW5AZXhjZWxiZC5jb20iLCJleHAiOjE3Njk1ODQzNTQsImlhdCI6MTc2OTU4MDc1NCwidHlwZSI6ImFjY2VzcyJ9.s4rufCcEAK6odLh5CwlWEAbRI5lg5ULIWY8eP0mpEwQ")
 
 print("=" * 60)
 print("Socket.IO Client - Bearer Token Authentication")
@@ -60,7 +50,7 @@ def connect():
     print()
 
     # Join user-specific room to receive notifications
-    user_email = USER_EMAIL
+    user_email = "azmin@excelbd.com"  # Extracted from your token
     user_room = f"{SITE_NAME}:user:{user_email}"
 
     print(f" Joining user room: {user_room}")
@@ -103,7 +93,8 @@ def disconnect():
     print()
 
 
-# Notification event handlers (bound to USER_EMAIL below)
+# Notification event handlers
+@sio.on('sales_invoice_notification_azmin@excelbd.com')
 def on_notification(data):
     print()
     print("" + "=" * 59)
@@ -118,11 +109,6 @@ def on_notification(data):
     print("=" * 60)
     print()
 
-
-
-# The room name carries the account, so the handler is registered here
-# rather than through a decorator with a fixed address in it.
-sio.on(f"sales_invoice_notification_{USER_EMAIL}", on_notification)
 
 @sio.on('msgprint')
 def on_msgprint(data):
