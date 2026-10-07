@@ -1,19 +1,35 @@
-name: Frappe Docker Build and Deploye Arc-POS
+name: Build and Push Arc POS
 
 on:
+  push:
+    branches:
+      - arc-pos
   workflow_dispatch:
     inputs:
       branch:
-        description: "Branch to deploy"
+        description: "excel_restaurant_pos / Excel-ERPNext branch to build"
         required: true
         default: "arc-pos"
         type: string
 
+# A newer push cancels an older build still running for the same branch
+concurrency:
+  group: arc-pos-${{ inputs.branch || github.ref_name }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: registry.aninda.me
+  IMAGE: registry.aninda.me/bancan/arc-pos
+  BASE_REGISTRY: registry.aninda.me/dockerhub/library
+  APP_BRANCH: ${{ inputs.branch || 'arc-pos' }}
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - name: Checkout Code
+      - name: Checkout frappe docker build files
         uses: actions/checkout@v4
         with:
           repository: Excel-Technologies-Ltd/excel-frappe-docker
@@ -21,63 +37,53 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to Docker Hub
+      - name: Log in to Harbor
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.HARBOR_USERNAME }}
+          password: ${{ secrets.HARBOR_PASSWORD }}
 
-      # - name: Login to GitLab Container Registry
-      #   uses: docker/login-action@v3
-      #   with:
-      #     registry: registry.gitlab.com
-      #     username: ${{ secrets.GITLAB_USERNAME }}
-      #     password: ${{ secrets.GITLAB_PASSWORD }}
-
-      - name: Build and Push Frappe Docker Image
+      - name: Build and push image
+        id: build
         run: |
-          # Define apps JSON
-          export APPS_JSON='[
-            {
-              "url": "https://github.com/frappe/erpnext",
-              "branch": "version-14"
-            },
-            {
-              "url": "https://github.com/frappe/hrms.git",
-              "branch": "version-14"
-            },
-            {
-              "url": "https://github.com/Excel-Technologies-Ltd/excel_restaurant_pos.git",
-              "branch": "arc-pos"
-            },
-            {
-              "url": "https://github.com/Excel-Technologies-Ltd/Excel-ERPNext.git",
-              "branch": "arc-pos"
-            },
-            {
-              "url": "https://github.com/Excel-Technologies-Ltd/uber-direct.git",
-              "branch": "main"
-            }
+          APPS_JSON='[
+            { "url": "https://github.com/frappe/erpnext", "branch": "version-14" },
+            { "url": "https://github.com/frappe/hrms.git", "branch": "version-14" },
+            { "url": "https://github.com/Excel-Technologies-Ltd/excel_restaurant_pos.git",
+              "branch": "${{ env.APP_BRANCH }}" },
+            { "url": "https://github.com/Excel-Technologies-Ltd/Excel-ERPNext.git",
+              "branch": "${{ env.APP_BRANCH }}" },
+            { "url": "https://github.com/Excel-Technologies-Ltd/uber-direct.git", "branch": "main" }
           ]'
+          APPS_JSON_BASE64=$(echo -n "$APPS_JSON" | base64 -w 0)
 
-          # Convert apps JSON to base64
-          export APPS_JSON_BASE64=$(echo ${APPS_JSON} | base64 -w 0)
+          # Unique, rollback-able tag: <branch>-<short-sha>, e.g. arc-pos-3f9c2a1
+          SAFE_BRANCH=${APP_BRANCH//\//-}
+          TAG="${SAFE_BRANCH}-${GITHUB_SHA::7}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-          # Define all tags
-          DOCKER_HUB_TAG="arcapps/arc-pos:1.0.0"
-          # GITLAB_TAG="registry.gitlab.com/arcapps/arc-container-registry/arc-pos:1.0.0"
-          
-          # Build once with multiple tags and push to all registries
+          # APPS_JSON is identical between runs, so the builder stage (bench init)
+          # must skip the cache or it would ship stale app code;
+          # only base layers (system deps, Python, Node) come from the cache.
           docker buildx build \
-            --no-cache \
             --platform linux/amd64 \
+            --build-arg BASE_REGISTRY="$BASE_REGISTRY" \
             --build-arg FRAPPE_PATH=https://github.com/frappe/frappe \
             --build-arg FRAPPE_BRANCH=version-14 \
             --build-arg PYTHON_VERSION=3.11.9 \
             --build-arg NODE_VERSION=20.19.2 \
             --build-arg APPS_JSON_BASE64="$APPS_JSON_BASE64" \
-            --tag "$DOCKER_HUB_TAG" \
+            --no-cache-filter builder \
+            --cache-from type=registry,ref=$IMAGE:buildcache \
+            --cache-to type=registry,ref=$IMAGE:buildcache,mode=max \
+            --tag "$IMAGE:$TAG" \
+            --tag "$IMAGE:latest" \
             --file images/custom/Containerfile \
             --push .
-          # Optional second tag:
-          # --tag "$GITLAB_TAG"
+
+      - name: Summary
+        run: |
+          echo "### Pushed to Harbor" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`$IMAGE:${{ steps.build.outputs.tag }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`$IMAGE:latest\`" >> "$GITHUB_STEP_SUMMARY"
