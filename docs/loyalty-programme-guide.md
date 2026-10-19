@@ -159,7 +159,6 @@ Desk → Loyalty → **Loyalty Programme** → New.
 | Status | Draft | **Draft**: nothing happens. **Active**: earning and redemption run. **Paused**: no earning or redemption, but balances are kept and still expire. **Ended**: closed. |
 | Start / End Date | Today / empty | The programme is only live between these dates. |
 | Currency | company currency | Currency of point value. |
-| **Point Value** | 0.01 | What one point is worth when spent. **[Policy]** ⚠ *Decision to confirm.* |
 | Points Rounding | Floor | How fractional points are rounded (Floor / Round / Ceil). Floor means 42.9 → 42. |
 | Terms | — | Terms and conditions, shown in the app and on wallet passes. |
 
@@ -180,6 +179,7 @@ Desk → Loyalty → **Loyalty Programme** → New.
 
 | Field | Default | What it controls |
 | --- | --- | --- |
+| **Value of 1 Point** | 0.01 | What one point is worth when spent: 0.01 means 100 points = 1.00. It is not an earn rate (that is set in the earning rules). **[Policy]** ⚠ *Decision to confirm.* |
 | Min Redeem Points | 0 | The smallest number of points that can be used on one order. |
 | Max Redeem Points per Order | 0 (no limit) | A hard cap per order. |
 | Max Redeem % of Order | 100 | The share of an order points may pay. 50 means points pay at most half. |

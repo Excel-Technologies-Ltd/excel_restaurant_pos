@@ -13,7 +13,6 @@
   "end_date",
   "currency",
   "earning_sb",
-  "point_value",
   "points_rounding",
   "earn_basis",
   "earn_on",
@@ -32,6 +31,7 @@
   "base_rules",
   "base_rule_items",
   "redemption_sb",
+  "point_value",
   "min_redeem_points",
   "max_redeem_points_per_order",
   "max_redeem_percent_of_order",
@@ -110,14 +110,6 @@
    "fieldname": "earning_sb",
    "fieldtype": "Section Break",
    "label": "Earning"
-  },
-  {
-   "default": "0.01",
-   "fieldname": "point_value",
-   "fieldtype": "Currency",
-   "label": "Value of 1 Point",
-   "options": "currency",
-   "reqd": 1
   },
   {
    "default": "Floor",
@@ -223,6 +215,15 @@
    "fieldname": "redemption_sb",
    "fieldtype": "Section Break",
    "label": "Redemption"
+  },
+  {
+   "default": "0.01",
+   "fieldname": "point_value",
+   "fieldtype": "Currency",
+   "label": "Value of 1 Point",
+   "options": "currency",
+   "reqd": 1,
+   "description": "What 1 point is worth when spent. 0.01 means 100 points = 1.00."
   },
   {
    "default": "0",
@@ -368,7 +369,7 @@
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-10-19 18:00:00.000000",
+ "modified": "2026-10-19 19:00:00.000000",
  "modified_by": "Administrator",
  "module": "Excel Restaurant Pos",
  "name": "ArcPOS Loyalty Programme",
