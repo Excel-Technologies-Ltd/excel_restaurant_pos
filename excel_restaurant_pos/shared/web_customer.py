@@ -112,6 +112,11 @@ def ensure_customer_for_user(user_doc, mobile_no=None):
 
 	_ensure_user_permission(user_doc.name, "Customer", customer)
 	_ensure_user_permission(user_doc.name, "User", user_doc.email)
+
+	# Never raises: a loyalty problem must not stop anyone signing up or in.
+	from excel_restaurant_pos.shared.loyalty.accounts import on_web_signup
+
+	on_web_signup(customer, user_doc.name)
 	return customer
 
 

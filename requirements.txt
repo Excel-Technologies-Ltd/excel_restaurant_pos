@@ -2,4 +2,6 @@
 qrcode==7.4.2
 python-barcode==0.15.1
 PyJWT==2.8.0
+google-auth>=2.20
+httpx[http2]>=0.27
 

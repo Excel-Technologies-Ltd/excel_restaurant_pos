@@ -1,0 +1,382 @@
+{
+ "charts": [
+  {
+   "chart_name": "Loyalty Points Trend",
+   "label": "Loyalty Points Trend"
+  },
+  {
+   "chart_name": "Loyalty Campaign Points",
+   "label": "Loyalty Campaign Points"
+  }
+ ],
+ "content": "[{\"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Loyalty</b></span>\", \"col\": 12}}, {\"type\": \"number_card\", \"data\": {\"number_card_name\": \"Loyalty Active Members\", \"col\": 3}}, {\"type\": \"number_card\", \"data\": {\"number_card_name\": \"Loyalty Outstanding Points\", \"col\": 3}}, {\"type\": \"number_card\", \"data\": {\"number_card_name\": \"Loyalty Outstanding Liability\", \"col\": 3}}, {\"type\": \"number_card\", \"data\": {\"number_card_name\": \"Loyalty Points Earned This Month\", \"col\": 3}}, {\"type\": \"number_card\", \"data\": {\"number_card_name\": \"Loyalty Points Redeemed This Month\", \"col\": 3}}, {\"type\": \"number_card\", \"data\": {\"number_card_name\": \"Loyalty Points Expired This Month\", \"col\": 3}}, {\"type\": \"number_card\", \"data\": {\"number_card_name\": \"Loyalty Active Campaigns\", \"col\": 3}}, {\"type\": \"chart\", \"data\": {\"chart_name\": \"Loyalty Points Trend\", \"col\": 6}}, {\"type\": \"chart\", \"data\": {\"chart_name\": \"Loyalty Campaign Points\", \"col\": 6}}, {\"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Members\", \"col\": 3}}, {\"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Campaigns\", \"col\": 3}}, {\"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Adjustments\", \"col\": 3}}, {\"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Rewards\", \"col\": 3}}, {\"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Settings\", \"col\": 3}}, {\"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"type\": \"card\", \"data\": {\"card_name\": \"Setup\", \"col\": 4}}, {\"type\": \"card\", \"data\": {\"card_name\": \"Members\", \"col\": 4}}, {\"type\": \"card\", \"data\": {\"card_name\": \"Campaigns & Rewards\", \"col\": 4}}, {\"type\": \"card\", \"data\": {\"card_name\": \"Wallets & Logs\", \"col\": 4}}, {\"type\": \"card\", \"data\": {\"card_name\": \"Reports\", \"col\": 4}}]",
+ "creation": "2026-10-18 12:00:00.000000",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "star",
+ "idx": 0,
+ "is_hidden": 0,
+ "label": "Loyalty",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Setup",
+   "link_count": 0,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Loyalty Settings",
+   "link_count": 0,
+   "link_to": "ArcPOS Loyalty Settings",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Loyalty Programme",
+   "link_count": 0,
+   "link_to": "ArcPOS Loyalty Programme",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Loyalty Event Type",
+   "link_count": 0,
+   "link_to": "ArcPOS Loyalty Event Type",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Loyalty Segment",
+   "link_count": 0,
+   "link_to": "ArcPOS Loyalty Segment",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Members",
+   "link_count": 0,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Loyalty Account",
+   "link_count": 0,
+   "link_to": "ArcPOS Loyalty Account",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Loyalty Transaction",
+   "link_count": 0,
+   "link_to": "ArcPOS Loyalty Transaction",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Loyalty Adjustment",
+   "link_count": 0,
+   "link_to": "ArcPOS Loyalty Adjustment",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Loyalty Tier Change",
+   "link_count": 0,
+   "link_to": "ArcPOS Loyalty Tier Change",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Campaigns & Rewards",
+   "link_count": 0,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Loyalty Campaign",
+   "link_count": 0,
+   "link_to": "ArcPOS Loyalty Campaign",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Loyalty Reward",
+   "link_count": 0,
+   "link_to": "ArcPOS Loyalty Reward",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Wallets & Logs",
+   "link_count": 0,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Wallet Pass",
+   "link_count": 0,
+   "link_to": "ArcPOS Wallet Pass",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Wallet Device Registration",
+   "link_count": 0,
+   "link_to": "ArcPOS Wallet Device Registration",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Loyalty Notification Log",
+   "link_count": 0,
+   "link_to": "ArcPOS Loyalty Notification Log",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Loyalty Liability Run",
+   "link_count": 0,
+   "link_to": "ArcPOS Loyalty Liability Run",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Reports",
+   "link_count": 0,
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Loyalty Points Summary",
+   "link_count": 0,
+   "link_to": "Loyalty Points Summary",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Loyalty Liability",
+   "link_count": 0,
+   "link_to": "Loyalty Liability",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Loyalty Campaign Performance",
+   "link_count": 0,
+   "link_to": "Loyalty Campaign Performance",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Customer Loyalty Balances",
+   "link_count": 0,
+   "link_to": "Customer Loyalty Balances",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Loyalty Redemption Activity",
+   "link_count": 0,
+   "link_to": "Loyalty Redemption Activity",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Loyalty Expiry Forecast",
+   "link_count": 0,
+   "link_to": "Loyalty Expiry Forecast",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Loyalty Adjustment Audit",
+   "link_count": 0,
+   "link_to": "Loyalty Adjustment Audit",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-10-18 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Excel Restaurant Pos",
+ "name": "Loyalty",
+ "number_cards": [
+  {
+   "label": "Active Members",
+   "number_card_name": "Loyalty Active Members"
+  },
+  {
+   "label": "Outstanding Points",
+   "number_card_name": "Loyalty Outstanding Points"
+  },
+  {
+   "label": "Outstanding Liability",
+   "number_card_name": "Loyalty Outstanding Liability"
+  },
+  {
+   "label": "Points Earned This Month",
+   "number_card_name": "Loyalty Points Earned This Month"
+  },
+  {
+   "label": "Points Redeemed This Month",
+   "number_card_name": "Loyalty Points Redeemed This Month"
+  },
+  {
+   "label": "Points Expired This Month",
+   "number_card_name": "Loyalty Points Expired This Month"
+  },
+  {
+   "label": "Active Campaigns",
+   "number_card_name": "Loyalty Active Campaigns"
+  }
+ ],
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "quick_lists": [],
+ "restrict_to_domain": "",
+ "roles": [
+  {
+   "role": "ArcPOS Loyalty Manager"
+  },
+  {
+   "role": "System Manager"
+  },
+  {
+   "role": "Restaurant Manager"
+  }
+ ],
+ "sequence_id": 30.0,
+ "shortcuts": [
+  {
+   "color": "Blue",
+   "label": "Members",
+   "link_to": "ArcPOS Loyalty Account",
+   "type": "DocType"
+  },
+  {
+   "color": "Green",
+   "label": "Campaigns",
+   "link_to": "ArcPOS Loyalty Campaign",
+   "type": "DocType"
+  },
+  {
+   "color": "Orange",
+   "format": "{} Pending",
+   "label": "Adjustments",
+   "link_to": "ArcPOS Loyalty Adjustment",
+   "stats_filter": "{\"approval_status\": \"Pending Approval\", \"docstatus\": 0}",
+   "type": "DocType"
+  },
+  {
+   "color": "Purple",
+   "label": "Rewards",
+   "link_to": "ArcPOS Loyalty Reward",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "label": "Settings",
+   "link_to": "ArcPOS Loyalty Settings",
+   "type": "DocType"
+  }
+ ],
+ "title": "Loyalty"
+}

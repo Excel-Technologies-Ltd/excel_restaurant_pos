@@ -1,0 +1,414 @@
+{
+ "actions": [],
+ "autoname": "field:programme_name",
+ "creation": "2026-10-18 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "programme_name",
+  "company",
+  "status",
+  "programme_cb1",
+  "start_date",
+  "end_date",
+  "currency",
+  "earning_sb",
+  "point_value",
+  "points_rounding",
+  "earn_basis",
+  "earn_on",
+  "earning_cb",
+  "pending_days",
+  "exclude_gift_card_items",
+  "earn_on_loyalty_paid_amount",
+  "exclude_item_groups",
+  "earning_channels_sb",
+  "earn_dine_in",
+  "earn_in_store_pickup",
+  "earn_channels_cb",
+  "earn_online_delivery",
+  "earn_online_pickup",
+  "base_rules_sb",
+  "base_rules",
+  "base_rule_items",
+  "redemption_sb",
+  "min_redeem_points",
+  "max_redeem_points_per_order",
+  "max_redeem_percent_of_order",
+  "redemption_cb",
+  "redeem_increment",
+  "allow_negative_balance_on_reversal",
+  "restore_grace_days",
+  "redemption_channels_sb",
+  "redeem_dine_in",
+  "redeem_in_store_pickup",
+  "redeem_channels_cb",
+  "redeem_online_delivery",
+  "redeem_online_pickup",
+  "expiry_sb",
+  "expiry_mode",
+  "expiry_days",
+  "expiry_cb",
+  "expiry_notice_days",
+  "tiers_sb",
+  "tier_basis",
+  "tier_review",
+  "tiers",
+  "terms_sb",
+  "terms"
+ ],
+ "fields": [
+  {
+   "fieldname": "programme_name",
+   "fieldtype": "Data",
+   "label": "Programme Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Draft\nActive\nPaused\nEnded",
+   "reqd": 1
+  },
+  {
+   "fieldname": "programme_cb1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Today",
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "label": "Start Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "label": "End Date"
+  },
+  {
+   "fetch_from": "company.default_currency",
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "earning_sb",
+   "fieldtype": "Section Break",
+   "label": "Earning"
+  },
+  {
+   "default": "0.01",
+   "fieldname": "point_value",
+   "fieldtype": "Currency",
+   "label": "Value of 1 Point",
+   "options": "currency",
+   "reqd": 1
+  },
+  {
+   "default": "Floor",
+   "fieldname": "points_rounding",
+   "fieldtype": "Select",
+   "label": "Points Rounding",
+   "options": "Floor\nRound\nCeil"
+  },
+  {
+   "default": "Net Total (excl. tax)",
+   "fieldname": "earn_basis",
+   "fieldtype": "Select",
+   "label": "Earn Basis",
+   "options": "Net Total (excl. tax)\nGrand Total"
+  },
+  {
+   "default": "Paid",
+   "fieldname": "earn_on",
+   "fieldtype": "Select",
+   "label": "Earn On",
+   "options": "Paid\nSubmitted"
+  },
+  {
+   "fieldname": "earning_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "description": "Earned points wait this many days (return window). 0 = immediately available.",
+   "fieldname": "pending_days",
+   "fieldtype": "Int",
+   "label": "Pending Days"
+  },
+  {
+   "default": "1",
+   "fieldname": "exclude_gift_card_items",
+   "fieldtype": "Check",
+   "label": "Exclude Gift Card Items"
+  },
+  {
+   "default": "0",
+   "fieldname": "earn_on_loyalty_paid_amount",
+   "fieldtype": "Check",
+   "label": "Earn on Amount Paid with Points"
+  },
+  {
+   "fieldname": "exclude_item_groups",
+   "fieldtype": "Table MultiSelect",
+   "label": "Exclude Item Groups",
+   "options": "ArcPOS Loyalty Item Group"
+  },
+  {
+   "fieldname": "earning_channels_sb",
+   "fieldtype": "Section Break",
+   "label": "Earning Channels"
+  },
+  {
+   "default": "1",
+   "fieldname": "earn_dine_in",
+   "fieldtype": "Check",
+   "label": "Dine-in / Takeout"
+  },
+  {
+   "default": "1",
+   "fieldname": "earn_in_store_pickup",
+   "fieldtype": "Check",
+   "label": "In Store Pickup"
+  },
+  {
+   "fieldname": "earn_channels_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "earn_online_delivery",
+   "fieldtype": "Check",
+   "label": "Online Delivery"
+  },
+  {
+   "default": "1",
+   "fieldname": "earn_online_pickup",
+   "fieldtype": "Check",
+   "label": "Online Pickup"
+  },
+  {
+   "fieldname": "base_rules_sb",
+   "fieldtype": "Section Break",
+   "label": "Base Rules"
+  },
+  {
+   "fieldname": "base_rules",
+   "fieldtype": "Table",
+   "label": "Base Rules",
+   "options": "ArcPOS Loyalty Rule"
+  },
+  {
+   "fieldname": "base_rule_items",
+   "fieldtype": "Table",
+   "label": "Base Rule Items",
+   "options": "ArcPOS Loyalty Rule Item"
+  },
+  {
+   "fieldname": "redemption_sb",
+   "fieldtype": "Section Break",
+   "label": "Redemption"
+  },
+  {
+   "default": "0",
+   "fieldname": "min_redeem_points",
+   "fieldtype": "Int",
+   "label": "Min Points per Redemption"
+  },
+  {
+   "default": "0",
+   "description": "0 = unlimited",
+   "fieldname": "max_redeem_points_per_order",
+   "fieldtype": "Int",
+   "label": "Max Points per Order"
+  },
+  {
+   "default": "100",
+   "fieldname": "max_redeem_percent_of_order",
+   "fieldtype": "Percent",
+   "label": "Max % of Order"
+  },
+  {
+   "fieldname": "redemption_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "redeem_increment",
+   "fieldtype": "Int",
+   "label": "Redeem in Multiples of"
+  },
+  {
+   "default": "0",
+   "description": "If points from a refunded order were already spent: on = the balance goes negative and future earning pays it back; off = only what is left is reversed.",
+   "fieldname": "allow_negative_balance_on_reversal",
+   "fieldtype": "Check",
+   "label": "Allow Negative Balance on Reversal"
+  },
+  {
+   "default": "7",
+   "description": "Restored points whose original expiry has passed get this many days.",
+   "fieldname": "restore_grace_days",
+   "fieldtype": "Int",
+   "label": "Restore Grace Days"
+  },
+  {
+   "fieldname": "redemption_channels_sb",
+   "fieldtype": "Section Break",
+   "label": "Redemption Channels"
+  },
+  {
+   "default": "1",
+   "fieldname": "redeem_dine_in",
+   "fieldtype": "Check",
+   "label": "Dine-in / Takeout"
+  },
+  {
+   "default": "1",
+   "fieldname": "redeem_in_store_pickup",
+   "fieldtype": "Check",
+   "label": "In Store Pickup"
+  },
+  {
+   "fieldname": "redeem_channels_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "redeem_online_delivery",
+   "fieldtype": "Check",
+   "label": "Online Delivery"
+  },
+  {
+   "default": "1",
+   "fieldname": "redeem_online_pickup",
+   "fieldtype": "Check",
+   "label": "Online Pickup"
+  },
+  {
+   "fieldname": "expiry_sb",
+   "fieldtype": "Section Break",
+   "label": "Expiry"
+  },
+  {
+   "default": "Fixed Days per Lot",
+   "fieldname": "expiry_mode",
+   "fieldtype": "Select",
+   "label": "Expiry Mode",
+   "options": "Fixed Days per Lot\nRolling Inactivity\nNever"
+  },
+  {
+   "default": "365",
+   "fieldname": "expiry_days",
+   "fieldtype": "Int",
+   "label": "Expiry Days"
+  },
+  {
+   "fieldname": "expiry_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "30,7,1",
+   "description": "Comma-separated days before expiry.",
+   "fieldname": "expiry_notice_days",
+   "fieldtype": "Data",
+   "label": "Expiry Notice Days"
+  },
+  {
+   "fieldname": "tiers_sb",
+   "fieldtype": "Section Break",
+   "label": "Tiers"
+  },
+  {
+   "default": "Lifetime Spend",
+   "fieldname": "tier_basis",
+   "fieldtype": "Select",
+   "label": "Tier Basis",
+   "options": "Lifetime Spend\nRolling 12-Month Spend\nRolling 12-Month Points"
+  },
+  {
+   "default": "Upgrade Immediately, Downgrade at Review",
+   "fieldname": "tier_review",
+   "fieldtype": "Select",
+   "label": "Tier Review",
+   "options": "Upgrade Immediately, Downgrade at Review\nContinuous"
+  },
+  {
+   "fieldname": "tiers",
+   "fieldtype": "Table",
+   "label": "Tiers",
+   "options": "ArcPOS Loyalty Tier"
+  },
+  {
+   "fieldname": "terms_sb",
+   "fieldtype": "Section Break",
+   "label": "Terms"
+  },
+  {
+   "fieldname": "terms",
+   "fieldtype": "Text Editor",
+   "label": "Terms"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-10-18 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Excel Restaurant Pos",
+ "name": "ArcPOS Loyalty Programme",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "ArcPOS Loyalty Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Restaurant Manager"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "programme_name",
+ "track_changes": 1
+}

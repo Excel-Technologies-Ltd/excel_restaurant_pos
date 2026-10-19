@@ -47,7 +47,8 @@ fixtures = [
                     "ArcPOS Delivery User",
                     "ArcPOS Channel User",
                     "ArcPOS Reservation User",
-                    "ArcPOS Coupon Manager"
+                    "ArcPOS Coupon Manager",
+                    "ArcPOS Loyalty Manager",
                 ],
             ]
         ],
@@ -114,6 +115,12 @@ doctype_js = {"Sales Invoice": "public/js/sales_invoice.js"}
 
 # before_install = "excel_restaurant_pos.install.before_install"
 # after_install = "excel_restaurant_pos.install.after_install"
+# A fresh install marks every patch as done without running it, so the
+# loyalty setup the v1_12_0 patches do (both idempotent) runs here too.
+after_install = [
+    "excel_restaurant_pos.patches.v1_12_0.create_loyalty_mode_of_payment.execute",
+    "excel_restaurant_pos.patches.v1_12_0.hide_native_loyalty_fields.execute",
+]
 
 # Uninstallation
 # ------------
@@ -181,6 +188,8 @@ after_migrate = [
     # Installs every report_sql/*.sql file, so a new stored procedure only needs
     # the file -- no patch entry per report.
     "excel_restaurant_pos.shared.sql_procedures.sync.sync_sql_objects",
+    # Built-in loyalty event types (customer_signup, first_order, ...).
+    "excel_restaurant_pos.shared.loyalty.events.ensure_builtin_event_types",
 ]
 
 # Runs before DocType/fixture sync so a stuck Currency fieldtype cannot break migrate.
@@ -197,6 +206,15 @@ scheduler_events = {
         "excel_restaurant_pos.utils.jwt_auth.cleanup_expired_blacklist",
         "excel_restaurant_pos.utils.scheduled_tasks.expire_coupon_codes",
     ],
+    "hourly": [
+        # Loyalty: pending points past their return window become spendable,
+        # and a backstop for paid orders whose earning hook failed.
+        "excel_restaurant_pos.shared.loyalty.expiry.release_pending_points",
+        "excel_restaurant_pos.shared.loyalty.earning.backfill_missed_awards",
+    ],
+    "weekly": [
+        "excel_restaurant_pos.shared.loyalty.ledger.reconcile_account_cache",
+    ],
     "cron": {
         # Every 5 minutes: sync Clover payments, and send 30-min order notifications.
         # These must share one key -- a duplicate cron key is not a merge, the last
@@ -204,7 +222,19 @@ scheduler_events = {
         "*/5 * * * *": [
             "excel_restaurant_pos.api.clover.clover_sync.sync_clover_payments",
             "excel_restaurant_pos.utils.scheduled_tasks.check_scheduled_order_notifications",
+            "excel_restaurant_pos.shared.loyalty.wallet.sync.retry_failed_passes",
         ],
+        # Loyalty: expire points just after midnight, review tiers, reconcile
+        # wallet passes overnight, warn members in the morning, true up the
+        # liability before the day closes.
+        "30 0 * * *": ["excel_restaurant_pos.shared.loyalty.expiry.expire_points"],
+        "0 2 * * *": ["excel_restaurant_pos.shared.loyalty.tiers.review_tiers"],
+        "0 3 * * *": ["excel_restaurant_pos.shared.loyalty.wallet.sync.reconcile_wallet_passes"],
+        "0 9 * * *": [
+            "excel_restaurant_pos.shared.loyalty.expiry.send_expiry_notices",
+            "excel_restaurant_pos.shared.loyalty.events.award_birthdays",
+        ],
+        "50 23 * * *": ["excel_restaurant_pos.shared.loyalty.accounting.post_liability_true_up"],
         # Delete marked-as-deleted draft invoices and complete past reservations at 1 AM daily
         "0 1 * * *": [
             "excel_restaurant_pos.utils.scheduled_tasks.delete_marked_invoices",
@@ -217,7 +247,8 @@ scheduler_events = {
         # Backstop: close paid dine-in/takeout orders the event path missed,
         # so a paid table cannot stay marked busy.
         "*/10 * * * *": [
-            "excel_restaurant_pos.utils.scheduled_tasks.close_paid_dine_in_orders"
+            "excel_restaurant_pos.utils.scheduled_tasks.close_paid_dine_in_orders",
+            "excel_restaurant_pos.shared.loyalty.campaigns.update_campaign_status",
         ],
         # Send pending delivery/pickup notifications at exact scheduled time every minute
         "* * * * *": [
@@ -272,7 +303,15 @@ override_whitelisted_methods = {
 # Request Events
 # ----------------
 # Throttle Guest /api/method calls (public storefront + open REST surfaces).
-before_request = ["excel_restaurant_pos.utils.rate_limit.limit_guest_api_requests"]
+# The Apple Wallet hook only touches /loyalty-wallet/apple/ requests; it moves
+# their "ApplePass" Authorization header out of the way of Frappe's own auth.
+before_request = [
+    "excel_restaurant_pos.shared.loyalty.wallet.apple_webservice.prepare_request",
+    "excel_restaurant_pos.utils.rate_limit.limit_guest_api_requests",
+]
+
+# The PassKit web service Apple Wallet calls (REST paths, DELETE included).
+page_renderer = ["excel_restaurant_pos.shared.loyalty.wallet.apple_webservice.AppleWalletWebService"]
 # after_request = ["excel_restaurant_pos.utils.after_request"]
 
 # Job Events

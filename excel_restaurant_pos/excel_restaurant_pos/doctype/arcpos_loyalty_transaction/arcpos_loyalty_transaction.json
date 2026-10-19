@@ -1,0 +1,343 @@
+{
+ "actions": [],
+ "autoname": "LTX-.YYYY.-.#########",
+ "creation": "2026-10-18 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "account",
+  "customer",
+  "programme",
+  "posting_datetime",
+  "txn_cb1",
+  "transaction_type",
+  "points",
+  "status",
+  "currency_value",
+  "lot_sb",
+  "available_on",
+  "expiry_date",
+  "lot_cb",
+  "remaining_points",
+  "outstanding_debt",
+  "source_sb",
+  "source_doctype",
+  "source_name",
+  "campaign",
+  "rule_id",
+  "reward",
+  "source_cb",
+  "event_type",
+  "reverses",
+  "idempotency_key",
+  "remarks",
+  "basis_sb",
+  "basis_amount",
+  "basis_qty",
+  "basis_cb",
+  "basis_items",
+  "allocations_sb",
+  "allocations"
+ ],
+ "fields": [
+  {
+   "fieldname": "account",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Account",
+   "options": "ArcPOS Loyalty Account",
+   "read_only": 1,
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Customer",
+   "options": "Customer",
+   "read_only": 1
+  },
+  {
+   "fieldname": "programme",
+   "fieldtype": "Link",
+   "label": "Programme",
+   "options": "ArcPOS Loyalty Programme",
+   "read_only": 1
+  },
+  {
+   "fieldname": "posting_datetime",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Posting Datetime",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "txn_cb1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "transaction_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Type",
+   "options": "Earn\nBonus\nRedeem\nExpire\nReverse\nAdjust",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "bold": 1,
+   "fieldname": "points",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Points",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Pending\nAvailable\nConsumed\nExpired\nReversed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "currency_value",
+   "fieldtype": "Currency",
+   "label": "Value",
+   "read_only": 1
+  },
+  {
+   "fieldname": "lot_sb",
+   "fieldtype": "Section Break",
+   "label": "Lot"
+  },
+  {
+   "fieldname": "available_on",
+   "fieldtype": "Date",
+   "label": "Available On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "expiry_date",
+   "fieldtype": "Date",
+   "label": "Expiry Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "lot_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "remaining_points",
+   "fieldtype": "Int",
+   "label": "Remaining Points",
+   "read_only": 1
+  },
+  {
+   "description": "Debit points not yet covered by a lot (negative balance).",
+   "fieldname": "outstanding_debt",
+   "fieldtype": "Int",
+   "label": "Outstanding Debt",
+   "read_only": 1
+  },
+  {
+   "fieldname": "source_sb",
+   "fieldtype": "Section Break",
+   "label": "Source"
+  },
+  {
+   "fieldname": "source_doctype",
+   "fieldtype": "Link",
+   "label": "Source DocType",
+   "options": "DocType",
+   "read_only": 1
+  },
+  {
+   "fieldname": "source_name",
+   "fieldtype": "Dynamic Link",
+   "in_standard_filter": 1,
+   "label": "Source",
+   "options": "source_doctype",
+   "read_only": 1
+  },
+  {
+   "fieldname": "campaign",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Campaign",
+   "options": "ArcPOS Loyalty Campaign",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rule_id",
+   "fieldtype": "Data",
+   "label": "Rule ID",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reward",
+   "fieldtype": "Link",
+   "label": "Reward",
+   "options": "ArcPOS Loyalty Reward",
+   "read_only": 1
+  },
+  {
+   "fieldname": "source_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "event_type",
+   "fieldtype": "Link",
+   "label": "Event Type",
+   "options": "ArcPOS Loyalty Event Type",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reverses",
+   "fieldtype": "Link",
+   "label": "Reverses",
+   "options": "ArcPOS Loyalty Transaction",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "idempotency_key",
+   "fieldtype": "Data",
+   "label": "Idempotency Key",
+   "read_only": 1,
+   "unique": 1,
+   "length": 255
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "basis_sb",
+   "fieldtype": "Section Break",
+   "label": "Earning Basis"
+  },
+  {
+   "fieldname": "basis_amount",
+   "fieldtype": "Currency",
+   "label": "Basis Amount",
+   "read_only": 1
+  },
+  {
+   "fieldname": "basis_qty",
+   "fieldtype": "Float",
+   "label": "Basis Qty",
+   "read_only": 1
+  },
+  {
+   "fieldname": "basis_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Item codes the rule matched (JSON). Used for pro-rata return reversal.",
+   "fieldname": "basis_items",
+   "fieldtype": "Small Text",
+   "label": "Basis Items",
+   "read_only": 1
+  },
+  {
+   "fieldname": "allocations_sb",
+   "fieldtype": "Section Break",
+   "label": "Lots Consumed"
+  },
+  {
+   "fieldname": "allocations",
+   "fieldtype": "Table",
+   "label": "Allocations",
+   "options": "ArcPOS Loyalty Allocation",
+   "read_only": 1
+  }
+ ],
+ "in_create": 1,
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-10-18 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Excel Restaurant Pos",
+ "name": "ArcPOS Loyalty Transaction",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager"
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "ArcPOS Loyalty Manager"
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Restaurant Cashier"
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "ArcPOS Register User"
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Restaurant Manager"
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "ArcPOS Manager"
+  },
+  {
+   "role": "Accounts Manager",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "permlevel": 0
+  },
+  {
+   "role": "Accounts User",
+   "read": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "permlevel": 0
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

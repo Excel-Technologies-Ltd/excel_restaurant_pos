@@ -41,6 +41,11 @@ PUBLIC = {
 	"api.file.download_files.download_public_file", "api.timeclock.export.timeclock_export_download",
 	# external callers
 	"api.uber_eats.uber_eats.webhook", "api.clover.clover.webhook", "api.clover.clover.oauth_callback",
+	# Google Wallet save/delete callbacks: Google-signed and token-checked
+	"api.loyalty.wallet.google_callback",
+	# Apple Wallet pass download: iOS must navigate to it, so it carries a
+	# five-minute HMAC-signed link (api.loyalty.wallet.apple_pass_link) instead
+	"api.loyalty.wallet.apple_pass_download",
 	"api.reservation.create_reservation.create_reservation", "api.reservation.create_reservation.get_available_slots",
 }
 

@@ -17,6 +17,8 @@ from excel_restaurant_pos.shared.coupon.services import (
 	normalize_channel,
 	normalize_coupon_name,
 )
+from excel_restaurant_pos.shared.gift_card.holds import REDEEMED_DOCTYPE, REDEEMED_FIELD, lock_card
+from excel_restaurant_pos.shared.payment_ticket import paid_by_card
 from excel_restaurant_pos.shared.gift_card.validation import (
 	GIFT_CARD_TYPE,
 	GIFT_CARD_TYPE_EXISTING,
@@ -401,7 +403,11 @@ def record_gift_card_redemptions(doc, method=None):
 		if (promo_type or "").strip() != GIFT_CARD_TYPE:
 			frappe.throw(_("Cannot redeem gift cards together with a promotional coupon."))
 
+	# The bank card was charged against these amounts: the order must submit.
+	paid = paid_by_card(doc.name)
+
 	seen: set[str] = set()
+	rows = []
 	for row in applied:
 		code = normalize_coupon_name(row.get("gift_card_code"))
 		amount = flt(row.get("redeemed_amount"))
@@ -411,40 +417,64 @@ def record_gift_card_redemptions(doc, method=None):
 		if code in seen:
 			frappe.throw(_("Gift Card {0} is applied more than once.").format(code))
 		seen.add(code)
+		rows.append((code, amount))
 
-		coupon = frappe.get_doc("Coupon Code", code)
-		if (coupon.coupon_type or "").strip() != GIFT_CARD_TYPE:
-			frappe.throw(_("Coupon {0} is not a Gift Card.").format(code))
+	# In code order, so two orders sharing cards lock them in the same order.
+	for code, amount in sorted(rows):
+		_record_one_redemption(doc, code, amount, paid)
 
-		if coupon.custom_generated_on_order == doc.name:
-			frappe.throw(_("Cannot redeem gift card {0} on the invoice that sold it.").format(code))
 
-		status = (coupon.custom_status or "").strip()
-		if status != COUPON_STATUS_ACTIVE:
-			frappe.throw(_("Gift Card {0} is {1}.").format(code, status.lower() or _("invalid")))
+def _record_one_redemption(doc, code: str, amount: float, paid: bool):
+	"""Spend `amount` of one card under its row lock.
 
-		posting_date = getdate(doc.get("posting_date") or nowdate())
-		if coupon.valid_upto and posting_date > getdate(coupon.valid_upto):
-			coupon.custom_status = COUPON_STATUS_EXPIRED
-			coupon.save(ignore_permissions=True)
-			frappe.throw(_("Gift Card {0} has expired.").format(code))
+	The redemption row is inserted on its own rather than by saving the
+	Coupon Code: a save rewrites the whole child table from what this
+	transaction read, and would delete a row another order just committed."""
+	coupon = lock_card(code)
+	if (coupon.coupon_type or "").strip() != GIFT_CARD_TYPE:
+		frappe.throw(_("Coupon {0} is not a Gift Card.").format(code))
 
-		balance = flt(coupon.custom_available_balance)
-		if amount > balance + 0.0001:
-			frappe.throw(
-				_("Gift Card {0} has insufficient balance ({1}).").format(
-					code, frappe.format_value(balance, {"fieldtype": "Currency"})
-				)
-			)
+	if coupon.custom_generated_on_order == doc.name:
+		frappe.throw(_("Cannot redeem gift card {0} on the invoice that sold it.").format(code))
 
-		already = any(
-			(r.sales_invoice == doc.name and flt(r.redeemed_amount) == amount)
-			for r in (coupon.get("custom_coupon_redeemed_on_orders") or [])
+	if any(r.sales_invoice == doc.name and flt(r.redeemed_amount) == amount for r in coupon.redemptions):
+		return
+
+	status = (coupon.custom_status or "").strip()
+	posting_date = getdate(doc.get("posting_date") or nowdate())
+	expired = bool(coupon.valid_upto and posting_date > getdate(coupon.valid_upto))
+	problem = None
+	if status != COUPON_STATUS_ACTIVE:
+		problem = _("Gift Card {0} is {1}.").format(code, status.lower() or _("invalid"))
+	elif expired:
+		problem = _("Gift Card {0} has expired.").format(code)
+	elif amount > coupon.balance + 0.0001:
+		problem = _("Gift Card {0} has insufficient balance ({1}).").format(
+			code, frappe.format_value(coupon.balance, {"fieldtype": "Currency"})
 		)
-		if not already:
-			coupon.append(
-				"custom_coupon_redeemed_on_orders",
-				{"sales_invoice": doc.name, "redeemed_amount": amount},
-			)
+	if problem and not paid:
+		frappe.throw(problem)
+	if problem:
+		frappe.log_error(
+			title="Gift card overdrawn by a paid order",
+			message=f"{doc.name} was charged by card with {amount} from {code} applied. {problem} "
+			"Recorded anyway so the paid order completes; review the card.",
+		)
 
-		recompute_available_balance(coupon, save=True)
+	frappe.get_doc(
+		{
+			"doctype": REDEEMED_DOCTYPE,
+			"parent": code,
+			"parenttype": "Coupon Code",
+			"parentfield": REDEEMED_FIELD,
+			"idx": max((cint(r.idx) for r in coupon.redemptions), default=0) + 1,
+			"sales_invoice": doc.name,
+			"redeemed_amount": amount,
+		}
+	).db_insert()
+
+	balance = max(coupon.balance - amount, 0.0)
+	values = {"custom_available_balance": balance}
+	if status not in ("Rejected", COUPON_STATUS_EXPIRED):
+		values["custom_status"] = COUPON_STATUS_USED if balance <= 0 else COUPON_STATUS_ACTIVE
+	frappe.db.set_value("Coupon Code", code, values)

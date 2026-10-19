@@ -26,7 +26,9 @@ def _discard_payment_tickets(invoice_name: str) -> None:
 
 def is_fully_discounted(invoice) -> bool:
 	"""True when there is nothing left to charge for this invoice."""
-	return flt(invoice.grand_total) <= 0
+	from excel_restaurant_pos.shared.loyalty.redemption import amount_due
+
+	return amount_due(invoice) <= 0
 
 
 def settle_zero_payment(invoice) -> dict:
@@ -52,7 +54,9 @@ def settle_zero_payment(invoice) -> dict:
 			zero_total_is_discount_backed,
 		)
 
-		if not zero_total_is_discount_backed(invoice):
+		# Loyalty points paying the rest leave a positive grand total, which
+		# `validate` already accepts; only a zero total needs a discount behind it.
+		if flt(invoice.grand_total) <= 0 and not zero_total_is_discount_backed(invoice):
 			frappe.throw(
 				_(
 					"Order {0} has no amount to pay and no coupon or gift card that "

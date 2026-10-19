@@ -1,0 +1,68 @@
+{
+ "actions": [],
+ "creation": "2026-10-18 12:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "tier_name",
+  "rank",
+  "threshold",
+  "earn_multiplier",
+  "benefits",
+  "pass_color"
+ ],
+ "fields": [
+  {
+   "fieldname": "tier_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Tier Name",
+   "reqd": 1
+  },
+  {
+   "description": "1 = lowest",
+   "fieldname": "rank",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Rank",
+   "reqd": 1
+  },
+  {
+   "description": "Measured per the programme's Tier Basis.",
+   "fieldname": "threshold",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Threshold"
+  },
+  {
+   "default": "1",
+   "fieldname": "earn_multiplier",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Earn Multiplier"
+  },
+  {
+   "fieldname": "benefits",
+   "fieldtype": "Small Text",
+   "label": "Benefits"
+  },
+  {
+   "fieldname": "pass_color",
+   "fieldtype": "Color",
+   "label": "Pass Colour"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-10-18 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Excel Restaurant Pos",
+ "name": "ArcPOS Loyalty Tier",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

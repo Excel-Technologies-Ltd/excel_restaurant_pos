@@ -117,6 +117,9 @@ EXEMPT_GUEST_METHODS = frozenset(
 		"api.uber_eats.webhook",
 		"excel_restaurant_pos.api.clover.clover.webhook",
 		"excel_restaurant_pos.api.clover.clover.oauth_callback",
+		# Signed by Google and carrying our callback token.
+		"api.loyalty.wallet.google_callback",
+		"excel_restaurant_pos.api.loyalty.wallet.google_callback",
 	}
 )
 

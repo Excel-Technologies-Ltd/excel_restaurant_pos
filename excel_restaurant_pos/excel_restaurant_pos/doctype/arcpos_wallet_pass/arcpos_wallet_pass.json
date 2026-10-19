@@ -1,0 +1,142 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-10-18 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "account",
+  "platform",
+  "object_id",
+  "status",
+  "pass_cb",
+  "last_synced_at",
+  "last_synced_hash",
+  "retry_count",
+  "next_retry_at",
+  "last_error",
+  "pass_auth_sb",
+  "auth_token",
+  "auth_token_hash"
+ ],
+ "fields": [
+  {
+   "fieldname": "account",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Account",
+   "options": "ArcPOS Loyalty Account",
+   "reqd": 1
+  },
+  {
+   "fieldname": "platform",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Platform",
+   "options": "Google\nApple",
+   "reqd": 1
+  },
+  {
+   "fieldname": "object_id",
+   "fieldtype": "Data",
+   "label": "Object ID / Serial",
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "default": "Issued",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Issued\nInstalled\nRemoved\nVoided"
+  },
+  {
+   "fieldname": "pass_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "last_synced_at",
+   "fieldtype": "Datetime",
+   "label": "Last Synced",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_synced_hash",
+   "fieldtype": "Data",
+   "label": "Last Synced Hash",
+   "read_only": 1
+  },
+  {
+   "fieldname": "retry_count",
+   "fieldtype": "Int",
+   "label": "Retry Count",
+   "read_only": 1
+  },
+  {
+   "fieldname": "next_retry_at",
+   "fieldtype": "Datetime",
+   "label": "Next Retry",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_error",
+   "fieldtype": "Small Text",
+   "label": "Last Error",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.platform=='Apple'",
+   "fieldname": "pass_auth_sb",
+   "fieldtype": "Section Break",
+   "label": "Apple Authentication"
+  },
+  {
+   "fieldname": "auth_token",
+   "fieldtype": "Password",
+   "label": "Authentication Token",
+   "read_only": 1
+  },
+  {
+   "fieldname": "auth_token_hash",
+   "fieldtype": "Data",
+   "label": "Authentication Token Hash",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-10-18 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Excel Restaurant Pos",
+ "name": "ArcPOS Wallet Pass",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "ArcPOS Loyalty Manager"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

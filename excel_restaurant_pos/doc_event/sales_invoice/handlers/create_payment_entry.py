@@ -7,6 +7,25 @@ from excel_restaurant_pos.shared.sales_invoice import (
 )
 
 
+def _without_loyalty_tender(rows):
+    """The invoice's payment rows, less loyalty points.
+
+    Points tender is booked by the loyalty module when the invoice is submitted
+    (shared/loyalty/redemption.py); a loyalty row carried on the invoice must
+    not be booked a second time here.
+    """
+    if not rows:
+        return rows
+    mode = frappe.db.get_single_value("ArcPOS Loyalty Settings", "loyalty_mode_of_payment")
+    if not mode:
+        return rows
+    return [
+        row
+        for row in rows
+        if (row.get("mode_of_payment") if isinstance(row, dict) else row.mode_of_payment) != mode
+    ]
+
+
 def create_payment_entry(sales_invoice, payments=None):
     # This used to open with frappe.set_user("Administrator") and never put the
     # session back, so every caller -- including the guest reachable gateway
@@ -20,7 +39,9 @@ def create_payment_entry(sales_invoice, payments=None):
         frappe.throw(f"Receivable account not found for company {doc.company}")
 
     if not payments:
-        payments = doc.payments
+        payments = _without_loyalty_tender(doc.payments)
+        if doc.payments and not payments:
+            return []
 
     # Nothing to do is reported, not shrugged off. Enqueued from
     # submit_sales_invoice this used to return success having created nothing,

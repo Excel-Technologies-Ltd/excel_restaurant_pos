@@ -1,0 +1,138 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-10-18 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "run_date",
+  "company",
+  "programme",
+  "status",
+  "lr_cb",
+  "outstanding_points",
+  "target_value",
+  "gl_balance",
+  "delta",
+  "journal_entry",
+  "remarks"
+ ],
+ "fields": [
+  {
+   "fieldname": "run_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Run Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "read_only": 1
+  },
+  {
+   "fieldname": "programme",
+   "fieldtype": "Link",
+   "label": "Programme",
+   "options": "ArcPOS Loyalty Programme",
+   "read_only": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Posted\nNo Change\nFailed\nSkipped",
+   "read_only": 1
+  },
+  {
+   "fieldname": "lr_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "outstanding_points",
+   "fieldtype": "Int",
+   "label": "Outstanding Points",
+   "read_only": 1
+  },
+  {
+   "fieldname": "target_value",
+   "fieldtype": "Currency",
+   "label": "Target Liability",
+   "read_only": 1
+  },
+  {
+   "fieldname": "gl_balance",
+   "fieldtype": "Currency",
+   "label": "GL Balance Before",
+   "read_only": 1
+  },
+  {
+   "fieldname": "delta",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Delta",
+   "read_only": 1
+  },
+  {
+   "fieldname": "journal_entry",
+   "fieldtype": "Link",
+   "label": "Journal Entry",
+   "options": "Journal Entry",
+   "read_only": 1
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks",
+   "read_only": 1
+  }
+ ],
+ "in_create": 1,
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-10-18 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Excel Restaurant Pos",
+ "name": "ArcPOS Loyalty Liability Run",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager"
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "ArcPOS Loyalty Manager"
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager"
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts User"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

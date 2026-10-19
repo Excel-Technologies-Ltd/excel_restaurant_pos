@@ -1,0 +1,196 @@
+{
+ "actions": [],
+ "creation": "2026-10-18 12:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "rule_id",
+  "rule_name",
+  "enabled",
+  "trigger",
+  "event_type",
+  "rule_type",
+  "rule_cb1",
+  "points",
+  "per_amount",
+  "multiplier",
+  "multiplier_scope",
+  "applies_to",
+  "rule_conditions_sb",
+  "min_order_amount",
+  "min_qty",
+  "order_number",
+  "rule_cb2",
+  "max_points_per_order",
+  "priority",
+  "exclusive",
+  "rule_condition_sb",
+  "condition"
+ ],
+ "fields": [
+  {
+   "columns": 1,
+   "description": "Stable id, set automatically. Rule Item rows refer to it.",
+   "fieldname": "rule_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Rule ID",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "rule_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Rule Name",
+   "reqd": 1
+  },
+  {
+   "columns": 1,
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Enabled"
+  },
+  {
+   "columns": 1,
+   "default": "Purchase",
+   "fieldname": "trigger",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Trigger",
+   "options": "Purchase\nEvent"
+  },
+  {
+   "depends_on": "eval:doc.trigger=='Event'",
+   "fieldname": "event_type",
+   "fieldtype": "Link",
+   "label": "Event Type",
+   "mandatory_depends_on": "eval:doc.trigger=='Event'",
+   "options": "ArcPOS Loyalty Event Type"
+  },
+  {
+   "columns": 2,
+   "default": "Spend Rate",
+   "description": "Spend Rate: Points per Per Amount spent. Spend Threshold: Points once spend reaches Per Amount. Item Quantity: Points per matching quantity. Item Spend: Points per Per Amount spent on matching items. Fixed Bonus: Points when the conditions hold. Multiplier: multiplies points by Multiplier.",
+   "fieldname": "rule_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Rule Type",
+   "options": "Spend Rate\nSpend Threshold\nItem Quantity\nItem Spend\nFixed Bonus\nMultiplier",
+   "reqd": 1
+  },
+  {
+   "fieldname": "rule_cb1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "columns": 1,
+   "fieldname": "points",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Points"
+  },
+  {
+   "depends_on": "eval:['Spend Rate','Spend Threshold','Item Spend'].includes(doc.rule_type)",
+   "fieldname": "per_amount",
+   "fieldtype": "Currency",
+   "label": "Per Amount / Threshold"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.rule_type=='Multiplier'",
+   "fieldname": "multiplier",
+   "fieldtype": "Float",
+   "label": "Multiplier"
+  },
+  {
+   "default": "Base Points",
+   "depends_on": "eval:doc.rule_type=='Multiplier'",
+   "fieldname": "multiplier_scope",
+   "fieldtype": "Select",
+   "label": "Multiplier Scope",
+   "options": "Base Points\nAll Points Before Multipliers"
+  },
+  {
+   "default": "All Items",
+   "description": "Filtered: only invoice lines matching this rule's Rule Item rows.",
+   "fieldname": "applies_to",
+   "fieldtype": "Select",
+   "label": "Applies To",
+   "options": "All Items\nFiltered"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "rule_conditions_sb",
+   "fieldtype": "Section Break",
+   "label": "Conditions"
+  },
+  {
+   "fieldname": "min_order_amount",
+   "fieldtype": "Currency",
+   "label": "Min Order Amount"
+  },
+  {
+   "fieldname": "min_qty",
+   "fieldtype": "Float",
+   "label": "Min Matching Qty"
+  },
+  {
+   "description": "E.g. 1 = the customer's first order only. 0 = any.",
+   "fieldname": "order_number",
+   "fieldtype": "Int",
+   "label": "Only Order Number"
+  },
+  {
+   "fieldname": "rule_cb2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "0 = no cap",
+   "fieldname": "max_points_per_order",
+   "fieldtype": "Int",
+   "label": "Max Points per Order"
+  },
+  {
+   "default": "0",
+   "description": "Higher runs first.",
+   "fieldname": "priority",
+   "fieldtype": "Int",
+   "label": "Priority"
+  },
+  {
+   "description": "When this rule awards points, lower-priority rules in the same scope are skipped.",
+   "fieldname": "exclusive",
+   "fieldtype": "Check",
+   "label": "Exclusive"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "rule_condition_sb",
+   "fieldtype": "Section Break",
+   "label": "Advanced Condition"
+  },
+  {
+   "description": "Optional Python expression, e.g. <code>order.weekday == 'Fri' and order.total &gt;= 50</code>. Available: order.total, order.eligible_amount, order.channel, order.weekday, order.hour, order.items, order.number, customer.tier, customer.order_count, customer.days_since_last_order, event.payload.",
+   "fieldname": "condition",
+   "fieldtype": "Code",
+   "label": "Condition",
+   "options": "Python"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-10-18 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Excel Restaurant Pos",
+ "name": "ArcPOS Loyalty Rule",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

@@ -1,0 +1,233 @@
+{
+ "actions": [],
+ "autoname": "field:reward_name",
+ "creation": "2026-10-18 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "reward_name",
+  "programme",
+  "enabled",
+  "reward_type",
+  "points_cost",
+  "reward_cb1",
+  "image",
+  "description",
+  "voucher_sb",
+  "discount_type",
+  "discount_value",
+  "max_discount_amount",
+  "free_item",
+  "voucher_cb",
+  "voucher_validity_days",
+  "redemption_allow_on",
+  "min_order_amount",
+  "limits_sb",
+  "eligible_tiers",
+  "stock_limit",
+  "per_customer_limit",
+  "limits_cb",
+  "active_from",
+  "active_to",
+  "redeemed_count"
+ ],
+ "fields": [
+  {
+   "fieldname": "reward_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Reward Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "programme",
+   "fieldtype": "Link",
+   "label": "Programme",
+   "options": "ArcPOS Loyalty Programme",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Enabled"
+  },
+  {
+   "default": "Order Discount Voucher",
+   "fieldname": "reward_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Reward Type",
+   "options": "Order Discount Voucher\nFree Item"
+  },
+  {
+   "fieldname": "points_cost",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Points Cost",
+   "reqd": 1
+  },
+  {
+   "fieldname": "reward_cb1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "image",
+   "fieldtype": "Attach Image",
+   "label": "Image"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "voucher_sb",
+   "fieldtype": "Section Break",
+   "label": "Voucher"
+  },
+  {
+   "default": "Flat Amount",
+   "depends_on": "eval:doc.reward_type=='Order Discount Voucher'",
+   "fieldname": "discount_type",
+   "fieldtype": "Select",
+   "label": "Discount Type",
+   "options": "Flat Amount\nPercentage"
+  },
+  {
+   "depends_on": "eval:doc.reward_type=='Order Discount Voucher'",
+   "fieldname": "discount_value",
+   "fieldtype": "Float",
+   "label": "Discount Value"
+  },
+  {
+   "depends_on": "eval:doc.discount_type=='Percentage'",
+   "fieldname": "max_discount_amount",
+   "fieldtype": "Currency",
+   "label": "Max Discount"
+  },
+  {
+   "depends_on": "eval:doc.reward_type=='Free Item'",
+   "fieldname": "free_item",
+   "fieldtype": "Link",
+   "label": "Free Item",
+   "mandatory_depends_on": "eval:doc.reward_type=='Free Item'",
+   "options": "Item"
+  },
+  {
+   "fieldname": "voucher_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "30",
+   "fieldname": "voucher_validity_days",
+   "fieldtype": "Int",
+   "label": "Voucher Validity (Days)"
+  },
+  {
+   "default": "All",
+   "fieldname": "redemption_allow_on",
+   "fieldtype": "Select",
+   "label": "Voucher Valid On",
+   "options": "All\nPOS\nDine-in\nIn Store Pickup\nOnline Pickup\nOnline Delivery\nOnly Online"
+  },
+  {
+   "fieldname": "min_order_amount",
+   "fieldtype": "Currency",
+   "label": "Voucher Min Subtotal"
+  },
+  {
+   "fieldname": "limits_sb",
+   "fieldtype": "Section Break",
+   "label": "Limits"
+  },
+  {
+   "description": "Comma-separated. Empty = all.",
+   "fieldname": "eligible_tiers",
+   "fieldtype": "Small Text",
+   "label": "Eligible Tiers"
+  },
+  {
+   "default": "0",
+   "description": "0 = unlimited",
+   "fieldname": "stock_limit",
+   "fieldtype": "Int",
+   "label": "Stock Limit"
+  },
+  {
+   "default": "0",
+   "description": "0 = unlimited",
+   "fieldname": "per_customer_limit",
+   "fieldtype": "Int",
+   "label": "Per Customer Limit"
+  },
+  {
+   "fieldname": "limits_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "active_from",
+   "fieldtype": "Date",
+   "label": "Active From"
+  },
+  {
+   "fieldname": "active_to",
+   "fieldtype": "Date",
+   "label": "Active To"
+  },
+  {
+   "fieldname": "redeemed_count",
+   "fieldtype": "Int",
+   "label": "Redeemed",
+   "no_copy": 1,
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-10-18 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Excel Restaurant Pos",
+ "name": "ArcPOS Loyalty Reward",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "ArcPOS Loyalty Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Restaurant Manager"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

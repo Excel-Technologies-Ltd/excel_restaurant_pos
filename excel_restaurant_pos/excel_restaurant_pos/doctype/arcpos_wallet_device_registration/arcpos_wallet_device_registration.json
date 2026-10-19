@@ -1,0 +1,86 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-10-18 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "device_library_id",
+  "pass",
+  "serial_number",
+  "reg_cb",
+  "push_token",
+  "registered_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "device_library_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Device Library ID",
+   "reqd": 1
+  },
+  {
+   "fieldname": "pass",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Pass",
+   "options": "ArcPOS Wallet Pass",
+   "reqd": 1
+  },
+  {
+   "fieldname": "serial_number",
+   "fieldtype": "Data",
+   "label": "Serial Number",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reg_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "push_token",
+   "fieldtype": "Data",
+   "label": "Push Token",
+   "reqd": 1
+  },
+  {
+   "fieldname": "registered_at",
+   "fieldtype": "Datetime",
+   "label": "Registered At",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-10-18 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Excel Restaurant Pos",
+ "name": "ArcPOS Wallet Device Registration",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "ArcPOS Loyalty Manager"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
