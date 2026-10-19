@@ -183,7 +183,7 @@ Desk → Loyalty → **Loyalty Programme** → New.
 | Min Redeem Points | 0 | The smallest number of points that can be used on one order. |
 | Max Redeem Points per Order | 0 (no limit) | A hard cap per order. |
 | Max Redeem % of Order | 100 | The share of an order points may pay. 50 means points pay at most half. |
-| Redeem Increment | 1 | Points must be used in multiples of this (e.g. 100 → 100, 200, 300…). |
+| Redeem Increment | 1 | The "chunk size" points are spent in. 1 = any number of points. 100 = only 100, 200, 300… so a member with 1,250 points can use up to 1,200 and keeps the other 50. The maximum is rounded down to a whole step, the minimum up to at least one step, and an off-step amount is refused ("Points must be used in multiples of 100."). With a point value of 0.01, an increment of 100 means points are spent in whole dollars. |
 | Redeem per channel | all on | Which channels may redeem. |
 | Allow Negative Balance on Reversal | Off | What happens when a refunded order's points were already spent. Off: only what is left is taken back. On: the balance goes negative and future earning pays it off. **[Policy]** ⚠ *Decision to confirm.* |
 | Restore Grace Days | 7 | When refunded points are given back after their original expiry date has passed, they get this many extra days. |
