@@ -213,7 +213,12 @@ Desk → Loyalty → **Loyalty Programme** → New.
 | --- | --- | --- |
 | **Upgrade Immediately, Downgrade at Review** (default) | Only at the member's review date, one year after reaching the tier (the year is fixed in code). | Protecting members' status through quiet months. |
 | **Continuous** | At the next check: the nightly review at 02:00, or the member's next earning order. | Tiers that follow recent spending day by day. |
-| **Immediate Upgrade & Downgrade** | As Continuous, **and** at once when an order is cancelled or refunded. | Stopping "order big, reach Gold, cancel" from keeping a tier the member never paid for. |
+| **Immediate Upgrade & Downgrade** | As Continuous, **and** at once whenever any order is cancelled or refunded. | Tiers that always match current spend, with no waiting at all. |
+
+**In every option**, if an order is cancelled or refunded and it is the one that got the
+member to their current tier (they reached the tier on or after that order's date), the
+member is re-checked at once and drops back if they no longer qualify. The one-year
+protection covers a tier the member paid for, not one that rested on an undone order.
 
 Changing a tier's threshold does not move anyone by itself. Members are re-checked at
 their next check, per the option above.

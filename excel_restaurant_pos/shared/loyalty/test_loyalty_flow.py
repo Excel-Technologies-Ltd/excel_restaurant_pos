@@ -464,14 +464,14 @@ class TestLoyaltyFlow(FrappeTestCase):
 		self.assertTrue(short.startswith("event:custom_event:"))
 		self.assertNotEqual(short, ledger.norm_key(key + "y"))
 
-	def tiered(self, mode):
-		"""Silver from 0, Gold at 100 spend, under review mode `mode`, for this test only."""
+	def tiered(self, mode, gold=100):
+		"""Silver from 0, Gold at `gold` spend, under review mode `mode`, for this test only."""
 		programme = frappe.get_doc("ArcPOS Loyalty Programme", PROGRAMME)
 		before = {"tier_review": programme.tier_review, "tiers": [row.as_dict() for row in programme.tiers]}
 		programme.tier_review = mode
 		programme.set("tiers", [])
 		programme.append("tiers", {"tier_name": "_Silver", "rank": 1, "threshold": 0, "earn_multiplier": 1})
-		programme.append("tiers", {"tier_name": "_Gold", "rank": 2, "threshold": 100, "earn_multiplier": 1})
+		programme.append("tiers", {"tier_name": "_Gold", "rank": 2, "threshold": gold, "earn_multiplier": 1})
 		programme.save(ignore_permissions=True)
 
 		def restore():
@@ -500,13 +500,33 @@ class TestLoyaltyFlow(FrappeTestCase):
 		self.assertEqual(frappe.db.get_value(ACCOUNT, account, "tier"), "_Silver")
 		self.assertTrue(frappe.db.exists("ArcPOS Loyalty Tier Change", {"account": account, "to_tier": "_Silver"}))
 
-	def test_other_tier_reviews_keep_the_tier_until_their_usual_check(self):
+	def test_every_tier_review_undoes_a_tier_its_cancelled_order_gave(self):
 		from excel_restaurant_pos.shared.loyalty import tiers
 
-		self.assertEqual(frappe.db.get_value(ACCOUNT, self.gold_then_cancel(tiers.CONTINUOUS), "tier"), "_Gold")
-		self.assertEqual(
-			frappe.db.get_value(ACCOUNT, self.gold_then_cancel("Upgrade Immediately, Downgrade at Review"), "tier"), "_Gold"
-		)
+		for mode in (tiers.CONTINUOUS, "Upgrade Immediately, Downgrade at Review"):
+			self.assertEqual(frappe.db.get_value(ACCOUNT, self.gold_then_cancel(mode), "tier"), "_Silver", mode)
+
+	def test_review_protection_survives_cancelling_a_later_order(self):
+		from excel_restaurant_pos.shared.loyalty import tiers
+
+		def gold_earlier_then_cancel_another(mode):
+			self.tiered(mode, gold=150)
+			customer, account = self.member(f"Protected {mode}")
+			pay(make_invoice(customer, qty=3))  # 150: Gold
+			self.assertEqual(frappe.db.get_value(ACCOUNT, account, "tier"), "_Gold")
+			# Gold since last month; then the bar is raised above the member's spend.
+			frappe.db.set_value(ACCOUNT, account, "tier_since", add_days(nowdate(), -30))
+			self.tiered(mode, gold=250)
+
+			si = make_invoice(customer, qty=1)  # 200 in all, still short of 250
+			cash = pay(si)
+			for name in cash:
+				frappe.get_doc("Payment Entry", name).cancel()
+			frappe.get_doc("Sales Invoice", si.name).cancel()
+			return frappe.db.get_value(ACCOUNT, account, "tier")
+
+		self.assertEqual(gold_earlier_then_cancel_another("Upgrade Immediately, Downgrade at Review"), "_Gold")
+		self.assertEqual(gold_earlier_then_cancel_another(tiers.IMMEDIATE), "_Silver")
 
 	def test_immediate_tier_review_follows_a_return(self):
 		from erpnext.accounts.doctype.sales_invoice.sales_invoice import make_sales_return

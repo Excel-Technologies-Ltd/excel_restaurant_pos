@@ -78,11 +78,12 @@ def qualifying_value(account, programme) -> float:
 	return flt(row[0][0])
 
 
-def evaluate(account_name: str, reason: str = "", review: bool = False) -> str | None:
+def evaluate(account_name: str, reason: str = "", review: bool = False, undo_upgrade: bool = False) -> str | None:
 	"""Recompute an account's tier. Returns the new tier when it changed.
 
 	Upgrades apply at once. Downgrades wait for the review date unless the
-	programme reviews continuously; `review=True` is the scheduled review.
+	programme reviews continuously; `review=True` is the scheduled review, and
+	`undo_upgrade=True` drops a tier whose qualifying order was just undone.
 	"""
 	account = frappe.db.get_value(
 		ACCOUNT,
@@ -118,7 +119,7 @@ def evaluate(account_name: str, reason: str = "", review: bool = False) -> str |
 
 	if current and cint(target.rank) < cint(current.rank):
 		due = account.tier_review_date and getdate(account.tier_review_date) <= getdate(nowdate())
-		if programme.tier_review not in DOWNGRADE_ANY_TIME and not (review and due):
+		if programme.tier_review not in DOWNGRADE_ANY_TIME and not (review and due) and not undo_upgrade:
 			return None
 
 	change_tier(account, current.tier_name if current else None, target.tier_name, value, reason)
@@ -128,18 +129,29 @@ def evaluate(account_name: str, reason: str = "", review: bool = False) -> str |
 def on_spend_reversed(doc, reason: str):
 	"""A cancelled order or a credit note lowered the member's spend.
 
-	Under Immediate Upgrade & Downgrade the tier follows at once, so a tier
-	reached with an order that is then undone does not outlive it. The other
-	modes wait for their usual check: the nightly review or the next order.
+	In every mode, a tier the member reached on or after the undone order's
+	date is re-checked at once: the review-date protection is for a tier the
+	member paid for, not one resting on an order that no longer counts.
+	Immediate Upgrade & Downgrade goes further and re-checks on any reversal.
+	Otherwise a tier earned earlier waits for its usual check.
 	"""
 	from excel_restaurant_pos.shared.loyalty.accounts import account_for_customer
 
 	account = account_for_customer(doc.get("customer"))
 	if not account:
 		return
-	programme = get_programme(frappe.db.get_value(ACCOUNT, account, "programme"))
-	if programme and programme.tier_review == IMMEDIATE:
+	programme_name, tier_since = frappe.db.get_value(ACCOUNT, account, ["programme", "tier_since"])
+	programme = get_programme(programme_name)
+	if not programme:
+		return
+	if programme.tier_review == IMMEDIATE:
 		evaluate(account, reason=reason)
+		return
+
+	order = doc.get("return_against") or doc.name
+	order_date = frappe.db.get_value("Sales Invoice", order, "posting_date")
+	if tier_since and order_date and getdate(tier_since) >= getdate(order_date):
+		evaluate(account, reason=reason, undo_upgrade=True)
 
 
 def change_tier(account, from_tier, to_tier, value, reason=""):
