@@ -205,7 +205,18 @@ Desk → Loyalty → **Loyalty Programme** → New.
 | Field | Default | What it controls |
 | --- | --- | --- |
 | Tier Basis | Lifetime Spend | What qualifies a member for a tier: lifetime spend, spend in the last 12 months, or points earned in the last 12 months. |
-| Tier Review | Upgrade Immediately, Downgrade at Review | Members move up as soon as they qualify. They only move down at their review date (one year after reaching the tier). **Continuous** moves both ways every day. |
+| Tier Review | Upgrade Immediately, Downgrade at Review | How members move between tiers. Three choices (below). |
+
+**Tier Review options** (members always move **up** as soon as they qualify; the options differ in when they move **down**):
+
+| Option | Moves down | Best for |
+| --- | --- | --- |
+| **Upgrade Immediately, Downgrade at Review** (default) | Only at the member's review date, one year after reaching the tier (the year is fixed in code). | Protecting members' status through quiet months. |
+| **Continuous** | At the next check: the nightly review at 02:00, or the member's next earning order. | Tiers that follow recent spending day by day. |
+| **Immediate Upgrade & Downgrade** | As Continuous, **and** at once when an order is cancelled or refunded. | Stopping "order big, reach Gold, cancel" from keeping a tier the member never paid for. |
+
+Changing a tier's threshold does not move anyone by itself. Members are re-checked at
+their next check, per the option above.
 | Tiers table | — | One row per tier: name, rank (1 = lowest), threshold, earn multiplier, benefits text, pass colour. |
 
 Example tiers:

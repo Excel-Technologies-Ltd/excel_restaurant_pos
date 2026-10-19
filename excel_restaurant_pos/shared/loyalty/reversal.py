@@ -8,7 +8,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt, nowdate
 
-from excel_restaurant_pos.shared.loyalty import campaigns, ledger
+from excel_restaurant_pos.shared.loyalty import campaigns, ledger, tiers
 from excel_restaurant_pos.shared.loyalty.redemption import loyalty_mode, loyalty_payment_entries
 from excel_restaurant_pos.shared.loyalty.rules import round_points
 from excel_restaurant_pos.shared.loyalty.settings import TXN, get_programme
@@ -51,6 +51,12 @@ def on_invoice_cancel(doc, method=None):
 	off the member; redeemed points are restored with their original expiry.
 	"""
 	_cancel_loyalty_payments(doc.name)
+	_reverse_cancelled(doc)
+	# After the reversal: an order that earned nothing still counted as spend.
+	ledger.safely("Loyalty tier update failed", tiers.on_spend_reversed, doc, _("Order {0} cancelled").format(doc.name))
+
+
+def _reverse_cancelled(doc):
 	rows = _rows_for(doc.name)
 	if not rows:
 		return
@@ -108,6 +114,11 @@ def on_return_submit(doc, method=None):
 	"""Sales Invoice on_submit of a credit note: reverse earned points and restore redeemed ones pro rata."""
 	if not cint(doc.get("is_return")) or not doc.get("return_against"):
 		return
+	_reverse_returned(doc)
+	ledger.safely("Loyalty tier update failed", tiers.on_spend_reversed, doc, _("Return {0}").format(doc.name))
+
+
+def _reverse_returned(doc):
 	rows = _rows_for(doc.return_against)
 	if not rows:
 		return

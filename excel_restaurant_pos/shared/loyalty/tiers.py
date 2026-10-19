@@ -9,6 +9,9 @@ from frappe.utils import add_days, cint, flt, getdate, now_datetime, nowdate
 from excel_restaurant_pos.shared.loyalty.settings import ACCOUNT, TIER_CHANGE, TXN, get_programme
 
 CONTINUOUS = "Continuous"
+IMMEDIATE = "Immediate Upgrade & Downgrade"
+# Review modes that downgrade at any check, not only at the review date.
+DOWNGRADE_ANY_TIME = (CONTINUOUS, IMMEDIATE)
 REVIEW_PERIOD_DAYS = 365
 
 
@@ -115,11 +118,28 @@ def evaluate(account_name: str, reason: str = "", review: bool = False) -> str |
 
 	if current and cint(target.rank) < cint(current.rank):
 		due = account.tier_review_date and getdate(account.tier_review_date) <= getdate(nowdate())
-		if programme.tier_review != CONTINUOUS and not (review and due):
+		if programme.tier_review not in DOWNGRADE_ANY_TIME and not (review and due):
 			return None
 
 	change_tier(account, current.tier_name if current else None, target.tier_name, value, reason)
 	return target.tier_name
+
+
+def on_spend_reversed(doc, reason: str):
+	"""A cancelled order or a credit note lowered the member's spend.
+
+	Under Immediate Upgrade & Downgrade the tier follows at once, so a tier
+	reached with an order that is then undone does not outlive it. The other
+	modes wait for their usual check: the nightly review or the next order.
+	"""
+	from excel_restaurant_pos.shared.loyalty.accounts import account_for_customer
+
+	account = account_for_customer(doc.get("customer"))
+	if not account:
+		return
+	programme = get_programme(frappe.db.get_value(ACCOUNT, account, "programme"))
+	if programme and programme.tier_review == IMMEDIATE:
+		evaluate(account, reason=reason)
 
 
 def change_tier(account, from_tier, to_tier, value, reason=""):

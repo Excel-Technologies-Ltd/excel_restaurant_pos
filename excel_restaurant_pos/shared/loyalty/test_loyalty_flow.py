@@ -463,3 +463,64 @@ class TestLoyaltyFlow(FrappeTestCase):
 		self.assertLessEqual(len(short), ledger.KEY_LENGTH)
 		self.assertTrue(short.startswith("event:custom_event:"))
 		self.assertNotEqual(short, ledger.norm_key(key + "y"))
+
+	def tiered(self, mode):
+		"""Silver from 0, Gold at 100 spend, under review mode `mode`, for this test only."""
+		programme = frappe.get_doc("ArcPOS Loyalty Programme", PROGRAMME)
+		before = {"tier_review": programme.tier_review, "tiers": [row.as_dict() for row in programme.tiers]}
+		programme.tier_review = mode
+		programme.set("tiers", [])
+		programme.append("tiers", {"tier_name": "_Silver", "rank": 1, "threshold": 0, "earn_multiplier": 1})
+		programme.append("tiers", {"tier_name": "_Gold", "rank": 2, "threshold": 100, "earn_multiplier": 1})
+		programme.save(ignore_permissions=True)
+
+		def restore():
+			doc = frappe.get_doc("ArcPOS Loyalty Programme", PROGRAMME)
+			doc.tier_review = before["tier_review"]
+			doc.set("tiers", [{k: row[k] for k in ("tier_name", "rank", "threshold", "earn_multiplier")} for row in before["tiers"]])
+			doc.save(ignore_permissions=True)
+
+		self.addCleanup(restore)
+
+	def gold_then_cancel(self, mode):
+		self.tiered(mode)
+		customer, account = self.member(f"Tier {mode}")
+		si = make_invoice(customer)  # 100 spend
+		cash = pay(si)
+		self.assertEqual(frappe.db.get_value(ACCOUNT, account, "tier"), "_Gold")
+		for name in cash:
+			frappe.get_doc("Payment Entry", name).cancel()
+		frappe.get_doc("Sales Invoice", si.name).cancel()
+		return account
+
+	def test_immediate_tier_review_drops_a_tier_its_cancelled_order_gave(self):
+		from excel_restaurant_pos.shared.loyalty import tiers
+
+		account = self.gold_then_cancel(tiers.IMMEDIATE)
+		self.assertEqual(frappe.db.get_value(ACCOUNT, account, "tier"), "_Silver")
+		self.assertTrue(frappe.db.exists("ArcPOS Loyalty Tier Change", {"account": account, "to_tier": "_Silver"}))
+
+	def test_other_tier_reviews_keep_the_tier_until_their_usual_check(self):
+		from excel_restaurant_pos.shared.loyalty import tiers
+
+		self.assertEqual(frappe.db.get_value(ACCOUNT, self.gold_then_cancel(tiers.CONTINUOUS), "tier"), "_Gold")
+		self.assertEqual(
+			frappe.db.get_value(ACCOUNT, self.gold_then_cancel("Upgrade Immediately, Downgrade at Review"), "tier"), "_Gold"
+		)
+
+	def test_immediate_tier_review_follows_a_return(self):
+		from erpnext.accounts.doctype.sales_invoice.sales_invoice import make_sales_return
+
+		from excel_restaurant_pos.shared.loyalty import tiers
+
+		self.tiered(tiers.IMMEDIATE)
+		customer, account = self.member("Tier return")
+		si = make_invoice(customer, qty=4, rate=25)
+		pay(si)
+		self.assertEqual(frappe.db.get_value(ACCOUNT, account, "tier"), "_Gold")
+
+		credit = make_sales_return(si.name)
+		credit.items[0].qty = -1
+		credit.insert(ignore_permissions=True)
+		frappe.get_doc("Sales Invoice", credit.name).submit()
+		self.assertEqual(frappe.db.get_value(ACCOUNT, account, "tier"), "_Silver")
