@@ -575,3 +575,68 @@ class TestLoyaltyFlow(FrappeTestCase):
 				self.assertEqual(flt(frappe.db.get_value("Payment Entry", loyalty_pe[0], "paid_amount")), 4.0)
 				create_payment_entry(sales_invoice=si.name)  # the cash rows, as the queued job does
 			self.assertEqual(flt(frappe.db.get_value("Sales Invoice", si.name, "outstanding_amount")), 0, saved_first)
+
+	def unlink_on_cancel(self, on):
+		setting = ("Accounts Settings", "unlink_payment_on_cancellation_of_invoice")
+		before = frappe.db.get_single_value(*setting)
+		frappe.db.set_single_value(*setting, on)
+		self.addCleanup(frappe.db.set_single_value, *setting, before)
+
+	def points_order(self, customer, points=40):
+		si = make_invoice(customer, qty=1, rate=50, submit=False)
+		redemption.apply_points(si.name, points)
+		frappe.get_doc("Sales Invoice", si.name).submit()
+		return si.name
+
+	def test_cancel_takes_the_points_payment_with_it(self):
+		# With "Unlink Payment on Cancellation of Invoice" on (ERPNext's default)
+		# the points Payment Entry used to stay behind as customer credit.
+		for unlink in (1, 0):
+			self.unlink_on_cancel(unlink)
+			customer, account = self.member(f"Cancel {unlink}")
+			pay(make_invoice(customer))  # 100 points
+			invoice = self.points_order(customer)
+			loyalty_pe = redemption.loyalty_payment_entries(invoice)
+			cash = pay(frappe.get_doc("Sales Invoice", invoice))
+			if not unlink:
+				for name in cash:
+					frappe.get_doc("Payment Entry", name).cancel()
+			frappe.get_doc("Sales Invoice", invoice).cancel()
+			self.assertEqual(frappe.db.get_value("Payment Entry", loyalty_pe[0], "docstatus"), 2, unlink)
+			self.assertEqual(balance(account), 100, unlink)
+
+	def test_cancelling_the_points_payment_alone_gives_the_points_back_once(self):
+		customer, account = self.member("PE cancel")
+		pay(make_invoice(customer))  # 100 points
+		invoice = self.points_order(customer)
+		self.assertEqual(balance(account), 60)
+
+		frappe.get_doc("Payment Entry", redemption.loyalty_payment_entries(invoice)[0]).cancel()
+		self.assertEqual(balance(account), 100)
+		self.assertEqual(flt(frappe.db.get_value("Sales Invoice", invoice, "outstanding_amount")), 50)
+
+		frappe.get_doc("Sales Invoice", invoice).cancel()
+		self.assertEqual(balance(account), 100)
+
+	def test_pos_return_refunds_the_points_through_its_own_row(self):
+		from erpnext.accounts.doctype.sales_invoice.sales_invoice import make_sales_return
+
+		customer, account = self.member("POS return")
+		pay(make_invoice(customer, qty=4))  # 200 points
+		si = make_invoice(customer, qty=1, rate=50, submit=False)
+		redemption.apply_points(si.name, 40)  # 4.00
+		si = frappe.get_doc("Sales Invoice", si.name)
+		si.is_pos = 1
+		si.append("payments", {"mode_of_payment": "Cash", "amount": 46})
+		si.save(ignore_permissions=True)  # ERPNext books both rows itself
+		frappe.get_doc("Sales Invoice", si.name).submit()
+		self.assertEqual(balance(account), 206)
+
+		failures = frappe.db.count("Error Log", {"method": "Loyalty refund payment failed"})
+		credit = make_sales_return(si.name)
+		credit.insert(ignore_permissions=True)
+		frappe.get_doc("Sales Invoice", credit.name).submit()
+
+		self.assertEqual(balance(account), 200)
+		self.assertFalse(redemption.loyalty_payment_entries(credit.name))
+		self.assertEqual(frappe.db.count("Error Log", {"method": "Loyalty refund payment failed"}), failures)

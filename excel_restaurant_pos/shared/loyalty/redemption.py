@@ -387,12 +387,12 @@ def on_submit_redemption(doc, method=None):
 	if not points:
 		return
 	value = flt(doc.get(VALUE_FIELD))
-	if not _pos_row_booked(doc):
+	if not pos_row_booked(doc):
 		create_loyalty_payment(doc.name, value)
 	_after_redeem(doc.get(ACCOUNT_FIELD), doc.name, points, value)
 
 
-def _pos_row_booked(doc) -> bool:
+def pos_row_booked(doc) -> bool:
 	"""Whether ERPNext's own POS payment rows already book the points tender.
 
 	It books a POS invoice's rows only when they were priced on a save: a

@@ -52,6 +52,10 @@ custom_doc_events = {
             "excel_restaurant_pos.shared.loyalty.earning.on_invoice_submit",
             "excel_restaurant_pos.shared.loyalty.reversal.on_return_submit",
         ],
+        "before_cancel": [
+            # Before ERPNext unlinks the invoice's Payment Entries on cancel.
+            "excel_restaurant_pos.shared.loyalty.reversal.before_invoice_cancel",
+        ],
         "on_cancel": [
             # custom_order_status = 2 and custom_status = Rejected, so a coupon
             # from a voided order cannot be spent.
@@ -83,6 +87,8 @@ custom_doc_events = {
             "excel_restaurant_pos.doc_event.payment_entry.settle_order_status_on_payment",
             "excel_restaurant_pos.shared.loyalty.earning.on_payment_settled",
         ],
+        # A points tender cancelled on its own gives the points back.
+        "on_cancel": "excel_restaurant_pos.shared.loyalty.reversal.on_payment_cancel",
     },
     "Coupon Code": {
         "after_insert": "excel_restaurant_pos.shared.client_contact.create_client_contact_from_coupon",

@@ -9,7 +9,7 @@ from frappe import _
 from frappe.utils import cint, flt, nowdate
 
 from excel_restaurant_pos.shared.loyalty import campaigns, ledger, tiers
-from excel_restaurant_pos.shared.loyalty.redemption import loyalty_mode, loyalty_payment_entries
+from excel_restaurant_pos.shared.loyalty.redemption import loyalty_mode, loyalty_payment_entries, pos_row_booked
 from excel_restaurant_pos.shared.loyalty.rules import round_points
 from excel_restaurant_pos.shared.loyalty.settings import TXN, get_programme
 
@@ -20,7 +20,7 @@ def _rows_for(invoice: str) -> list[frappe._dict]:
 	return frappe.get_all(
 		TXN,
 		filters={"source_doctype": INVOICE, "source_name": invoice},
-		fields=["name", "account", "programme", "transaction_type", "points", "campaign", "basis_items", "basis_qty"],
+		fields=["name", "account", "programme", "transaction_type", "points", "campaign", "basis_items", "basis_qty", "reverses"],
 		order_by="creation asc",
 	)
 
@@ -43,6 +43,18 @@ def _finish(accounts: set, touched_campaigns: set):
 		campaigns.update_stats(campaign)
 
 
+def before_invoice_cancel(doc, method=None):
+	"""Sales Invoice before_cancel: cancel the points tender while it is still linked.
+
+	ERPNext's own on_cancel runs before any hook's and, with Accounts Settings
+	"Unlink Payment on Cancellation of Invoice" on (its default), strips the
+	invoice's Payment Entry references first. Found later, the loyalty Payment
+	Entry would be gone from view and stay behind as customer credit on top of
+	the points given back.
+	"""
+	_cancel_loyalty_payments(doc.name)
+
+
 def on_invoice_cancel(doc, method=None):
 	"""Sales Invoice on_cancel: reverse every loyalty entry the invoice produced.
 
@@ -50,7 +62,6 @@ def on_invoice_cancel(doc, method=None):
 	be undone or the ledger and the books disagree. Earned points come back
 	off the member; redeemed points are restored with their original expiry.
 	"""
-	_cancel_loyalty_payments(doc.name)
 	_reverse_cancelled(doc)
 	# After the reversal: an order that earned nothing still counted as spend.
 	ledger.safely("Loyalty tier update failed", tiers.on_spend_reversed, doc, _("Order {0} cancelled").format(doc.name))
@@ -62,26 +73,60 @@ def _reverse_cancelled(doc):
 		return
 
 	programme = get_programme(rows[0].programme)
+	own = {row.name for row in rows}
 	accounts, touched = set(), set()
 	for row in rows:
+		if row.reverses in own:
+			# Already an undo of this invoice's own entry (its points Payment
+			# Entry was cancelled first): undoing it again would re-take them.
+			continue
 		ledger.lock_account(row.account)
-		undo_entry(row, f"reverse:{row.name}:cancel:{doc.name}", programme, doc.name)
+		undo_entry(row, _cancel_key(row, doc.name), programme, doc.name)
 		accounts.add(row.account)
 		if row.campaign:
 			touched.add(row.campaign)
 	_finish(accounts, touched)
 
 
-def _cancel_loyalty_payments(invoice: str):
-	"""Cancel the Payment Entries that booked points tender against `invoice`.
+def _cancel_key(row, invoice: str) -> str:
+	# Shared by the invoice's cancel and its points Payment Entry's own
+	# cancel, so whichever comes first restores the points and the other finds
+	# them restored.
+	return f"reverse:{row.name}:cancel:{invoice}"
 
-	on_cancel runs before Frappe's back-link check, so cancelling them here
-	keeps a submitted loyalty payment from blocking its own invoice.
-	"""
+
+def _cancel_loyalty_payments(invoice: str):
+	"""Cancel the Payment Entries that booked points tender against `invoice`."""
 	for name in loyalty_payment_entries(invoice):
 		pe = frappe.get_doc("Payment Entry", name)
 		pe.flags.ignore_permissions = True
+		# The invoice's own cancel restores the points (on_payment_cancel).
+		pe.flags.loyalty_invoice_cancel = True
 		pe.cancel()
+
+
+def on_payment_cancel(doc, method=None):
+	"""Payment Entry on_cancel: a points tender cancelled on its own gives the points back.
+
+	Its invoice then owes that much again, to be paid another way; leaving the
+	points spent would charge the member twice. Desk's "Cancel All" also comes
+	this way, cancelling the Payment Entry before its invoice.
+	"""
+	if doc.flags.get("loyalty_invoice_cancel") or doc.payment_type != "Receive":
+		return
+	mode = loyalty_mode()
+	if not mode or doc.mode_of_payment != mode:
+		return
+	for ref in doc.get("references") or []:
+		if ref.reference_doctype != INVOICE:
+			continue
+		name = ledger.find_by_key(f"redeem:{ref.reference_name}")
+		if not name:
+			continue
+		row = frappe.get_doc(TXN, name)
+		ledger.lock_account(row.account)
+		undo_entry(row, _cancel_key(row, ref.reference_name), get_programme(row.programme), ref.reference_name)
+		_finish({row.account}, {row.campaign} if row.campaign else set())
 
 
 # ---------------------------------------------------------------- credit notes
@@ -129,6 +174,15 @@ def _reverse_returned(doc):
 	original_net = flt(original.base_net_total or original.net_total)
 	returned_net = flt(doc.base_net_total or doc.net_total)
 	total_ratio = min(abs(flt(doc.grand_total)) / flt(original.grand_total), 1.0) if flt(original.grand_total) else 0
+	# A POS credit note refunds the points tender through its own payment row,
+	# in whatever amount staff entered there: restore the points to match it.
+	native_refund = pos_row_booked(doc)
+	if native_refund:
+		mode, paid_with_points = loyalty_mode(), flt(original.get("custom_loyalty_redeem_value"))
+		refunded = sum(abs(flt(r.amount)) for r in doc.get("payments") or [] if r.mode_of_payment == mode)
+		tender_ratio = min(refunded / paid_with_points, 1.0) if paid_with_points else 0
+	else:
+		tender_ratio = total_ratio
 
 	accounts, touched, restored_points = set(), set(), 0
 	for row in rows:
@@ -137,7 +191,7 @@ def _reverse_returned(doc):
 			points = round_points(cint(row.points) * ratio, "Round")
 			key = f"reverse:{doc.name}:{row.name}"
 		elif row.transaction_type == "Redeem":
-			points = round_points(-cint(row.points) * total_ratio, "Round")
+			points = round_points(-cint(row.points) * tender_ratio, "Round")
 			key = f"reverse:{row.name}:{doc.name}"
 		else:
 			continue
@@ -153,7 +207,7 @@ def _reverse_returned(doc):
 			restored_points += sum(cint(frappe.db.get_value(TXN, name, "points")) for name in names)
 
 	_finish(accounts, touched)
-	if restored_points and programme:
+	if restored_points and programme and not native_refund:
 		_refund_loyalty_tender(doc, flt(restored_points * flt(programme.point_value), 2))
 
 
@@ -197,7 +251,9 @@ def _refund_loyalty_tender(return_doc, value: float):
 		frappe.log_error(
 			title="Loyalty refund payment failed",
 			message=(
-				f"Credit note {return_doc.name}: {value} was restored as points but no Payment Entry recorded it. "
-				f"Refund that much less to the customer, or book it by hand.\n\n{frappe.get_traceback()}"
+				f"Credit note {return_doc.name}: {value} of points was given back to the member, but the Payment "
+				f"Entry settling that part of the credit note failed. Its outstanding still includes the {value}: "
+				f"settle it with a Loyalty Points Payment Entry, never as cash, or the customer is refunded "
+				f"twice.\n\n{frappe.get_traceback()}"
 			),
 		)
