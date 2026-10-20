@@ -209,19 +209,21 @@ def stamp_invoice(invoice: str, values: dict):
 
 
 def _record_order(account: str, doc):
-	frappe.db.set_value(
-		ACCOUNT,
-		account,
-		{
-			"order_count": frappe.db.count(INVOICE, {"customer": doc.customer, "docstatus": 1, "is_return": 0}),
-			"last_order_at": get_datetime(f"{doc.posting_date} {doc.get('posting_time') or '00:00:00'}"),
-		},
-		update_modified=False,
-	)
+	values = {"order_count": frappe.db.count(INVOICE, {"customer": doc.customer, "docstatus": 1, "is_return": 0})}
+	ordered_at = get_datetime(f"{doc.posting_date} {doc.get('posting_time') or '00:00:00'}")
+	last = frappe.db.get_value(ACCOUNT, account, "last_order_at")
+	# An older order awarded late (the backfill) must not move it back.
+	if not last or get_datetime(last) < ordered_at:
+		values["last_order_at"] = ordered_at
+	frappe.db.set_value(ACCOUNT, account, values, update_modified=False)
 
 
-def award_for_invoice(invoice) -> list[str]:
-	"""Award the points a paid (or submitted, per programme) invoice earns. Idempotent."""
+def award_for_invoice(invoice, backfill: bool = False) -> list[str]:
+	"""Award the points a paid (or submitted, per programme) invoice earns. Idempotent.
+
+	`backfill` is the hourly backstop, which comes back to every recent order
+	that earned nothing: one that earns nothing again changes nothing.
+	"""
 	doc = frappe.get_doc(INVOICE, invoice) if isinstance(invoice, str) else invoice
 	if cint(doc.docstatus) != 1 or cint(doc.get("is_return")):
 		return []
@@ -262,6 +264,8 @@ def award_for_invoice(invoice) -> list[str]:
 
 	ctx = invoice_context(doc, programme, account)
 	awards = evaluate(programme, ctx)
+	if backfill and not awards and ctx["order_number"] != 1:
+		return []
 
 	until = pending_until(programme, doc.posting_date)
 	expiry = expiry_for(programme, max(getdate(until), getdate(nowdate())) if until else nowdate())
@@ -423,8 +427,14 @@ def on_payment_settled(doc, method=None):
 			safely("Loyalty earning on payment failed", award_for_invoice, ref.reference_name)
 
 
-def backfill_missed_awards(days: int = 3):
-	"""Hourly backstop: recent paid invoices of members that have earned nothing yet."""
+def backfill_missed_awards(days: int = 30):
+	"""Hourly backstop: recent paid invoices of members that have earned nothing yet.
+
+	A month back, newest first: an order paid days later (a Journal Entry, a
+	reconciliation) never passes through the Payment Entry hook. An order with
+	a return is left alone: its points would be awarded in full with nothing
+	left to reverse the returned part.
+	"""
 	if not is_enabled() or not get_active_programme():
 		return
 	rows = frappe.db.sql(
@@ -439,11 +449,15 @@ def backfill_missed_awards(days: int = 3):
 				WHERE t.source_doctype = 'Sales Invoice' AND t.source_name = si.name
 					AND t.transaction_type IN ('Earn', 'Bonus')
 			)
+			AND NOT EXISTS (
+				SELECT 1 FROM `tabSales Invoice` r WHERE r.return_against = si.name AND r.docstatus = 1
+			)
+		ORDER BY si.posting_date DESC, si.creation DESC
 		LIMIT 500
 		""",
 		(PAID_TOLERANCE, add_days(nowdate(), -cint(days))),
 		pluck=True,
 	)
 	for name in rows:
-		safely("Loyalty earning backfill failed", award_for_invoice, name)
+		safely("Loyalty earning backfill failed", award_for_invoice, name, backfill=True)
 		frappe.db.commit()

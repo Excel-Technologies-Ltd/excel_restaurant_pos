@@ -6,7 +6,9 @@ with card or cash on the same order. Tax is computed on the full order.
 
 Flow:
 - apply / remove on a draft only set the invoice fields; nothing is spent.
-- validate re-checks the limits on every save and clamps when the order shrank.
+- validate re-checks the limits on every save and clamps when the order shrank,
+  except on a submit whose payment rows were priced for the old points, which
+  it refuses; and a card-paid order keeps its points as priced.
 - before_submit locks the account, re-reads the ledger and posts the Redeem
   entry inside the submit transaction -- a failed submit rolls it back, and of
   two drafts racing for the same points the second fails here.
@@ -61,16 +63,21 @@ def redeemed_value(doc) -> float:
 	return _number(doc, VALUE_FIELD) if _number(doc, POINTS_FIELD) else 0.0
 
 
+def payable_total(invoice) -> float:
+	"""What the order owes in all: ERPNext's outstanding starts from the rounded total."""
+	return _number(invoice, "rounded_total") or _number(invoice, "grand_total")
+
+
 def amount_due(invoice) -> float:
 	"""What is still to be collected by other tenders once points are applied."""
-	return max(_number(invoice, "grand_total") - redeemed_value(invoice), 0.0)
+	return max(payable_total(invoice) - redeemed_value(invoice), 0.0)
 
 
 def _due_for_points(doc) -> float:
 	# A draft, or one being submitted right now, owes its full total -- its own
 	# loyalty row (POS) must not shrink the room for the points it pays.
 	if cint(doc.get("docstatus")) == 0 or getattr(doc, "_action", None) == "submit":
-		return flt(doc.get("grand_total"))
+		return payable_total(doc)
 	return flt(doc.get("outstanding_amount"))
 
 
@@ -160,8 +167,17 @@ def assert_configured(company: str):
 	mode = loyalty_mode()
 	if not mode:
 		frappe.throw(_("Set the Loyalty Mode of Payment in ArcPOS Loyalty Settings."))
-	if not get_mode_of_payment_account(mode, company):
+	account = get_mode_of_payment_account(mode, company)
+	if not account:
 		frappe.throw(_("Mode of Payment {0} has no account for company {1}.").format(mode, company))
+	liability = get_settings().liability_account
+	if liability and account != liability:
+		# Points tender would leave the liability the true-up keeps in balance.
+		frappe.throw(
+			_("Mode of Payment {0} posts to {1}, not the loyalty liability account {2}. Save ArcPOS Loyalty Settings to fix it.").format(
+				mode, account, liability
+			)
+		)
 
 
 def _check_order(doc, account: str, programme):
@@ -306,6 +322,27 @@ def _after_redeem(account: str, invoice: str, points: int, value: float):
 # ---------------------------------------------------------------- hooks
 
 
+def _other_payments(doc) -> float:
+	mode = loyalty_mode()
+	return sum(flt(row.amount) for row in doc.get("payments") or [] if row.mode_of_payment != mode)
+
+
+def _priced_payments(doc) -> bool:
+	"""Being submitted with payment rows worked out against the points it carries.
+
+	Changing the points now would leave those payments short (Partly Paid,
+	nothing earned) or over: refuse instead, so the till can correct them.
+	"""
+	return getattr(doc, "_action", None) == "submit" and _other_payments(doc) > 0
+
+
+def _drop(doc, message: str):
+	if _priced_payments(doc):
+		frappe.throw(message + " " + _("Update the payment and submit again."), title=_("Loyalty Points"))
+	frappe.msgprint(message, alert=True)
+	_clear(doc)
+
+
 def validate_invoice_redemption(doc, method=None):
 	"""Sales Invoice validate: keep applied points within the limits of the current order."""
 	points = cint(doc.get(POINTS_FIELD))
@@ -317,33 +354,52 @@ def validate_invoice_redemption(doc, method=None):
 		stamped = doc.get(ACCOUNT_FIELD)
 		if stamped and frappe.db.get_value(ACCOUNT, stamped, "customer") != doc.customer:
 			doc.set(ACCOUNT_FIELD, None)
+		mode = loyalty_mode()
+		# A credit note's negative row refunds points spent on the order it returns.
+		if getattr(doc, "_action", None) == "submit" and any(
+			row.mode_of_payment == mode and flt(row.amount) > 0 for row in doc.get("payments") or []
+		):
+			# Nothing would book it, and no points would be spent for it.
+			frappe.throw(
+				_("This order has a {0} payment but no points applied. Apply the points to the order first.").format(mode),
+				title=_("Loyalty Points"),
+			)
 		return
 
-	if cint(doc.get("is_return")) or not is_enabled():
+	if cint(doc.get("is_return")):
 		_clear(doc)
+		return
+
+	submitting = getattr(doc, "_action", None) == "submit"
+	if submitting and holds.paid_by_card(doc.get("name")):
+		# The card was charged for what these points left: they stand as priced.
+		return
+
+	if not is_enabled():
+		_drop(doc, _("Loyalty is turned off, so the points were removed from this order."))
 		return
 
 	programme = get_active_programme(doc.posting_date)
 	account = account_for_customer(doc.customer)
 	if not programme or not account or (doc.get(ACCOUNT_FIELD) and doc.get(ACCOUNT_FIELD) != account):
-		frappe.msgprint(_("Loyalty points were removed from this order."), alert=True)
-		_clear(doc)
+		_drop(doc, _("Loyalty points were removed from this order."))
 		return
 
 	_check_order(doc, account, programme)
 	# On submit the balance is checked under the account lock in
 	# post_redemption, which refuses clearly; clamping here would quietly drop
 	# points another order spent first.
-	submitting = getattr(doc, "_action", None) == "submit"
 	opts = options(doc, account, programme, available=points if submitting else None)
-	if points > opts["max_points"]:
-		points = opts["max_points"]
-		frappe.msgprint(_("Loyalty points on this order were reduced to {0}.").format(points), alert=True)
-	points = (points // opts["step"]) * opts["step"]
-	if points < opts["min_points"] or points <= 0:
-		frappe.msgprint(_("Loyalty points were removed from this order."), alert=True)
-		_clear(doc)
+	allowed = (min(points, opts["max_points"]) // opts["step"]) * opts["step"]
+	if allowed < opts["min_points"] or allowed <= 0:
+		_drop(doc, _("Loyalty points were removed from this order."))
 		return
+	if allowed != points:
+		message = _("Loyalty points on this order were reduced to {0}.").format(allowed)
+		if _priced_payments(doc):
+			frappe.throw(message + " " + _("Update the payment and submit again."), title=_("Loyalty Points"))
+		frappe.msgprint(message, alert=True)
+		points = allowed
 
 	value = flt(points * opts["point_value"], 2)
 	doc.set(POINTS_FIELD, points)
@@ -351,15 +407,16 @@ def validate_invoice_redemption(doc, method=None):
 	doc.set(ACCOUNT_FIELD, account)
 	_upsert_pos_row(doc, value)
 
-	if cint(doc.get("custom_with_arcpos_payment")) and not cint(doc.get("is_pos")):
-		mode = loyalty_mode()
-		other = sum(flt(row.amount) for row in doc.get("payments") or [] if row.mode_of_payment != mode)
-		if other + value > flt(doc.grand_total) + TOLERANCE:
+	if cint(doc.get("custom_with_arcpos_payment")):
+		# Including POS invoices: ArcPOS books every row as a Payment Entry
+		# allocated in full, so an over-tender fails the whole cash booking.
+		other, total = _other_payments(doc), payable_total(doc)
+		if other + value > total + TOLERANCE:
 			frappe.throw(
 				_("Payments ({0}) plus loyalty points ({1}) exceed the order total ({2}).").format(
 					frappe.format_value(other, {"fieldtype": "Currency"}),
 					frappe.format_value(value, {"fieldtype": "Currency"}),
-					frappe.format_value(doc.grand_total, {"fieldtype": "Currency"}),
+					frappe.format_value(total, {"fieldtype": "Currency"}),
 				)
 			)
 

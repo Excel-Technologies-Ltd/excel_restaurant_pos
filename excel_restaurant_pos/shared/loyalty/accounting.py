@@ -3,7 +3,7 @@
 Earning does not post to the GL one entry at a time (thousands a day).
 Instead the GL liability is moved to match the ledger on each run:
 
-	target  = (available + pending points) x point value
+	target  = sum over the company's programmes of (available + pending points) x point value
 	balance = credit - debit on the liability account
 	delta   = target - balance  -> Dr Expense / Cr Liability (or the reverse)
 
@@ -18,7 +18,14 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt, get_last_day, getdate, nowdate
 
-from excel_restaurant_pos.shared.loyalty.settings import LIABILITY_RUN, TXN, get_programme, get_settings, is_enabled
+from excel_restaurant_pos.shared.loyalty.settings import (
+	LIABILITY_RUN,
+	PROGRAMME,
+	TXN,
+	get_programme,
+	get_settings,
+	is_enabled,
+)
 
 
 def outstanding_points(programme: str) -> int:
@@ -33,6 +40,18 @@ def outstanding_points(programme: str) -> int:
 		programme,
 	)
 	return cint(row[0][0])
+
+
+def outstanding_value(company: str) -> tuple[int, float]:
+	"""Points and their value still owed to members, across every programme of
+	`company`: switching the active programme leaves the old one's points
+	spendable, so they stay in the liability."""
+	points, value = 0, 0.0
+	for name in frappe.get_all(PROGRAMME, filters={"company": company, "status": ["!=", "Draft"]}, pluck="name"):
+		owed = outstanding_points(name)
+		points += owed
+		value += owed * flt(get_programme(name).point_value)
+	return points, flt(value, 2)
 
 
 def gl_balance(account: str, company: str, upto=None) -> float:
@@ -77,8 +96,7 @@ def post_liability_true_up(force: bool = False):
 		frappe.db.commit()
 		return run.name
 
-	points = outstanding_points(programme.name)
-	target = flt(points * flt(programme.point_value), 2)
+	points, target = outstanding_value(programme.company)
 	balance = flt(gl_balance(settings.liability_account, programme.company), 2)
 	delta = flt(target - balance, 2)
 	values = {"outstanding_points": points, "target_value": target, "gl_balance": balance, "delta": delta}
@@ -102,9 +120,7 @@ def post_liability_true_up(force: bool = False):
 		je.voucher_type = "Journal Entry"
 		je.company = programme.company
 		je.posting_date = nowdate()
-		je.user_remark = _("Loyalty liability true-up: {0} points outstanding at {1} = {2}").format(
-			points, programme.point_value, target
-		)
+		je.user_remark = _("Loyalty liability true-up: {0} points outstanding, worth {1}").format(points, target)
 		je.append("accounts", {"account": debit_account, "debit_in_account_currency": amount, "cost_center": cost_center})
 		je.append("accounts", {"account": credit_account, "credit_in_account_currency": amount, "cost_center": cost_center})
 		je.flags.ignore_permissions = True

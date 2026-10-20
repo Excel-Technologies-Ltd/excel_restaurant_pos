@@ -75,8 +75,18 @@ voucher is then applied through the existing coupon flow.
   amount needs a new code). The member reads out the code →
   `POST api.loyalty.verify_otp {sales_invoice, code, points}`,
   then apply or submit. Without it, submitting fails with "Verification Required".
-- **Payments rows:** cash and card rows must total `grand_total − value`.
-  Never add a loyalty row yourself; the server books it.
+- **Payments rows:** cash and card rows must total `rounded_total − value`
+  (`grand_total` when rounding is off). Never add a loyalty row yourself; the
+  server books it. The server refuses the submit, rather than leaving the
+  order part-paid, when:
+  - cash and card rows plus the points exceed the total ("Payments … plus
+    loyalty points … exceed the order total");
+  - a Loyalty Points row is sent with no points applied;
+  - the points no longer fit the order's limits ("Loyalty points on this order
+    were reduced to N. Update the payment and submit again."). Re-read
+    `redemption_options`, re-price the rows and submit again.
+- **Payment dialog** (`api.payment_entry.create_payment`): refuses a Loyalty
+  Points row. Use `apply_points` instead.
 - Dine-in orders already submitted to the kitchen can take points too. The
   points are spent immediately and the order's outstanding drops.
 - Receipt: print `custom_loyalty_points_redeemed`, `custom_loyalty_redeem_value`

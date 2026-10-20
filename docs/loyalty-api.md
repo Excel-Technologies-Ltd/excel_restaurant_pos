@@ -107,8 +107,15 @@ ArcPOS Register User, Restaurant Manager, Restaurant Cashier, Restaurant Waiter)
   `{payment_required: false}` and submits the order itself.
 - Changing applied points discards any Moneris ticket already issued for the order.
 - POS payments rows (`custom_with_arcpos_payment`) must add up to at most
-  `grand_total - custom_loyalty_redeem_value`. A loyalty row in `payments` is
-  ignored by `create_payment_entry`; the loyalty module books it.
+  `rounded_total` (or `grand_total`) `- custom_loyalty_redeem_value`. A loyalty
+  row in `payments` is ignored by `create_payment_entry`; the loyalty module
+  books it (unless ERPNext already booked the row, on a draft saved before
+  submit). A submit is refused when the rows overpay, when a Loyalty Points
+  row has no points applied, or when the points must change to fit the
+  order's limits: the rows were priced for the old points.
+- `api.payment_entry.create_payment` refuses a Loyalty Points row.
+- Amounts are measured against `rounded_total` when rounding is on, as
+  ERPNext's outstanding is.
 
 ## Invoice fields
 

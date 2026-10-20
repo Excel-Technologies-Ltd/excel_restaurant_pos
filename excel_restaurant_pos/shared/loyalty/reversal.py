@@ -208,7 +208,11 @@ def _reverse_returned(doc):
 
 	_finish(accounts, touched)
 	if restored_points and programme and not native_refund:
-		_refund_loyalty_tender(doc, flt(restored_points * flt(programme.point_value), 2))
+		# At the value the order was paid with, not today's: the point value
+		# may have changed since.
+		spent_points, spent_value = cint(original.get("custom_loyalty_points_redeemed")), flt(original.get("custom_loyalty_redeem_value"))
+		per_point = spent_value / spent_points if spent_points and spent_value else flt(programme.point_value)
+		_refund_loyalty_tender(doc, flt(restored_points * per_point, 2))
 
 
 def _refund_loyalty_tender(return_doc, value: float):

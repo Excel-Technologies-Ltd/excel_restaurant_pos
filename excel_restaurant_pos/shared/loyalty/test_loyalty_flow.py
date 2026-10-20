@@ -640,3 +640,105 @@ class TestLoyaltyFlow(FrappeTestCase):
 		self.assertEqual(balance(account), 200)
 		self.assertFalse(redemption.loyalty_payment_entries(credit.name))
 		self.assertEqual(frappe.db.count("Error Log", {"method": "Loyalty refund payment failed"}), failures)
+
+	def pos_order(self, customer, points, cash, rows=None):
+		"""A pos-web order: is_pos, ArcPOS payments and the submit in one call."""
+		si = make_invoice(customer, qty=1, rate=50, submit=False)
+		if points:
+			redemption.apply_points(si.name, points)
+		si = frappe.get_doc("Sales Invoice", si.name)
+		si.is_pos = 1
+		si.custom_with_arcpos_payment = 1
+		si.append("payments", {"mode_of_payment": "Cash", "amount": cash})
+		for row in rows or []:
+			si.append("payments", row)
+		return si
+
+	def programme_value(self, fieldname, value):
+		before = frappe.db.get_value("ArcPOS Loyalty Programme", PROGRAMME, fieldname)
+		frappe.db.set_value("ArcPOS Loyalty Programme", PROGRAMME, fieldname, value)
+		frappe.clear_document_cache("ArcPOS Loyalty Programme", PROGRAMME)
+
+		def restore():
+			frappe.db.set_value("ArcPOS Loyalty Programme", PROGRAMME, fieldname, before)
+			frappe.clear_document_cache("ArcPOS Loyalty Programme", PROGRAMME)
+
+		self.addCleanup(restore)
+
+	def test_a_till_cannot_overpay_or_book_unspent_points(self):
+		customer, _account = self.member("Till")
+		pay(make_invoice(customer))  # 100 points
+
+		# Cash for the whole order on top of the points.
+		with self.assertRaises(frappe.ValidationError):
+			self.pos_order(customer, 40, 50).submit()
+		# A Loyalty Points row with no points applied.
+		with self.assertRaises(frappe.ValidationError):
+			self.pos_order(customer, 0, 46, rows=[{"mode_of_payment": "Loyalty Points", "amount": 4}]).submit()
+
+	def test_points_that_no_longer_fit_refuse_a_priced_submit(self):
+		customer, _account = self.member("Clamp")
+		pay(make_invoice(customer))  # 100 points
+		si = self.pos_order(customer, 40, 46)
+		self.programme_value("max_redeem_points_per_order", 20)
+		with self.assertRaises(frappe.ValidationError):
+			si.submit()  # the cash was worked out for 40 points
+
+		# Without payments priced against them, points are still just reduced.
+		draft = make_invoice(customer, qty=1, rate=50, submit=False)
+		frappe.db.set_value("Sales Invoice", draft.name, {"custom_loyalty_points_redeemed": 40, "custom_loyalty_redeem_value": 4})
+		frappe.get_doc("Sales Invoice", draft.name).save(ignore_permissions=True)
+		self.assertEqual(cint(frappe.db.get_value("Sales Invoice", draft.name, "custom_loyalty_points_redeemed")), 20)
+
+	def test_staff_payment_dialog_refuses_loyalty_points(self):
+		from excel_restaurant_pos.api.payment_entry.create_payment import _refuse_loyalty_tender
+
+		_refuse_loyalty_tender([{"mode_of_payment": "Cash", "amount": 5}])
+		with self.assertRaises(frappe.ValidationError):
+			_refuse_loyalty_tender('[{"mode_of_payment": "Loyalty Points", "amount": 5}]')
+
+	def test_refund_uses_the_value_the_points_were_spent_at(self):
+		from erpnext.accounts.doctype.sales_invoice.sales_invoice import make_sales_return
+
+		customer, _account = self.member("Refund value")
+		pay(make_invoice(customer))  # 100 points
+		invoice = self.points_order(customer)  # 40 points = 4.00
+		pay(frappe.get_doc("Sales Invoice", invoice))
+		self.programme_value("point_value", 1)  # 40 points would now be 40.00
+
+		credit = make_sales_return(invoice)
+		credit.insert(ignore_permissions=True)
+		frappe.get_doc("Sales Invoice", credit.name).submit()
+		refund = redemption.loyalty_payment_entries(credit.name)
+		self.assertEqual(len(refund), 1)
+		self.assertEqual(flt(frappe.db.get_value("Payment Entry", refund[0], "paid_amount")), 4.0)
+
+	def test_amount_due_starts_from_the_rounded_total(self):
+		invoice = frappe._dict(grand_total=22.10, rounded_total=22.0, custom_loyalty_points_redeemed=2, custom_loyalty_redeem_value=8)
+		self.assertAlmostEqual(redemption.amount_due(invoice), 14.0)
+		invoice.rounded_total = 0  # rounding disabled
+		self.assertAlmostEqual(redemption.amount_due(invoice), 14.10)
+
+	def test_liability_counts_every_programme_of_the_company(self):
+		from excel_restaurant_pos.shared.loyalty import accounting
+
+		programmes = {"_Old": frappe._dict(point_value=0.5), "_New": frappe._dict(point_value=0.01)}
+		with patch.object(frappe, "get_all", return_value=list(programmes)), patch.object(
+			accounting, "outstanding_points", side_effect=lambda name: {"_Old": 10, "_New": 300}[name]
+		), patch.object(accounting, "get_programme", side_effect=programmes.get):
+			self.assertEqual(accounting.outstanding_value(COMPANY), (310, 8.0))
+
+	def test_backfill_leaves_an_order_that_earns_nothing_untouched(self):
+		customer, account = self.member("Backfill")
+		pay(make_invoice(customer))  # earns, and is the latest order
+		latest = frappe.db.get_value(ACCOUNT, account, "last_order_at")
+
+		old = make_invoice(customer, qty=1, rate=50)
+		frappe.db.set_value("Sales Invoice", old.name, "posting_date", add_days(nowdate(), -5))
+		pay(frappe.get_doc("Sales Invoice", old.name))
+		frappe.db.sql("DELETE FROM `tabArcPOS Loyalty Transaction` WHERE source_name = %s", old.name)
+		frappe.db.set_value(ACCOUNT, account, "last_order_at", latest)
+
+		with patch.object(earning, "evaluate", return_value=[]):
+			earning.backfill_missed_awards()
+		self.assertEqual(frappe.db.get_value(ACCOUNT, account, "last_order_at"), latest)
