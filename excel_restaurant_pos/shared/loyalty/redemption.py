@@ -387,12 +387,24 @@ def on_submit_redemption(doc, method=None):
 	if not points:
 		return
 	value = flt(doc.get(VALUE_FIELD))
-	# ERPNext books a POS invoice's payment rows itself, unless ArcPOS takes
-	# the payments: then create_payment_entry books the rows less the loyalty
-	# one, and the points tender is left to this hook.
-	if not cint(doc.get("is_pos")) or cint(doc.get("custom_with_arcpos_payment")):
+	if not _pos_row_booked(doc):
 		create_loyalty_payment(doc.name, value)
 	_after_redeem(doc.get(ACCOUNT_FIELD), doc.name, points, value)
+
+
+def _pos_row_booked(doc) -> bool:
+	"""Whether ERPNext's own POS payment rows already book the points tender.
+
+	It books a POS invoice's rows only when they were priced on a save: a
+	draft saved and then submitted. An invoice whose rows first arrive with
+	the submit itself (pos-web) is never priced, so its rows book nothing,
+	ArcPOS's create_payment_entry books the rest less the loyalty row, and
+	the points tender is this module's to book.
+	"""
+	if not cint(doc.get("is_pos")):
+		return False
+	mode = loyalty_mode()
+	return any(row.mode_of_payment == mode and flt(row.base_amount) for row in doc.get("payments") or [])
 
 
 def loyalty_payment_entries(invoice: str, docstatus: int = 1) -> list[str]:

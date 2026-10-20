@@ -545,22 +545,33 @@ class TestLoyaltyFlow(FrappeTestCase):
 		frappe.get_doc("Sales Invoice", credit.name).submit()
 		self.assertEqual(frappe.db.get_value(ACCOUNT, account, "tier"), "_Silver")
 
-	def test_arcpos_paid_pos_order_books_its_points(self):
-		# ORD-26-02625: a POS order ArcPOS pays (cash rows plus points) must get
-		# a loyalty Payment Entry, since create_payment_entry leaves that row out.
+	def test_pos_order_books_its_points_once(self):
+		# ORD-26-02625: pos-web sends is_pos, the payment rows and the submit in
+		# one call, so ERPNext never prices the rows and books none of them; the
+		# points tender is the loyalty module's. A draft saved first has its rows
+		# priced and booked by ERPNext, so a second booking would be refused.
+		from excel_restaurant_pos.doc_event.sales_invoice.handlers.create_payment_entry import create_payment_entry
+
 		customer, account = self.member("POS points")
-		pay(make_invoice(customer))  # 100 points
+		pay(make_invoice(customer, qty=4))  # 200 points
 
-		si = make_invoice(customer, qty=1, rate=50, submit=False)
-		redemption.apply_points(si.name, 40)  # 4.00
-		si = frappe.get_doc("Sales Invoice", si.name)
-		si.is_pos = 1
-		si.custom_with_arcpos_payment = 1
-		si.append("payments", {"mode_of_payment": "Cash", "amount": 46})
-		# As the POS does it: flags and payment rows arrive with the submit itself.
-		si.submit()
+		for saved_first in (False, True):
+			si = make_invoice(customer, qty=1, rate=50, submit=False)
+			redemption.apply_points(si.name, 40)  # 4.00
+			si = frappe.get_doc("Sales Invoice", si.name)
+			si.is_pos = 1
+			si.custom_with_arcpos_payment = 1
+			si.append("payments", {"mode_of_payment": "Cash", "amount": 46})
+			if saved_first:
+				si.save(ignore_permissions=True)
+				si = frappe.get_doc("Sales Invoice", si.name)
+			si.submit()
 
-		loyalty_pe = redemption.loyalty_payment_entries(si.name)
-		self.assertEqual(len(loyalty_pe), 1)
-		self.assertEqual(flt(frappe.db.get_value("Payment Entry", loyalty_pe[0], "paid_amount")), 4.0)
-		self.assertEqual(balance(account), 60)
+			loyalty_pe = redemption.loyalty_payment_entries(si.name)
+			if saved_first:
+				self.assertFalse(loyalty_pe)
+			else:
+				self.assertEqual(len(loyalty_pe), 1)
+				self.assertEqual(flt(frappe.db.get_value("Payment Entry", loyalty_pe[0], "paid_amount")), 4.0)
+				create_payment_entry(sales_invoice=si.name)  # the cash rows, as the queued job does
+			self.assertEqual(flt(frappe.db.get_value("Sales Invoice", si.name, "outstanding_amount")), 0, saved_first)
