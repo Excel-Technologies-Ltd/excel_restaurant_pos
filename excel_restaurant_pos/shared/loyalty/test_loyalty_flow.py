@@ -544,3 +544,23 @@ class TestLoyaltyFlow(FrappeTestCase):
 		credit.insert(ignore_permissions=True)
 		frappe.get_doc("Sales Invoice", credit.name).submit()
 		self.assertEqual(frappe.db.get_value(ACCOUNT, account, "tier"), "_Silver")
+
+	def test_arcpos_paid_pos_order_books_its_points(self):
+		# ORD-26-02625: a POS order ArcPOS pays (cash rows plus points) must get
+		# a loyalty Payment Entry, since create_payment_entry leaves that row out.
+		customer, account = self.member("POS points")
+		pay(make_invoice(customer))  # 100 points
+
+		si = make_invoice(customer, qty=1, rate=50, submit=False)
+		redemption.apply_points(si.name, 40)  # 4.00
+		si = frappe.get_doc("Sales Invoice", si.name)
+		si.is_pos = 1
+		si.custom_with_arcpos_payment = 1
+		si.append("payments", {"mode_of_payment": "Cash", "amount": 46})
+		# As the POS does it: flags and payment rows arrive with the submit itself.
+		si.submit()
+
+		loyalty_pe = redemption.loyalty_payment_entries(si.name)
+		self.assertEqual(len(loyalty_pe), 1)
+		self.assertEqual(flt(frappe.db.get_value("Payment Entry", loyalty_pe[0], "paid_amount")), 4.0)
+		self.assertEqual(balance(account), 60)

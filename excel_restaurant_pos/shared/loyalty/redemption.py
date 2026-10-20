@@ -387,7 +387,10 @@ def on_submit_redemption(doc, method=None):
 	if not points:
 		return
 	value = flt(doc.get(VALUE_FIELD))
-	if not cint(doc.get("is_pos")):
+	# ERPNext books a POS invoice's payment rows itself, unless ArcPOS takes
+	# the payments: then create_payment_entry books the rows less the loyalty
+	# one, and the points tender is left to this hook.
+	if not cint(doc.get("is_pos")) or cint(doc.get("custom_with_arcpos_payment")):
 		create_loyalty_payment(doc.name, value)
 	_after_redeem(doc.get(ACCOUNT_FIELD), doc.name, points, value)
 
