@@ -273,6 +273,9 @@ def recompute_available_balance(coupon_doc_or_name, save: bool = True) -> float:
 
 def validate_gift_card_lines(doc, method=None):
 	"""Validate gift card item lines on Sales Invoice (draft-safe)."""
+	if cint(doc.get("is_return")):
+		# A credit note refunds a sale; gift_card.reversal handles its cards.
+		return
 	lines = get_gift_card_lines(doc)
 	if not lines:
 		return
@@ -320,6 +323,8 @@ def validate_gift_card_lines(doc, method=None):
 
 def process_gift_cards_on_submit(doc, method=None):
 	"""Create New / activate Existing gift cards on Sales Invoice submit."""
+	if cint(doc.get("is_return")):
+		return
 	lines = get_gift_card_lines(doc)
 	if not lines:
 		return
@@ -368,6 +373,9 @@ def process_gift_cards_on_submit(doc, method=None):
 
 def finalize_gift_card_links(doc, method=None):
 	"""Persist generated gift card codes and email after submit."""
+	if cint(doc.get("is_return")):
+		# The codes were copied from the order it refunds: the cards stay its.
+		return
 	codes = (doc.get("custom_generated_gift_cards") or "").strip()
 	if not codes:
 		return

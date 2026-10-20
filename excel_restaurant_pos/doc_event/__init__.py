@@ -51,6 +51,7 @@ custom_doc_events = {
             "excel_restaurant_pos.shared.loyalty.redemption.on_submit_redemption",
             "excel_restaurant_pos.shared.loyalty.earning.on_invoice_submit",
             "excel_restaurant_pos.shared.loyalty.reversal.on_return_submit",
+            "excel_restaurant_pos.shared.gift_card.reversal.on_return_submit",
         ],
         "before_cancel": [
             # Before ERPNext unlinks the invoice's Payment Entries on cancel.
@@ -60,6 +61,8 @@ custom_doc_events = {
             # custom_order_status = 2 and custom_status = Rejected, so a coupon
             # from a voided order cannot be spent.
             "excel_restaurant_pos.shared.coupon.order_status.on_cancel_sales_invoice_coupon_status",
+            # Gives back what the order spent from gift cards.
+            "excel_restaurant_pos.shared.gift_card.reversal.on_invoice_cancel",
             "excel_restaurant_pos.shared.loyalty.reversal.on_invoice_cancel",
         ],
         "on_trash": "excel_restaurant_pos.doc_event.sales_invoice.on_trash_sales_invoice",
