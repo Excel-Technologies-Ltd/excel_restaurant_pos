@@ -190,6 +190,8 @@ after_migrate = [
     "excel_restaurant_pos.shared.sql_procedures.sync.sync_sql_objects",
     # Built-in loyalty event types (customer_signup, first_order, ...).
     "excel_restaurant_pos.shared.loyalty.events.ensure_builtin_event_types",
+    # Sync Customer.custom_member_number from ArcPOS Loyalty Account.
+    "excel_restaurant_pos.shared.loyalty.accounts.backfill_customer_member_numbers",
 ]
 
 # Runs before DocType/fixture sync so a stuck Currency fieldtype cannot break migrate.

@@ -635,6 +635,9 @@ def compute_balances(account: str) -> dict:
 
 def reconcile_account_cache():
 	"""Weekly: recompute every account from the ledger and report any drift."""
+	from excel_restaurant_pos.shared.loyalty.accounts import backfill_customer_member_numbers
+
+	backfill_customer_member_numbers(commit=True)
 	fields = ("available_points", "pending_points", "lifetime_earned", "lifetime_redeemed", "lifetime_expired")
 	drifted = []
 	for row in frappe.get_all(ACCOUNT, fields=["name", *fields]):

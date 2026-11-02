@@ -311,6 +311,13 @@ Redeeming a reward debits points and **issues a single-use Coupon Code**, reusin
 
 Property setters hide ERPNext's native `loyalty_points_redemption` section on Sales Invoice and the `loyalty_points_tab` on Customer, to avoid confusion.
 
+### 5.14 Customer custom fields
+
+| Field | Type | Purpose |
+| --- | --- | --- |
+| `custom_date_of_birth` | Date | Used by the daily `birthday` loyalty event scheduler |
+| `custom_member_number` | Data (read-only, indexed) | Synced automatically from `ArcPOS Loyalty Account.member_number` on creation/update/deletion and via `after_migrate` / weekly reconciliation |
+
 ---
 
 ## 6. Lifecycle States

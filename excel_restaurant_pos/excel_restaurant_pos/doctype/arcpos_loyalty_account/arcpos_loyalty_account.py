@@ -32,9 +32,13 @@ class ArcPOSLoyaltyAccount(Document):
 		if before and before.status != self.status and not self.flags.status_via_service:
 			frappe.throw(_("Use the Suspend, Reactivate or Close actions to change the status."))
 
+	def on_update(self):
+		accounts.sync_customer_member_number(self.customer, self.member_number)
+
 	def on_trash(self):
 		if frappe.db.exists(TXN, {"account": self.name}):
 			frappe.throw(_("A loyalty account with ledger entries cannot be deleted. Close it instead."))
+		accounts.sync_customer_member_number(self.customer, None)
 
 
 @frappe.whitelist(methods=["POST"])

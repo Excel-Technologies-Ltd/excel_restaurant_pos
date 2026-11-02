@@ -28,6 +28,7 @@ MEMBER_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
 MEMBER_LENGTH = 8
 TOKEN_PREFIX = "AL1"
 TOKEN_PATTERN = re.compile(r"^AL1\.(LM-[A-Z0-9]{8})\.(\d+)\.([0-9a-f]{16})$")
+CUSTOMER_MEMBER_FIELD = "custom_member_number"
 
 ACTIVE, SUSPENDED, CLOSED = "Active", "Suspended", "Closed"
 
@@ -91,6 +92,44 @@ def account_for_customer(customer: str | None) -> str | None:
 	if not customer:
 		return None
 	return frappe.db.get_value(ACCOUNT, {"customer": customer}, "name")
+
+
+def sync_customer_member_number(customer: str | None, member_number: str | None):
+	"""Stamp (or clear) the loyalty member_number on Customer, skipping if not migrated yet."""
+	if not customer or not frappe.get_meta("Customer").has_field(CUSTOMER_MEMBER_FIELD):
+		return
+	if not frappe.db.exists("Customer", customer):
+		return
+	current = frappe.db.get_value("Customer", customer, CUSTOMER_MEMBER_FIELD)
+	if (current or None) != (member_number or None):
+		frappe.db.set_value("Customer", customer, CUSTOMER_MEMBER_FIELD, member_number, update_modified=False)
+
+
+def backfill_customer_member_numbers(commit: bool = True):
+	"""Sync Customer.custom_member_number from ArcPOS Loyalty Account."""
+	if not frappe.db.table_exists(ACCOUNT) or not frappe.db.has_column("Customer", CUSTOMER_MEMBER_FIELD):
+		return
+
+	frappe.db.sql(
+		f"""
+		UPDATE `tabCustomer` c
+		JOIN `tab{ACCOUNT}` acc ON acc.customer = c.name
+		SET c.`{CUSTOMER_MEMBER_FIELD}` = acc.member_number
+		WHERE COALESCE(c.`{CUSTOMER_MEMBER_FIELD}`, '') != acc.member_number
+		"""
+	)
+	frappe.db.sql(
+		f"""
+		UPDATE `tabCustomer` c
+		LEFT JOIN `tab{ACCOUNT}` acc ON acc.customer = c.name
+		SET c.`{CUSTOMER_MEMBER_FIELD}` = NULL
+		WHERE acc.name IS NULL
+			AND c.`{CUSTOMER_MEMBER_FIELD}` IS NOT NULL
+			AND c.`{CUSTOMER_MEMBER_FIELD}` != ''
+		"""
+	)
+	if commit:
+		frappe.db.commit()
 
 
 def user_for_customer(customer: str) -> str | None:
@@ -176,6 +215,7 @@ def enrol(customer: str, source: str = "Admin", user: str | None = None, program
 	if existing:
 		if user and not frappe.db.get_value(ACCOUNT, existing, "user"):
 			frappe.db.set_value(ACCOUNT, existing, "user", user, update_modified=False)
+		sync_customer_member_number(customer, existing)
 		return existing
 
 	from excel_restaurant_pos.shared.loyalty.tiers import lowest_tier
@@ -205,7 +245,10 @@ def enrol(customer: str, source: str = "Admin", user: str | None = None, program
 	except (frappe.DuplicateEntryError, frappe.UniqueValidationError):
 		# Enrolment raced with itself (sign-up and a first order at once).
 		frappe.db.rollback(save_point=savepoint)
-		return account_for_customer(customer)
+		existing = account_for_customer(customer)
+		sync_customer_member_number(customer, existing)
+		return existing
+	sync_customer_member_number(customer, doc.member_number)
 	return doc.name
 
 
