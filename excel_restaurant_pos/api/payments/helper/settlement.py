@@ -16,6 +16,8 @@ Entry, and first check it against what Moneris says it charged.
 import frappe
 from frappe.utils import flt
 
+from excel_restaurant_pos.shared.loyalty.redemption import amount_due
+
 # convert_to_flt_string formats the preload total to cents, so a sub-cent
 # difference is formatting, not fraud.
 AMOUNT_TOLERANCE = 0.01
@@ -53,7 +55,7 @@ def verify_charged_amount(receipt_status, invoice):
 	will show whether the fields above are the right ones.
 	"""
 	charged = charged_amount(receipt_status)
-	expected = flt(invoice.grand_total, 2)
+	expected = flt(amount_due(invoice), 2)
 
 	if charged is None:
 		frappe.log_error(
@@ -93,9 +95,11 @@ def website_mode_of_payment():
 def settlement_payments(invoice, fallback_mode=None):
 	"""The single payment row a settled ticket is booked as.
 
-	The amount is always the invoice's grand_total. The mode is the configured
-	website mode, so the request cannot pick which account the money lands in;
-	`fallback_mode` is used only when no website mode is configured.
+	The amount is always the invoice's grand_total, less any loyalty points
+	applied (those are booked as their own tender when the invoice submits).
+	The mode is the configured website mode, so the request cannot pick which
+	account the money lands in; `fallback_mode` is used only when no website
+	mode is configured.
 	"""
 	mode = website_mode_of_payment()
 	if not mode:
@@ -105,4 +109,4 @@ def settlement_payments(invoice, fallback_mode=None):
 		)
 		mode = fallback_mode or "Cash"
 
-	return [{"mode_of_payment": mode, "amount": flt(invoice.grand_total, 2)}]
+	return [{"mode_of_payment": mode, "amount": flt(amount_due(invoice), 2)}]

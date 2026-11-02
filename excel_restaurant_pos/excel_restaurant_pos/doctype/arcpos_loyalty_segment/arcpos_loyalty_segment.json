@@ -1,0 +1,150 @@
+{
+ "actions": [],
+ "autoname": "field:segment_name",
+ "creation": "2026-10-18 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "segment_name",
+  "match_mode",
+  "description",
+  "filters_sb",
+  "customer_group",
+  "territory",
+  "tier",
+  "min_lifetime_spend",
+  "filters_cb",
+  "enrolled_from",
+  "enrolled_to",
+  "min_orders",
+  "max_orders",
+  "last_order_within_days",
+  "members_sb",
+  "members"
+ ],
+ "fields": [
+  {
+   "fieldname": "segment_name",
+   "fieldtype": "Data",
+   "label": "Segment Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "Filters",
+   "fieldname": "match_mode",
+   "fieldtype": "Select",
+   "label": "Match",
+   "options": "Filters\nStatic Members\nFilters or Static Members"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "filters_sb",
+   "fieldtype": "Section Break",
+   "label": "Filters"
+  },
+  {
+   "fieldname": "customer_group",
+   "fieldtype": "Link",
+   "label": "Customer Group",
+   "options": "Customer Group"
+  },
+  {
+   "fieldname": "territory",
+   "fieldtype": "Link",
+   "label": "Territory",
+   "options": "Territory"
+  },
+  {
+   "fieldname": "tier",
+   "fieldtype": "Data",
+   "label": "Tier"
+  },
+  {
+   "fieldname": "min_lifetime_spend",
+   "fieldtype": "Currency",
+   "label": "Min Lifetime Spend"
+  },
+  {
+   "fieldname": "filters_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "enrolled_from",
+   "fieldtype": "Date",
+   "label": "Enrolled From"
+  },
+  {
+   "fieldname": "enrolled_to",
+   "fieldtype": "Date",
+   "label": "Enrolled To"
+  },
+  {
+   "fieldname": "min_orders",
+   "fieldtype": "Int",
+   "label": "Min Orders"
+  },
+  {
+   "description": "0 = no maximum",
+   "fieldname": "max_orders",
+   "fieldtype": "Int",
+   "label": "Max Orders"
+  },
+  {
+   "fieldname": "last_order_within_days",
+   "fieldtype": "Int",
+   "label": "Last Order Within (Days)"
+  },
+  {
+   "fieldname": "members_sb",
+   "fieldtype": "Section Break",
+   "label": "Static Members"
+  },
+  {
+   "fieldname": "members",
+   "fieldtype": "Table",
+   "label": "Members",
+   "options": "ArcPOS Loyalty Segment Member"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-10-18 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Excel Restaurant Pos",
+ "name": "ArcPOS Loyalty Segment",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "ArcPOS Loyalty Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

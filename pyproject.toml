@@ -12,6 +12,9 @@ dependencies = [
     "qrcode~=8.2",
     "python-barcode~=0.15.1",
     "exponent-server-sdk~=2.1",
+    # Loyalty wallets: Google Wallet service-account auth, Apple APNs over HTTP/2.
+    "google-auth>=2.20",
+    "httpx[http2]>=0.27",
 ]
 
 [build-system]

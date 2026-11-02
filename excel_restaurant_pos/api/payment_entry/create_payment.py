@@ -2,6 +2,8 @@
 Create a payment entry.
 """
 
+import json
+
 import frappe
 from frappe import _
 
@@ -84,8 +86,21 @@ def create_payment():
 
     if not payments:
         frappe.throw("Payments not found")
+    _refuse_loyalty_tender(payments)
 
     # create the payment entry
     create_payment_entry(sales_invoice=invoice_id, payments=payments)
 
     return {"message": "Payment entry created successfully"}
+
+
+def _refuse_loyalty_tender(payments):
+    """Points are paid with through api.loyalty.apply_points, which also spends
+    them; a Loyalty Points row here would mark the order paid with none spent."""
+    mode = frappe.db.get_single_value("ArcPOS Loyalty Settings", "loyalty_mode_of_payment")
+    rows = json.loads(payments) if isinstance(payments, str) else payments
+    if mode and any((row.get("mode_of_payment") if isinstance(row, dict) else None) == mode for row in rows or []):
+        frappe.throw(
+            _("Use Apply Points to pay with loyalty points, not a {0} payment.").format(mode),
+            title=_("Loyalty Points"),
+        )

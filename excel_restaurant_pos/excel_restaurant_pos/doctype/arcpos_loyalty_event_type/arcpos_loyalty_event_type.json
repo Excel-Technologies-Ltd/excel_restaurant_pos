@@ -1,0 +1,96 @@
+{
+ "actions": [],
+ "autoname": "field:event_code",
+ "creation": "2026-10-18 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "event_code",
+  "enabled",
+  "description",
+  "event_cb",
+  "once_per_customer",
+  "cooldown_days",
+  "is_builtin"
+ ],
+ "fields": [
+  {
+   "description": "snake_case, e.g. feedback_submitted",
+   "fieldname": "event_code",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Event Code",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Enabled"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "event_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "once_per_customer",
+   "fieldtype": "Check",
+   "label": "Once per Customer"
+  },
+  {
+   "default": "0",
+   "fieldname": "cooldown_days",
+   "fieldtype": "Int",
+   "label": "Cooldown Days"
+  },
+  {
+   "fieldname": "is_builtin",
+   "fieldtype": "Check",
+   "label": "Built-in",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-10-18 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Excel Restaurant Pos",
+ "name": "ArcPOS Loyalty Event Type",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "ArcPOS Loyalty Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

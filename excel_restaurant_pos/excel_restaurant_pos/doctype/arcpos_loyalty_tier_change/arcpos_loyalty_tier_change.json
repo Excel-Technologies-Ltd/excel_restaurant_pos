@@ -1,0 +1,101 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-10-18 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "account",
+  "customer",
+  "changed_at",
+  "tc_cb",
+  "from_tier",
+  "to_tier",
+  "reason",
+  "qualifying_value"
+ ],
+ "fields": [
+  {
+   "fieldname": "account",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Account",
+   "options": "ArcPOS Loyalty Account",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "label": "Customer",
+   "options": "Customer",
+   "read_only": 1
+  },
+  {
+   "fieldname": "changed_at",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Changed At",
+   "read_only": 1
+  },
+  {
+   "fieldname": "tc_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "from_tier",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "From Tier",
+   "read_only": 1
+  },
+  {
+   "fieldname": "to_tier",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "To Tier",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Data",
+   "label": "Reason",
+   "read_only": 1
+  },
+  {
+   "fieldname": "qualifying_value",
+   "fieldtype": "Float",
+   "label": "Qualifying Value",
+   "read_only": 1
+  }
+ ],
+ "in_create": 1,
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-10-18 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Excel Restaurant Pos",
+ "name": "ArcPOS Loyalty Tier Change",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager"
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "ArcPOS Loyalty Manager"
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

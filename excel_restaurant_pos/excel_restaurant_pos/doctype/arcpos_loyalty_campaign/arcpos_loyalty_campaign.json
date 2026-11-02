@@ -1,0 +1,361 @@
+{
+ "actions": [],
+ "autoname": "LCMP-.#####",
+ "creation": "2026-10-18 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "campaign_name",
+  "programme",
+  "status",
+  "campaign_cb1",
+  "priority",
+  "stackable",
+  "display_in_app",
+  "window_sb",
+  "start_datetime",
+  "end_datetime",
+  "window_cb",
+  "recurrence",
+  "recurrence_days",
+  "recurrence_start_time",
+  "recurrence_end_time",
+  "recur_until",
+  "eligibility_sb",
+  "eligible_dine_in",
+  "eligible_in_store_pickup",
+  "eligible_channels_cb",
+  "eligible_online_delivery",
+  "eligible_online_pickup",
+  "eligibility_sb2",
+  "eligible_tiers",
+  "eligible_segments",
+  "eligibility_cb",
+  "eligible_territories",
+  "caps_sb",
+  "points_budget",
+  "caps_cb",
+  "per_customer_cap",
+  "rules_sb",
+  "rules",
+  "rule_items",
+  "copy_sb",
+  "title",
+  "image",
+  "copy_cb",
+  "description",
+  "stats_sb",
+  "points_issued",
+  "stats_cb1",
+  "participants",
+  "stats_cb2",
+  "orders"
+ ],
+ "fields": [
+  {
+   "fieldname": "campaign_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Campaign Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "programme",
+   "fieldtype": "Link",
+   "label": "Programme",
+   "options": "ArcPOS Loyalty Programme",
+   "reqd": 1
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Draft\nScheduled\nActive\nPaused\nEnded",
+   "read_only": 1
+  },
+  {
+   "fieldname": "campaign_cb1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "priority",
+   "fieldtype": "Int",
+   "label": "Priority"
+  },
+  {
+   "default": "1",
+   "description": "Off: only the highest-priority non-stackable campaign applies to an order.",
+   "fieldname": "stackable",
+   "fieldtype": "Check",
+   "label": "Stackable"
+  },
+  {
+   "default": "1",
+   "fieldname": "display_in_app",
+   "fieldtype": "Check",
+   "label": "Display in App"
+  },
+  {
+   "fieldname": "window_sb",
+   "fieldtype": "Section Break",
+   "label": "Window"
+  },
+  {
+   "fieldname": "start_datetime",
+   "fieldtype": "Datetime",
+   "label": "Start",
+   "reqd": 1
+  },
+  {
+   "fieldname": "end_datetime",
+   "fieldtype": "Datetime",
+   "label": "End"
+  },
+  {
+   "fieldname": "window_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "None",
+   "description": "Weekly: on Recurrence Days between Start and End. Yearly: Start..End month/day every year until Recur Until.",
+   "fieldname": "recurrence",
+   "fieldtype": "Select",
+   "label": "Recurrence",
+   "options": "None\nWeekly\nYearly"
+  },
+  {
+   "depends_on": "eval:doc.recurrence=='Weekly'",
+   "description": "e.g. Fri,Sat",
+   "fieldname": "recurrence_days",
+   "fieldtype": "Data",
+   "label": "Recurrence Days"
+  },
+  {
+   "depends_on": "eval:doc.recurrence!='None'",
+   "fieldname": "recurrence_start_time",
+   "fieldtype": "Time",
+   "label": "Daily From"
+  },
+  {
+   "depends_on": "eval:doc.recurrence!='None'",
+   "fieldname": "recurrence_end_time",
+   "fieldtype": "Time",
+   "label": "Daily To"
+  },
+  {
+   "depends_on": "eval:doc.recurrence=='Yearly'",
+   "fieldname": "recur_until",
+   "fieldtype": "Date",
+   "label": "Recur Until"
+  },
+  {
+   "fieldname": "eligibility_sb",
+   "fieldtype": "Section Break",
+   "label": "Eligibility"
+  },
+  {
+   "default": "1",
+   "fieldname": "eligible_dine_in",
+   "fieldtype": "Check",
+   "label": "Dine-in / Takeout"
+  },
+  {
+   "default": "1",
+   "fieldname": "eligible_in_store_pickup",
+   "fieldtype": "Check",
+   "label": "In Store Pickup"
+  },
+  {
+   "fieldname": "eligible_channels_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "eligible_online_delivery",
+   "fieldtype": "Check",
+   "label": "Online Delivery"
+  },
+  {
+   "default": "1",
+   "fieldname": "eligible_online_pickup",
+   "fieldtype": "Check",
+   "label": "Online Pickup"
+  },
+  {
+   "fieldname": "eligibility_sb2",
+   "fieldtype": "Section Break"
+  },
+  {
+   "description": "Comma-separated tier names. Empty = all.",
+   "fieldname": "eligible_tiers",
+   "fieldtype": "Small Text",
+   "label": "Eligible Tiers"
+  },
+  {
+   "fieldname": "eligible_segments",
+   "fieldtype": "Table MultiSelect",
+   "label": "Eligible Segments",
+   "options": "ArcPOS Loyalty Campaign Segment"
+  },
+  {
+   "fieldname": "eligibility_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "eligible_territories",
+   "fieldtype": "Table MultiSelect",
+   "label": "Eligible Territories",
+   "options": "ArcPOS Loyalty Campaign Territory"
+  },
+  {
+   "fieldname": "caps_sb",
+   "fieldtype": "Section Break",
+   "label": "Caps"
+  },
+  {
+   "default": "0",
+   "description": "0 = unlimited",
+   "fieldname": "points_budget",
+   "fieldtype": "Int",
+   "label": "Points Budget"
+  },
+  {
+   "fieldname": "caps_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "description": "0 = unlimited",
+   "fieldname": "per_customer_cap",
+   "fieldtype": "Int",
+   "label": "Per Customer Cap"
+  },
+  {
+   "fieldname": "rules_sb",
+   "fieldtype": "Section Break",
+   "label": "Rules"
+  },
+  {
+   "fieldname": "rules",
+   "fieldtype": "Table",
+   "label": "Rules",
+   "options": "ArcPOS Loyalty Rule"
+  },
+  {
+   "fieldname": "rule_items",
+   "fieldtype": "Table",
+   "label": "Rule Items",
+   "options": "ArcPOS Loyalty Rule Item"
+  },
+  {
+   "fieldname": "copy_sb",
+   "fieldtype": "Section Break",
+   "label": "Customer-facing Copy"
+  },
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Title"
+  },
+  {
+   "fieldname": "image",
+   "fieldtype": "Attach Image",
+   "label": "Image"
+  },
+  {
+   "fieldname": "copy_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "stats_sb",
+   "fieldtype": "Section Break",
+   "label": "Stats"
+  },
+  {
+   "fieldname": "points_issued",
+   "fieldtype": "Int",
+   "label": "Points Issued",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "stats_cb1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "participants",
+   "fieldtype": "Int",
+   "label": "Participants",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "stats_cb2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "orders",
+   "fieldtype": "Int",
+   "label": "Orders",
+   "no_copy": 1,
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-10-18 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Excel Restaurant Pos",
+ "name": "ArcPOS Loyalty Campaign",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "ArcPOS Loyalty Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Restaurant Manager"
+  }
+ ],
+ "search_fields": "campaign_name,status",
+ "show_title_field_in_link": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "campaign_name",
+ "track_changes": 1
+}

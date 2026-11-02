@@ -4,6 +4,9 @@ import frappe
 from excel_restaurant_pos.shared.customer_access import access_level, require_login
 from frappe.utils import now_datetime, get_datetime
 
+from excel_restaurant_pos.shared.gift_card.holds import hold_for_checkout as hold_gift_cards_for_checkout
+from excel_restaurant_pos.shared.loyalty.holds import hold_for_checkout
+from excel_restaurant_pos.shared.loyalty.redemption import amount_due
 from excel_restaurant_pos.shared.sales_invoice import delete_delivery_draft_invoice
 from excel_restaurant_pos.utils import convert_to_flt_string, convert_to_decimal_string
 from .helper.get_ticket_from_db import get_ticket_from_db
@@ -125,7 +128,8 @@ def _prepare_payment_payload(invoice, payment_config: dict) -> dict:
         "environment": payment_config["environment"],
         "language": "en",
         "action": "preload",
-        "txn_total": convert_to_flt_string(invoice.grand_total),
+        # What the card pays: loyalty points applied to the order are their own tender.
+        "txn_total": convert_to_flt_string(amount_due(invoice)),
         "order_no": invoice.name,
         "cust_id": invoice.customer,
     }
@@ -248,6 +252,12 @@ def get_payment_ticket():
 
     # Request new ticket from payment gateway
     ticket = _request_payment_ticket(payload, payment_config)
+
+    # The points and gift card amounts on the order must still be there, and
+    # stay held until it is paid: refused here, before the card is charged,
+    # never after it.
+    hold_gift_cards_for_checkout(invoice)
+    hold_for_checkout(invoice)
 
     # Save ticket to database
     save_ticket_to_db(invoice_number, ticket)

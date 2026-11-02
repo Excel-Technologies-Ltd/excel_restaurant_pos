@@ -18,7 +18,9 @@ from excel_restaurant_pos.shared.gift_card.services import (
 	is_gift_card_redemption_channel_allowed,
 	recompute_available_balance,
 )
+from excel_restaurant_pos.shared.gift_card.holds import held_amount
 from excel_restaurant_pos.shared.gift_card.validation import GIFT_CARD_TYPE, invalid_gift_card_message
+from excel_restaurant_pos.shared.payment_ticket import discard_tickets, paid_by_card
 
 APPLIED_TABLE = "custom_applied_gift_cards"
 
@@ -94,8 +96,9 @@ def _load_active_gift_card(coupon_code: str):
 	return coupon
 
 
-def _assert_gift_card_redeemable_balance(coupon, posting_date=None) -> float:
-	"""Check validity dates and available balance (no invoice context)."""
+def _assert_gift_card_redeemable_balance(coupon, posting_date=None, exclude_invoice=None) -> float:
+	"""Check validity dates and available balance, less what other orders in
+	card checkout hold (gift_card/holds.py)."""
 	posting_date = getdate(posting_date or nowdate())
 	if coupon.valid_from and posting_date < getdate(coupon.valid_from):
 		frappe.throw(_("Gift Card {0} is not yet valid.").format(coupon.name))
@@ -105,7 +108,7 @@ def _assert_gift_card_redeemable_balance(coupon, posting_date=None) -> float:
 		coupon.save(ignore_permissions=True)
 		frappe.throw(_("Gift Card {0} has expired.").format(coupon.name))
 
-	balance = flt(coupon.custom_available_balance)
+	balance = flt(coupon.custom_available_balance) - held_amount(coupon.name, exclude_invoice=exclude_invoice)
 	if balance <= 0:
 		frappe.throw(_("Gift Card {0} has no available balance.").format(coupon.name))
 
@@ -122,7 +125,7 @@ def validate_gift_card_for_redemption(doc, coupon):
 	if coupon.custom_generated_on_order == doc.name:
 		frappe.throw(_("Cannot redeem gift card {0} on the invoice that sold it.").format(coupon.name))
 
-	return _assert_gift_card_redeemable_balance(coupon, doc.get("posting_date"))
+	return _assert_gift_card_redeemable_balance(coupon, doc.get("posting_date"), exclude_invoice=doc.get("name"))
 
 
 def preview_gift_card_redemption(doc, coupon) -> dict:
@@ -314,6 +317,7 @@ def apply_gift_cards_to_sales_invoice(docname: str, coupon_codes) -> dict:
 
 	apply_gift_card_discount_to_doc(doc)
 	doc.save(ignore_permissions=True)
+	discard_tickets(doc.name)
 
 	return {
 		"status": "success",
@@ -384,6 +388,7 @@ def discard_gift_card_from_sales_invoice(docname: str, coupon_code: str | None =
 		doc.flags.gift_card_discount_applied = False
 
 	doc.save(ignore_permissions=True)
+	discard_tickets(doc.name)
 
 	return {
 		"status": "success",
@@ -405,6 +410,10 @@ def discard_gift_card_from_sales_invoice(docname: str, coupon_code: str | None =
 def apply_sales_invoice_gift_card_discount(doc, method=None):
 	"""Validate hook: keep discount in sync with applied gift cards."""
 	if not _applied_rows(doc):
+		return
+	if paid_by_card(doc.get("name")):
+		# The bank card was charged against these amounts: re-allocating now
+		# would change what the order owes after it was paid.
 		return
 
 	assert_no_promo_coupon(doc)
@@ -435,7 +444,9 @@ def apply_sales_invoice_gift_card_discount(doc, method=None):
 def validate_sales_invoice_gift_card_redemption(doc, method=None):
 	"""Validate applied gift cards on draft/submit validate."""
 	rows = _applied_rows(doc)
-	if not rows:
+	if not rows or paid_by_card(doc.get("name")):
+		# A paid order was checked when its ticket was issued; refusing it now
+		# would strand a charged order (record_gift_card_redemptions logs any overdraw).
 		return
 
 	assert_no_promo_coupon(doc)

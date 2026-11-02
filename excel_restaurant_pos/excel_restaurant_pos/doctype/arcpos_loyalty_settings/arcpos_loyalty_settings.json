@@ -1,0 +1,436 @@
+{
+ "actions": [],
+ "creation": "2026-10-18 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "general_tab",
+  "enabled",
+  "active_programme",
+  "general_cb",
+  "auto_enrol_on_signup",
+  "auto_enrol_on_first_order",
+  "exclusions_sb",
+  "excluded_customers",
+  "controls_sb",
+  "adjustment_approval_threshold",
+  "step_up_threshold_points",
+  "refund_expired_vouchers",
+  "controls_cb",
+  "notify_email",
+  "notify_push",
+  "member_token_secret",
+  "accounting_tab",
+  "loyalty_mode_of_payment",
+  "liability_account",
+  "expense_account",
+  "accounting_cb",
+  "cost_center",
+  "liability_true_up_frequency",
+  "voucher_pricing_rule",
+  "notifications_tab",
+  "email_template_earned",
+  "email_template_redeemed",
+  "email_template_expiring",
+  "notifications_cb",
+  "email_template_tier",
+  "email_template_voucher",
+  "email_template_otp",
+  "google_tab",
+  "google_enabled",
+  "google_issuer_id",
+  "google_class_suffix",
+  "google_origins",
+  "google_cb",
+  "google_service_account_json",
+  "google_callback_secret",
+  "apple_tab",
+  "apple_enabled",
+  "apple_pass_type_id",
+  "apple_team_id",
+  "apple_organization_name",
+  "apple_web_service_url",
+  "apple_apns_environment",
+  "apple_cb",
+  "apple_pass_certificate",
+  "apple_pass_certificate_password",
+  "apple_wwdr_certificate",
+  "branding_tab",
+  "programme_display_name",
+  "pass_logo",
+  "pass_icon",
+  "pass_strip_image",
+  "branding_cb",
+  "pass_background_color",
+  "pass_foreground_color",
+  "pass_label_color"
+ ],
+ "fields": [
+  {
+   "fieldname": "general_tab",
+   "fieldtype": "Tab Break",
+   "label": "General"
+  },
+  {
+   "default": "0",
+   "description": "Master switch. Off: every loyalty hook is a no-op.",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled"
+  },
+  {
+   "fieldname": "active_programme",
+   "fieldtype": "Link",
+   "label": "Active Programme",
+   "options": "ArcPOS Loyalty Programme"
+  },
+  {
+   "fieldname": "general_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "auto_enrol_on_signup",
+   "fieldtype": "Check",
+   "label": "Auto Enrol on Sign-up"
+  },
+  {
+   "default": "1",
+   "fieldname": "auto_enrol_on_first_order",
+   "fieldtype": "Check",
+   "label": "Auto Enrol on First Order"
+  },
+  {
+   "fieldname": "exclusions_sb",
+   "fieldtype": "Section Break",
+   "label": "Exclusions"
+  },
+  {
+   "description": "Walk-in / default POS customers. They are never enrolled and never earn.",
+   "fieldname": "excluded_customers",
+   "fieldtype": "Table MultiSelect",
+   "label": "Excluded Customers",
+   "options": "ArcPOS Loyalty Excluded Customer"
+  },
+  {
+   "fieldname": "controls_sb",
+   "fieldtype": "Section Break",
+   "label": "Controls"
+  },
+  {
+   "default": "500",
+   "description": "Adjustments with more points than this (either sign) need a Loyalty Manager to approve.",
+   "fieldname": "adjustment_approval_threshold",
+   "fieldtype": "Int",
+   "label": "Adjustment Approval Threshold"
+  },
+  {
+   "default": "0",
+   "description": "Staff redemptions above this need a one-time code sent to the member. 0 = off.",
+   "fieldname": "step_up_threshold_points",
+   "fieldtype": "Int",
+   "label": "POS Step-up Threshold (Points)"
+  },
+  {
+   "default": "1",
+   "fieldname": "refund_expired_vouchers",
+   "fieldtype": "Check",
+   "label": "Refund Points for Expired Reward Vouchers"
+  },
+  {
+   "fieldname": "controls_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "notify_email",
+   "fieldtype": "Check",
+   "label": "Email Notifications (default for new members)"
+  },
+  {
+   "default": "1",
+   "fieldname": "notify_push",
+   "fieldtype": "Check",
+   "label": "Push Notifications (default for new members)"
+  },
+  {
+   "description": "HMAC secret for member barcodes. Generated automatically. Changing it invalidates every barcode.",
+   "fieldname": "member_token_secret",
+   "fieldtype": "Password",
+   "label": "Member Token Secret"
+  },
+  {
+   "fieldname": "accounting_tab",
+   "fieldtype": "Tab Break",
+   "label": "Accounting"
+  },
+  {
+   "description": "Tender used when points pay for an order. Its company account must be the liability account.",
+   "fieldname": "loyalty_mode_of_payment",
+   "fieldtype": "Link",
+   "label": "Loyalty Mode of Payment",
+   "options": "Mode of Payment"
+  },
+  {
+   "fieldname": "liability_account",
+   "fieldtype": "Link",
+   "label": "Liability Account",
+   "options": "Account"
+  },
+  {
+   "fieldname": "expense_account",
+   "fieldtype": "Link",
+   "label": "Expense Account",
+   "options": "Account"
+  },
+  {
+   "fieldname": "accounting_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
+  },
+  {
+   "default": "Daily",
+   "fieldname": "liability_true_up_frequency",
+   "fieldtype": "Select",
+   "label": "Liability True-up",
+   "options": "Daily\nMonthly\nOff"
+  },
+  {
+   "description": "Required by Coupon Code. Falls back to the Default Pricing Rule in ArcPOS Settings.",
+   "fieldname": "voucher_pricing_rule",
+   "fieldtype": "Link",
+   "label": "Reward Voucher Pricing Rule",
+   "options": "Pricing Rule"
+  },
+  {
+   "fieldname": "notifications_tab",
+   "fieldtype": "Tab Break",
+   "label": "Notifications"
+  },
+  {
+   "fieldname": "email_template_earned",
+   "fieldtype": "Link",
+   "label": "Points Earned",
+   "options": "Email Template"
+  },
+  {
+   "fieldname": "email_template_redeemed",
+   "fieldtype": "Link",
+   "label": "Points Redeemed",
+   "options": "Email Template"
+  },
+  {
+   "fieldname": "email_template_expiring",
+   "fieldtype": "Link",
+   "label": "Points Expiring",
+   "options": "Email Template"
+  },
+  {
+   "fieldname": "notifications_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "email_template_tier",
+   "fieldtype": "Link",
+   "label": "Tier Change",
+   "options": "Email Template"
+  },
+  {
+   "fieldname": "email_template_voucher",
+   "fieldtype": "Link",
+   "label": "Reward Voucher",
+   "options": "Email Template"
+  },
+  {
+   "fieldname": "email_template_otp",
+   "fieldtype": "Link",
+   "label": "Verification Code",
+   "options": "Email Template"
+  },
+  {
+   "fieldname": "google_tab",
+   "fieldtype": "Tab Break",
+   "label": "Google Wallet"
+  },
+  {
+   "fieldname": "google_enabled",
+   "fieldtype": "Check",
+   "label": "Enabled"
+  },
+  {
+   "fieldname": "google_issuer_id",
+   "fieldtype": "Data",
+   "label": "Issuer ID"
+  },
+  {
+   "description": "Defaults to the programme name, slugified.",
+   "fieldname": "google_class_suffix",
+   "fieldtype": "Data",
+   "label": "Class Suffix"
+  },
+  {
+   "description": "One storefront origin per line, e.g. https://order.example.com",
+   "fieldname": "google_origins",
+   "fieldtype": "Small Text",
+   "label": "Save Button Origins"
+  },
+  {
+   "fieldname": "google_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "google_service_account_json",
+   "fieldtype": "Attach",
+   "label": "Service Account Key (JSON)"
+  },
+  {
+   "description": "Appended to the callback URL as ?token=. Generated automatically.",
+   "fieldname": "google_callback_secret",
+   "fieldtype": "Password",
+   "label": "Callback Secret"
+  },
+  {
+   "fieldname": "apple_tab",
+   "fieldtype": "Tab Break",
+   "label": "Apple Wallet"
+  },
+  {
+   "fieldname": "apple_enabled",
+   "fieldtype": "Check",
+   "label": "Enabled"
+  },
+  {
+   "description": "e.g. pass.com.arcpos.loyalty",
+   "fieldname": "apple_pass_type_id",
+   "fieldtype": "Data",
+   "label": "Pass Type ID"
+  },
+  {
+   "fieldname": "apple_team_id",
+   "fieldtype": "Data",
+   "label": "Team ID"
+  },
+  {
+   "fieldname": "apple_organization_name",
+   "fieldtype": "Data",
+   "label": "Organization Name"
+  },
+  {
+   "description": "https://<site>/loyalty-wallet/apple \u2014 Apple appends /v1/...",
+   "fieldname": "apple_web_service_url",
+   "fieldtype": "Data",
+   "label": "Web Service URL"
+  },
+  {
+   "default": "Production",
+   "fieldname": "apple_apns_environment",
+   "fieldtype": "Select",
+   "label": "APNs Environment",
+   "options": "Production\nSandbox"
+  },
+  {
+   "fieldname": "apple_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "apple_pass_certificate",
+   "fieldtype": "Attach",
+   "label": "Pass Type Certificate (.p12)"
+  },
+  {
+   "fieldname": "apple_pass_certificate_password",
+   "fieldtype": "Password",
+   "label": "Certificate Password"
+  },
+  {
+   "fieldname": "apple_wwdr_certificate",
+   "fieldtype": "Attach",
+   "label": "Apple WWDR Certificate (G4)"
+  },
+  {
+   "fieldname": "branding_tab",
+   "fieldtype": "Tab Break",
+   "label": "Branding"
+  },
+  {
+   "fieldname": "programme_display_name",
+   "fieldtype": "Data",
+   "label": "Programme Display Name"
+  },
+  {
+   "fieldname": "pass_logo",
+   "fieldtype": "Attach Image",
+   "label": "Pass Logo"
+  },
+  {
+   "fieldname": "pass_icon",
+   "fieldtype": "Attach Image",
+   "label": "Pass Icon"
+  },
+  {
+   "fieldname": "pass_strip_image",
+   "fieldtype": "Attach Image",
+   "label": "Pass Strip Image"
+  },
+  {
+   "fieldname": "branding_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "pass_background_color",
+   "fieldtype": "Color",
+   "label": "Background Colour"
+  },
+  {
+   "fieldname": "pass_foreground_color",
+   "fieldtype": "Color",
+   "label": "Foreground Colour"
+  },
+  {
+   "fieldname": "pass_label_color",
+   "fieldtype": "Color",
+   "label": "Label Colour"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "issingle": 1,
+ "links": [],
+ "make_attachments_public": 0,
+ "modified": "2026-10-18 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Excel Restaurant Pos",
+ "name": "ArcPOS Loyalty Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "ArcPOS Loyalty Manager",
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

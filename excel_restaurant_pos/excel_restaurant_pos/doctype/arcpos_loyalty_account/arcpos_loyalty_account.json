@@ -1,0 +1,317 @@
+{
+ "actions": [],
+ "creation": "2026-10-18 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "member_number",
+  "customer",
+  "customer_name",
+  "user",
+  "account_cb1",
+  "programme",
+  "status",
+  "tier",
+  "tier_since",
+  "tier_review_date",
+  "balance_sb",
+  "available_points",
+  "pending_points",
+  "next_expiry_date",
+  "next_expiry_points",
+  "balance_cb",
+  "lifetime_earned",
+  "lifetime_redeemed",
+  "lifetime_expired",
+  "qualifying_value",
+  "activity_sb",
+  "enrolled_on",
+  "enrolment_source",
+  "order_count",
+  "activity_cb",
+  "last_order_at",
+  "last_activity_at",
+  "token_version",
+  "preferences_sb",
+  "notify_email",
+  "preferences_cb",
+  "notify_push"
+ ],
+ "fields": [
+  {
+   "bold": 1,
+   "fieldname": "member_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Member Number",
+   "no_copy": 1,
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Customer",
+   "options": "Customer",
+   "reqd": 1,
+   "set_only_once": 1,
+   "unique": 1
+  },
+  {
+   "fetch_from": "customer.customer_name",
+   "fieldname": "customer_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Customer Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "label": "Storefront User",
+   "options": "User"
+  },
+  {
+   "fieldname": "account_cb1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "programme",
+   "fieldtype": "Link",
+   "label": "Programme",
+   "options": "ArcPOS Loyalty Programme",
+   "reqd": 1
+  },
+  {
+   "default": "Active",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Active\nSuspended\nClosed"
+  },
+  {
+   "fieldname": "tier",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Tier",
+   "read_only": 1
+  },
+  {
+   "fieldname": "tier_since",
+   "fieldtype": "Date",
+   "label": "Tier Since",
+   "read_only": 1
+  },
+  {
+   "fieldname": "tier_review_date",
+   "fieldtype": "Date",
+   "label": "Tier Review Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "balance_sb",
+   "fieldtype": "Section Break",
+   "label": "Balance"
+  },
+  {
+   "bold": 1,
+   "fieldname": "available_points",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Available Points",
+   "read_only": 1
+  },
+  {
+   "fieldname": "pending_points",
+   "fieldtype": "Int",
+   "label": "Pending Points",
+   "read_only": 1
+  },
+  {
+   "fieldname": "next_expiry_date",
+   "fieldtype": "Date",
+   "label": "Next Expiry",
+   "read_only": 1
+  },
+  {
+   "fieldname": "next_expiry_points",
+   "fieldtype": "Int",
+   "label": "Points Expiring Next",
+   "read_only": 1
+  },
+  {
+   "fieldname": "balance_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "lifetime_earned",
+   "fieldtype": "Int",
+   "label": "Lifetime Earned",
+   "read_only": 1
+  },
+  {
+   "fieldname": "lifetime_redeemed",
+   "fieldtype": "Int",
+   "label": "Lifetime Redeemed",
+   "read_only": 1
+  },
+  {
+   "fieldname": "lifetime_expired",
+   "fieldtype": "Int",
+   "label": "Lifetime Expired",
+   "read_only": 1
+  },
+  {
+   "fieldname": "qualifying_value",
+   "fieldtype": "Float",
+   "label": "Tier Qualifying Value",
+   "read_only": 1
+  },
+  {
+   "fieldname": "activity_sb",
+   "fieldtype": "Section Break",
+   "label": "Activity"
+  },
+  {
+   "fieldname": "enrolled_on",
+   "fieldtype": "Datetime",
+   "label": "Enrolled On",
+   "read_only": 1
+  },
+  {
+   "default": "Admin",
+   "fieldname": "enrolment_source",
+   "fieldtype": "Select",
+   "label": "Enrolment Source",
+   "options": "Signup\nFirst Order\nPOS\nAdmin\nImport"
+  },
+  {
+   "fieldname": "order_count",
+   "fieldtype": "Int",
+   "label": "Orders",
+   "read_only": 1
+  },
+  {
+   "fieldname": "activity_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "last_order_at",
+   "fieldtype": "Datetime",
+   "label": "Last Order",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_activity_at",
+   "fieldtype": "Datetime",
+   "label": "Last Activity",
+   "read_only": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "token_version",
+   "fieldtype": "Int",
+   "label": "Token Version",
+   "read_only": 1
+  },
+  {
+   "fieldname": "preferences_sb",
+   "fieldtype": "Section Break",
+   "label": "Preferences"
+  },
+  {
+   "default": "1",
+   "fieldname": "notify_email",
+   "fieldtype": "Check",
+   "label": "Email Notifications"
+  },
+  {
+   "fieldname": "preferences_cb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "notify_push",
+   "fieldtype": "Check",
+   "label": "Push Notifications"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-10-18 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Excel Restaurant Pos",
+ "name": "ArcPOS Loyalty Account",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "ArcPOS Loyalty Manager",
+   "write": 1
+  },
+  {
+   "create": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Restaurant Cashier"
+  },
+  {
+   "create": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "ArcPOS Register User"
+  },
+  {
+   "create": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Restaurant Manager"
+  },
+  {
+   "create": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "ArcPOS Manager"
+  }
+ ],
+ "search_fields": "customer,customer_name,member_number",
+ "show_title_field_in_link": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "customer_name",
+ "track_changes": 1
+}
