@@ -53,7 +53,7 @@ jobs:
             { "url": "https://github.com/Excel-Technologies-Ltd/excel_restaurant_pos.git",
               "branch": "${{ env.APP_BRANCH }}" },
             { "url": "https://github.com/Excel-Technologies-Ltd/Excel-ERPNext.git",
-              "branch": "${{ env.APP_BRANCH }}" },
+              "branch": "arc-pos" },
             { "url": "https://github.com/Excel-Technologies-Ltd/uber-direct.git", "branch": "main" }
           ]'
           APPS_JSON_BASE64=$(echo -n "$APPS_JSON" | base64 -w 0)
