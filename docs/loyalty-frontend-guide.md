@@ -43,7 +43,11 @@ voucher is then applied through the existing coupon flow.
    `sales_invoice` shows "You'll earn N points".
 2. `GET api.loyalty.redemption_options?sales_invoice=…`. Hide the section when
    `redeemable` is false. Otherwise show a slider or stepper from `min_points` to
-   `max_points` in steps of `step`, and display value = points × `point_value`.
+   `max_points` in steps of `step`.
+   - Applied monetary value is `min(points * point_value, max_value)`.
+   - When `data.disclaimer` or `data.breakage_amount > 0` is returned (e.g. 7 points
+     covering a $12.20 bill), display the disclaimer notice:
+     `"Points cover the full bill. Any remaining point value cannot be refunded or returned as change."`
 3. `POST api.loyalty.apply_points` (or `remove_points`). Show `amount_due` as
    "To pay".
 4. Pay as today: `api.payments.get_ticket` charges `amount_due`. If it returns
@@ -70,6 +74,10 @@ voucher is then applied through the existing coupon flow.
 ### Use points on the order
 - `GET api.loyalty.redemption_options?sales_invoice=…`, then
   `POST api.loyalty.apply_points`.
+- **Value calculation & disclaimer:** The monetary tender value is
+  `min(points * point_value, max_value)`. If `data.disclaimer` or `data.breakage_amount > 0`
+  is returned, show the disclaimer under the slider/stepper so cashier and customer know
+  that points cover the bill in full without cash change on the fractional remainder.
 - When `points > step_up_threshold`, first `POST api.loyalty.request_otp {sales_invoice, points}`
   with the points about to be used: the code covers that amount only (a new
   amount needs a new code). The member reads out the code →
