@@ -81,6 +81,15 @@ def _due_for_points(doc) -> float:
 	return flt(doc.get("outstanding_amount"))
 
 
+def tender_value(doc, points: int, point_value: float) -> float:
+	"""What `points` pay on this order: never more than the order still owes.
+
+	Rounding up can make `points x point_value` exceed the bill; the excess is
+	breakage, not tender, so the Payment Entry always matches what is owed.
+	"""
+	return flt(min(flt(points) * flt(point_value), _due_for_points(doc)), 2)
+
+
 def options(doc, account: str | None = None, programme=None, available: int | None = None) -> dict:
 	"""Min, max, step and value per point for this order and member.
 
@@ -254,7 +263,7 @@ def apply_points(invoice: str, points) -> dict:
 	opts = options(doc, account, programme)
 	_check_points(points, opts)
 	doc.set(POINTS_FIELD, points)
-	doc.set(VALUE_FIELD, min(flt(points * opts["point_value"], 2), payable_total(doc)))
+	doc.set(VALUE_FIELD, tender_value(doc, points, opts["point_value"]))
 	doc.set(ACCOUNT_FIELD, account)
 	doc.save(ignore_permissions=True)
 	_discard_payment_tickets(doc.name)
@@ -291,7 +300,7 @@ def _redeem_submitted(doc, account: str, points: int, programme) -> dict:
 
 	otp.assert_step_up(account, doc, points)
 
-	value = min(flt(points * opts["point_value"], 2), payable_total(doc))
+	value = tender_value(doc, points, opts["point_value"])
 	_post_redeem(locked, doc, points)
 	frappe.db.set_value(
 		INVOICE, doc.name, {POINTS_FIELD: points, VALUE_FIELD: value, ACCOUNT_FIELD: account}, update_modified=False
@@ -413,7 +422,7 @@ def validate_invoice_redemption(doc, method=None):
 		frappe.msgprint(message, alert=True)
 		points = allowed
 
-	value = min(flt(points * opts["point_value"], 2), payable_total(doc))
+	value = tender_value(doc, points, opts["point_value"])
 	doc.set(POINTS_FIELD, points)
 	doc.set(VALUE_FIELD, value)
 	doc.set(ACCOUNT_FIELD, account)

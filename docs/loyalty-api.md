@@ -104,6 +104,18 @@ ArcPOS Register User, Restaurant Manager, Restaurant Cashier, Restaurant Waiter)
   Payment Entry matches the invoice exactly. Any point value exceeding the invoice total
   is absorbed as breakage without cash change or point refund, and a `disclaimer`
   and `breakage_amount` are provided in `redemption_options`.
+- `max_points` is measured against the stored invoice (`rounded_total`, else
+  `grand_total`). Example: `point_value` 2.00, total 17.40, 40 available →
+  `max_points 9`, `max_value 17.40`, `breakage_amount 0.60`. `apply_points` with
+  10 is refused: `At most 9 points can be used on this order (40 available).`
+  Below 100 % of order, or with *Max Points per Order* set, points round down
+  instead and there is no breakage.
+- The tender value booked (`custom_loyalty_redeem_value`, and the Payment Entry)
+  is `min(points × point_value, amount still due)`: the full total on a draft,
+  the outstanding amount on a submitted part-paid order. The points debited are
+  always the points requested, so the ledger can be worth more than the invoice.
+  The difference is breakage and reaches the GL through the liability true-up,
+  so keep *Liability True-up Frequency* on Daily (or Monthly) when using round-up.
 - Draft orders: `apply_points` only reserves; the points are spent when the
   order is submitted (and refused then if another order spent them first).
   Submitted unpaid orders (dine-in sent to the kitchen): `apply_points` spends
@@ -164,6 +176,7 @@ ArcPOS Register User, Restaurant Manager, Restaurant Cashier, Restaurant Waiter)
 | D5 backfill | None; one-off bonuses via Adjustment |
 | D6 third-party channels | No earn, no redeem (they match no loyalty channel) |
 | D9 step-up OTP | Off by default (`step_up_threshold_points = 0`) |
+| Round-up to cover the bill | With *Max % of Order* = 100, `max_points` rounds up so points can pay the whole bill; the excess value is breakage, shown to the customer as `disclaimer` / `breakage_amount`, never refunded or given as change |
 | D10 Apple routing | `page_renderer`; a scoped `before_request` hook moves the `ApplePass` header out of Frappe's auth path and carries DELETE as POST |
 | Customer `after_insert` enrolment | Sign-up enrolment is called from `ensure_customer_for_user`, which every storefront sign-up path uses (a Customer insert happens before the User Permission exists) |
 | `feedback_submitted` | Fired when ArcPOS Feedback is *completed* (`is_completed = Yes`), not on insert — the row is created automatically at submit |

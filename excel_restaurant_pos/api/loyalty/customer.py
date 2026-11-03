@@ -7,7 +7,7 @@ POS: staff may act on any order, a customer only on their own.
 
 import frappe
 from frappe import _
-from frappe.utils import cint, getdate
+from frappe.utils import cint, flt, getdate
 
 from excel_restaurant_pos.api.loyalty.common import account_summary, load_invoice, own_account, require_enabled
 from excel_restaurant_pos.shared.customer_access import FULL, access_level, is_staff, require_login

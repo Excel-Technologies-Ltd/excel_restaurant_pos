@@ -108,6 +108,34 @@ waits for a Loyalty Manager (Desk → Loyalty → Adjustments → Approve & Post
 `POST api.loyalty.reissue_pass` → the old QR stops working at lookup, and the
 wallet passes update themselves.
 
+## Redemption rules the frontend must follow (order-web and pos-web)
+
+1. **Never compute the limit on the client.** `max_points` from
+   `redemption_options` is the only upper bound. It is the smallest number of
+   points that covers the whole bill (rounded up to `step`) when the programme's
+   *Max % of Order* is 100, capped by `available_points`, *Max Points per Order*
+   and the points the member has.
+   Example (`point_value` 2.00, bill 17.40): `max_points = 9` (9 × 2.00 = 18.00).
+   Sending 10 fails with `At most 9 points can be used on this order (40 available).`
+2. **Bound the control with the response.** The slider, stepper and "Max" button
+   run from `min_points` to `max_points` in steps of `step`. A typed number is
+   clamped to that range before it is sent.
+3. **Tender value** is `min(points × point_value, max_value)`. When
+   `points × point_value > max_value` the response carries `breakage_amount` and
+   `disclaimer`: show the disclaimer next to the control and on the receipt, and
+   show `amount_due` (not the nominal value) as "To pay". The extra value is not
+   refunded and not given as change.
+4. **Save the order with its taxes and tip before reading the options.** The
+   limit is measured against the invoice as stored on the server
+   (`rounded_total`, else `grand_total`). A draft that has not been synced with
+   the totals the till shows gives a lower `max_points` than the screen implies.
+   If the till total and the server total differ, re-save the order first.
+5. **Re-read `redemption_options` whenever the order changes** (item, tip, tax,
+   customer, service type) and after any "At most N points" or "reduced to N"
+   error, then let the user pick again.
+6. **Amount due.** After `apply_points`, collect `amount_due` with the other
+   tenders. When it is 0, do not ask for cash or card.
+
 ## Error handling
 - A 401 from customer endpoints means refresh the token and retry. A 403 means
   "not your order".
