@@ -216,6 +216,13 @@ def redemption_options(sales_invoice=None):
 	data["applied_points"] = cint(doc.get(redemption.POINTS_FIELD))
 	data["applied_value"] = redemption.redeemed_value(doc)
 	data["step_up_threshold"] = (threshold() or None) if is_staff() else None
+	full_value = flt(data.get("max_points", 0) * data.get("point_value", 0), 2)
+	max_val = flt(data.get("max_value", 0), 2)
+	if full_value > max_val:
+		data["breakage_amount"] = flt(full_value - max_val, 2)
+		data["disclaimer"] = _(
+			"Points cover the full bill. Any remaining point value cannot be refunded or returned as change."
+		)
 	return success_response(_("Redemption options"), data=data)
 
 

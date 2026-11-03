@@ -112,13 +112,25 @@ def options(doc, account: str | None = None, programme=None, available: int | No
 	available = max(cint(available), 0)
 	step = max(cint(programme.redeem_increment), 1)
 	cap_percent = flt(programme.max_redeem_percent_of_order) or 100
-	value_cap = min(flt(doc.get("grand_total")) * cap_percent / 100, _due_for_points(doc))
+	total_payable = payable_total(doc)
+	value_cap = min(flt(total_payable) * cap_percent / 100, _due_for_points(doc))
 
-	max_points = min(available, int(math.floor(value_cap / point_value + 1e-9)))
+	# When paying the full order (cap_percent >= 100), allow rounding up (ceil)
+	# to the nearest step so the customer can cover the entire bill with points
+	# without needing to pay small change in cash.
+	if cap_percent >= 100 and value_cap > 0:
+		step_value = point_value * step
+		step_chunks = int(math.ceil(value_cap / step_value - 1e-9))
+		needed_points = step_chunks * step
+		max_points = min(available, needed_points)
+	else:
+		max_points = min(available, int(math.floor(value_cap / point_value + 1e-9)))
+
 	if cint(programme.max_redeem_points_per_order):
 		max_points = min(max_points, cint(programme.max_redeem_points_per_order))
 	max_points = max((max_points // step) * step, 0)
 	min_points = int(math.ceil(max(cint(programme.min_redeem_points), step) / step)) * step
+	max_value = flt(min(max_points * point_value, value_cap), 2)
 
 	return {
 		"redeemable": max_points >= min_points and max_points > 0,
@@ -127,7 +139,7 @@ def options(doc, account: str | None = None, programme=None, available: int | No
 		"max_points": max_points,
 		"step": step,
 		"point_value": point_value,
-		"max_value": flt(max_points * point_value, 2),
+		"max_value": max_value,
 		"account": account,
 	}
 
@@ -242,7 +254,7 @@ def apply_points(invoice: str, points) -> dict:
 	opts = options(doc, account, programme)
 	_check_points(points, opts)
 	doc.set(POINTS_FIELD, points)
-	doc.set(VALUE_FIELD, flt(points * opts["point_value"], 2))
+	doc.set(VALUE_FIELD, min(flt(points * opts["point_value"], 2), payable_total(doc)))
 	doc.set(ACCOUNT_FIELD, account)
 	doc.save(ignore_permissions=True)
 	_discard_payment_tickets(doc.name)
@@ -279,7 +291,7 @@ def _redeem_submitted(doc, account: str, points: int, programme) -> dict:
 
 	otp.assert_step_up(account, doc, points)
 
-	value = flt(points * opts["point_value"], 2)
+	value = min(flt(points * opts["point_value"], 2), payable_total(doc))
 	_post_redeem(locked, doc, points)
 	frappe.db.set_value(
 		INVOICE, doc.name, {POINTS_FIELD: points, VALUE_FIELD: value, ACCOUNT_FIELD: account}, update_modified=False
@@ -401,7 +413,7 @@ def validate_invoice_redemption(doc, method=None):
 		frappe.msgprint(message, alert=True)
 		points = allowed
 
-	value = flt(points * opts["point_value"], 2)
+	value = min(flt(points * opts["point_value"], 2), payable_total(doc))
 	doc.set(POINTS_FIELD, points)
 	doc.set(VALUE_FIELD, value)
 	doc.set(ACCOUNT_FIELD, account)

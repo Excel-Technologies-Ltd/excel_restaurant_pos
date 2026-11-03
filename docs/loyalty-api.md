@@ -28,7 +28,7 @@ accept a customer id. With `ArcPOS Loyalty Settings.enabled = 0` they answer
 | `api.loyalty.rewards` | GET | — | catalogue rows with `affordable`, `eligible`, `reason`, `remaining_stock` |
 | `api.loyalty.redeem_reward` | POST | `reward`; **`Idempotency-Key` header** (or `idempotency_key` body) | `{transaction, reward, points, coupon_code, valid_upto, status}` — replaying the key returns the same voucher |
 | `api.loyalty.preview_earning` | POST | `sales_invoice`, **or** `items` (JSON `[{item_code, qty, rate}]`) + `order_from` + `service_type` | `{eligible, points, value, pending_days, awards[]}` |
-| `api.loyalty.redemption_options` | GET | `sales_invoice` | `{redeemable, available_points, min_points, max_points, step, point_value, max_value, applied_points, applied_value, step_up_threshold}` |
+| `api.loyalty.redemption_options` | GET | `sales_invoice` | `{redeemable, available_points, min_points, max_points, step, point_value, max_value, applied_points, applied_value, step_up_threshold, breakage_amount?, disclaimer?}` |
 | `api.loyalty.apply_points` | POST | `sales_invoice`, `points` | `{sales_invoice, points, value, grand_total, amount_due, account}` |
 | `api.loyalty.remove_points` | POST | `sales_invoice` | same shape |
 | `api.loyalty.preferences` | GET / POST | `notify_email`, `notify_push` (0/1) | `{notify_email, notify_push}` |
@@ -97,6 +97,13 @@ ArcPOS Register User, Restaurant Manager, Restaurant Cashier, Restaurant Waiter)
 - Limits: `min_redeem_points`, multiples of `redeem_increment`,
   `max_redeem_points_per_order`, `max_redeem_percent_of_order` and the amount
   still due.
+- **Full Order Coverage (Rounding Up):** When `max_redeem_percent_of_order >= 100`,
+  points can round up (ceiling) to the nearest step to cover the entire bill without
+  requiring fractional cash/cents from the customer. The monetary value applied
+  (`custom_loyalty_redeem_value`) is capped at the invoice payable total so the
+  Payment Entry matches the invoice exactly. Any point value exceeding the invoice total
+  is absorbed as breakage without cash change or point refund, and a `disclaimer`
+  and `breakage_amount` are provided in `redemption_options`.
 - Draft orders: `apply_points` only reserves; the points are spent when the
   order is submitted (and refused then if another order spent them first).
   Submitted unpaid orders (dine-in sent to the kitchen): `apply_points` spends
