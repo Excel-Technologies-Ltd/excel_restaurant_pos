@@ -66,6 +66,13 @@ jobs:
           # APPS_JSON is identical between runs, so the builder stage (bench init)
           # must skip the cache or it would ship stale app code;
           # only base layers (system deps, Python, Node) come from the cache.
+          #
+          # Cache export uses mode=min (final-image layers only). mode=max would also
+          # upload every builder-stage layer, including the multi-GB `bench init`
+          # layer, on every run. Because of --no-cache-filter builder those layers
+          # are never reused, so mode=max just doubled the upload for nothing.
+          # With mode=min the cache shares blobs with the image already being pushed
+          # to the same repo, so it adds almost no upload.
           docker buildx build \
             --platform linux/amd64 \
             --build-arg BASE_REGISTRY="$BASE_REGISTRY" \
@@ -76,7 +83,7 @@ jobs:
             --build-arg APPS_JSON_BASE64="$APPS_JSON_BASE64" \
             --no-cache-filter builder \
             --cache-from type=registry,ref=$IMAGE:buildcache \
-            --cache-to type=registry,ref=$IMAGE:buildcache,mode=max \
+            --cache-to type=registry,ref=$IMAGE:buildcache,mode=min,ignore-error=true \
             --tag "$IMAGE:$TAG" \
             --tag "$IMAGE:latest" \
             --file images/custom/Containerfile \
