@@ -3,6 +3,10 @@
 The backend is the single source of truth. Frontends only display what the
 APIs return and never compute balances themselves. Contract: `docs/loyalty-api.md`.
 
+Till behaviour is below. Programme setup (settings, programmes, campaigns,
+rewards, the ledger) is specified for implementation in
+`docs/loyalty-admin-frontend-guide.md`.
+
 ## order-web (storefront / app)
 
 ### Loyalty home

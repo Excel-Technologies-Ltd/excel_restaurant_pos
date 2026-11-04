@@ -84,6 +84,8 @@ ArcPOS Register User, Restaurant Manager, Restaurant Cashier, Restaurant Waiter)
 
 ## Programme admin (POS)
 
+Field-by-field POS implementation guide: `docs/loyalty-admin-frontend-guide.md`.
+
 Loyalty Manager or System Manager. Cashiers do not have these routes.
 Send a JSON object as `data`, or send the fields as the request body.
 Child tables (`tiers`, `base_rules`, `rules`, `excluded_customers`, …) replace
