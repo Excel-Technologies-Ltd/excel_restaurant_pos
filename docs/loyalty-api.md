@@ -82,6 +82,51 @@ ArcPOS Register User, Restaurant Manager, Restaurant Cashier, Restaurant Waiter)
 | `api.loyalty.adjust` | POST | `account`, `points` (signed), `reason`, `remarks`, `expiry_date` | `{adjustment, approval_status, docstatus}` — posted immediately for a Loyalty Manager under the approval threshold, otherwise left Pending Approval |
 | `api.loyalty.reissue_pass` | POST | `account` | summary; the old barcode stops working. Managers only (Loyalty Manager, Restaurant Manager, ArcPOS Manager) |
 
+## Programme admin (POS)
+
+Loyalty Manager or System Manager. Cashiers do not have these routes.
+Send a JSON object as `data`, or send the fields as the request body.
+Child tables (`tiers`, `base_rules`, `rules`, `excluded_customers`, …) replace
+the whole table when present. Secrets (`member_token_secret`, certificate
+password, callback secret) are never returned and cannot be set here.
+
+There is no Inactive status. `inactive` on a programme means **Paused**.
+`inactive` on an account means **Suspended**. Only one programme per company
+can be Active.
+
+Transactions are the ledger. They can be listed and read. Points are corrected
+with `api.loyalty.adjust`, not by editing a transaction.
+
+| Route | Method | Params |
+| --- | --- | --- |
+| `api.loyalty.settings.get` | GET | — |
+| `api.loyalty.settings.update` | POST | settings fields, `excluded_customers` |
+| `api.loyalty.programmes` | GET | `status`, `company`, `page`, `page_size` |
+| `api.loyalty.programme` | GET | `name` |
+| `api.loyalty.programme.create` | POST | programme fields, `tiers`, `base_rules`, `base_rule_items`, `exclude_item_groups` |
+| `api.loyalty.programme.update` | POST | `name` + fields to change |
+| `api.loyalty.programme.set_status` | POST | `name`, `status` (`Draft`, `Active`, `Paused` / `inactive`, `Ended`) |
+| `api.loyalty.transactions.list` | GET | `account`, `customer`, `programme`, `type`, `status`, `from_date`, `to_date`, `page`, `page_size` |
+| `api.loyalty.transaction` | GET | `name` |
+| `api.loyalty.accounts` | GET | `status`, `programme`, `query`, `page`, `page_size` |
+| `api.loyalty.account` | GET | `name` |
+| `api.loyalty.account.set_status` | POST | `name`, `status` (`Active`, `Suspended` / `inactive`, `Closed`), `remarks` |
+| `api.loyalty.campaigns.list` | GET | `programme`, `status`, `page`, `page_size` |
+| `api.loyalty.campaign` | GET | `name` |
+| `api.loyalty.campaign.create` | POST | campaign fields, `rules`, `rule_items` |
+| `api.loyalty.campaign.update` | POST | `name` + fields. Pause a live campaign before changing rules |
+| `api.loyalty.campaign.action` | POST | `name`, `action` (`activate`, `pause`, `resume`, `end`) |
+| `api.loyalty.rewards.list` | GET | `programme`, `enabled`, `page`, `page_size` |
+| `api.loyalty.reward` | GET | `name` |
+| `api.loyalty.reward.create` / `reward.update` | POST | reward fields |
+| `api.loyalty.segments` / `segment` | GET | list, or `name` |
+| `api.loyalty.segment.create` / `segment.update` | POST | segment fields, `members` |
+| `api.loyalty.event_types` / `event_type` | GET | list, or `name` |
+| `api.loyalty.event_type.create` / `event_type.update` | POST | `event_code` cannot change on a built-in type |
+| `api.loyalty.adjustments` / `adjustment` | GET | `account`, `approval_status`, or `name` |
+| `api.loyalty.adjustment.approve` / `adjustment.reject` | POST | `name`; reject also takes `reason` |
+| `api.loyalty.tier_changes` | GET | `account`, `page`, `page_size` |
+
 ## Integrations
 
 | Route | Auth | Params |
